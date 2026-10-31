@@ -1,4 +1,107 @@
- -- Habilitar extensión UUID
+ // app-tienda.js - Módulo Frontend App Tienda DeliveryYa Flota
+
+class AppTiendaManager {
+    constructor(supabaseClient, tiendaId) {
+        this.supabase = supabaseClient;
+        this.tiendaId = tiendaId;
+        this.tarifasCache = {};
+    }
+
+    async inicializarTarifas() {
+        const { data, error } = await this.supabase.from('tarifas_delivery').select('*');
+        if (!error && data) {
+            data.forEach(t => { this.tarifasCache[t.localidad] = t.precio_gs; });
+        }
+    }
+
+    calcularTarifa(localidad) {
+        return this.tarifasCache[localidad] ?? null;
+    }
+
+    validarTelefonoParaguayo(tel) {
+        const limpio = (tel || "").replace(/\D/g, "");
+        return /^09\d{8}$/.test(limpio);
+    }
+
+    async guardarPedido(formData) {
+        // 1. Validaciones de Negocio
+        if (!formData.cliente || !formData.cliente.trim()) {
+            throw new Error("Ingresá el nombre del cliente.");
+        }
+        if (!this.validarTelefonoParaguayo(formData.telefono)) {
+            throw new Error("Ingresá un celular paraguayo válido (formato 09XXXXXXXX).");
+        }
+        if (!formData.direccion || !formData.direccion.trim()) {
+            throw new Error("Ingresá la dirección de entrega.");
+        }
+        
+        const precioMercaderia = Number(formData.precioMercaderia);
+        if (!Number.isFinite(precioMercaderia) || precioMercaderia < 0) {
+            throw new Error("Ingresá un precio de mercadería válido en Guaraníes.");
+        }
+
+        const envio = this.calcularTarifa(formData.localidad);
+        if (envio === null) {
+            throw new Error("La localidad seleccionada está fuera de cobertura o pendiente de tarifa.");
+        }
+
+        // 2. Cálculo estricto de cobro según modalidad
+        let totalACobrar = 0;
+        if (formData.modalidadPago === "Pendiente") {
+            totalACobrar = precioMercaderia + envio;
+        } else if (formData.modalidadPago === "Pagado a Tienda") {
+            totalACobrar = envio; // Solo se cobra el delivery al recibir
+        } else if (formData.modalidadPago === "Todo Pagado") {
+            totalACobrar = 0; // Nada que cobrar en destino
+        }
+
+        // 3. Persistencia segura en Supabase con vinculación estricta de tienda
+        const payloadPedido = {
+            empresa_id: formData.empresaId,
+            tienda_id: this.tiendaId,
+            nombre_cliente_snapshot: formData.cliente.trim(),
+            telefono_snapshot: formData.telefono.trim(),
+            direccion_snapshot: formData.direccion.trim(),
+            localidad: formData.localidad,
+            latitude: formData.latitude || null,
+            longitude: formData.longitude || null,
+            precio_mercaderia_gs: precioMercaderia,
+            precio_envio_gs: envio,
+            modalidad_pago: formData.modalidadPago,
+            total_a_cobrar_gs: totalACobrar,
+            estado: "Pendiente",
+            observaciones: formData.observaciones || ""
+        };
+
+        const { data, error } = await this.supabase
+            .from('pedidos')
+            .insert([payloadPedido])
+            .select()
+            .single();
+
+        if (error) {
+            throw new Error("Error al registrar el pedido en el servidor: " + error.message);
+        }
+
+        return data;
+    }
+
+    async consultarPedidosTienda(filtroEstado = 'Todos') {
+        let query = this.supabase
+            .from('pedidos')
+            .select('*')
+            .eq('tienda_id', this.tiendaId)
+            .order('created_at', { ascending: false });
+
+        if (filtroEstado !== 'Todos') {
+            query = query.eq('estado', filtroEstado);
+        }
+
+        const { data, error } = await query;
+        if (error) throw new Error("No se pudieron cargar los pedidos.");
+        return data;
+    }
+} -- Habilitar extensión UUID
 create extension if not exists "uuid-ossp";
 
 -- 1. Empresas administradoras
