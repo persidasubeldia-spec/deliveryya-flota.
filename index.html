@@ -82,6 +82,27 @@ async function prepareAuth(){
  $('logoutBtn').addEventListener('click',async()=>{await supabaseClient.auth.signOut()});
 }
 prepareAuth();
+
+/* Entrada de ubicaciones compartidas por WhatsApp/Android Web Share Target */
+async function importSharedLocation(){
+  const query=new URLSearchParams(location.search);
+  let shared=query.get('shared_url')||query.get('url')||query.get('text')||'';
+  if(!shared){try{shared=sessionStorage.getItem('deliveryya_shared_location')||'';sessionStorage.removeItem('deliveryya_shared_location')}catch{}}
+  if(!shared)return;
+  shared=shared.trim();
+  const match=shared.match(/https:\/\/[^\s<>"]+/i);
+  if(match)shared=match[0].replace(/[),.;]+$/,'');
+  if(shared.length>2048)return;
+  const isCoords=/^-?\d{1,2}\.\d+\s*,\s*-?\d{1,3}\.\d+$/.test(shared);
+  let safe=false;try{const u=new URL(shared);safe=u.protocol==='https:'&&['share.google','maps.app.goo.gl','goo.gl','google.com','www.google.com','maps.google.com','google.com.py','www.google.com.py'].includes(u.hostname)}catch{}
+  if(!safe&&!isCoords){show('El contenido compartido no es un enlace de Google Maps válido.','error');return}
+  go('nuevo');$('mapLink').value=shared;updateForm();
+  history.replaceState({},'',location.pathname+location.hash);
+  if(!coordsFrom(shared)){await resolveMapLink()}
+  else show('Ubicación recibida. Comprobá el destino y completá los datos del cliente.');
+}
+
+importSharedLocation();
 $('city').innerHTML=locations.map(([code,name,cost])=>`<option value="${escapeHTML(code)}">${escapeHTML(name)}${cost===null&&code?' — consultar':''}</option>`).join('');document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));$('orderForm').addEventListener('submit',e=>{e.preventDefault();saveOrder(false)});$('draftBtn').addEventListener('click',()=>saveOrder(true));$('orderForm').addEventListener('input',updateForm);$('orderForm').addEventListener('change',updateForm);$('orderForm').addEventListener('reset',()=>setTimeout(updateForm,0));$('goods').addEventListener('blur',()=>{const raw=$('goods').value.trim();if(raw){const n=parseGs(raw);if(Number.isSafeInteger(n))$('goods').value=new Intl.NumberFormat('es-PY').format(n)}updateForm()});$('searchOrders').addEventListener('input',render);$('filterOrders').addEventListener('change',render);$('searchClients').addEventListener('input',render);$('mapLink').addEventListener('blur',resolveMapLink);$('phone').addEventListener('blur',updateForm);$('storeForm').addEventListener('submit',e=>{e.preventDefault();const name=$('storeName').value.trim();if(!name){show('Ingresá un nombre para la tienda.','error');return}const oldStore={...data.store};data.store={name,owner:$('storeOwner').value.trim(),phone:$('storePhone').value.trim()};if(persist())show('Perfil local guardado.');else data.store=oldStore;render()});document.addEventListener('click',e=>{const copy=e.target.closest('[data-copy]');const re=e.target.closest('[data-reuse]');if(copy)copyOrder(copy.dataset.copy);if(re)reuse(re.dataset.reuse)});$('exportBtn').addEventListener('click',()=>{const b=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),...data},null,2)],{type:'application/json'});const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download='deliveryya_tienda_respaldo_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});updateForm();render();
 })();
 </script>
