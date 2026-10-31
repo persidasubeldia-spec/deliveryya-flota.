@@ -3,6 +3,241 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeliveryYa - Panel de Tienda y Flota</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-900">
+
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-blue-600 text-white shadow-md sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl font-black tracking-wider">DeliveryYa</span>
+                    <span class="bg-blue-500 text-xs px-2.5 py-1 rounded-full uppercase font-semibold">Sistema Pro</span>
+                </div>
+                <div class="text-sm bg-blue-700 px-3 py-1.5 rounded-lg font-medium">
+                    Estado: <span class="text-green-300 font-bold">🟢 En Línea</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navegación -->
+        <nav class="bg-white border-b shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 flex space-x-8">
+                <button onclick="cambiarTab('dashboard')" id="btn-dashboard" class="py-4 px-1 border-b-2 font-medium text-sm border-blue-600 text-blue-600 transition">Dashboard</button>
+                <button onclick="cambiarTab('productos')" id="btn-productos" class="py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 transition">Productos / Tienda</button>
+                <button onclick="cambiarTab('pedidos')" id="btn-pedidos" class="py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 transition">Gestión de Pedidos</button>
+                <button onclick="cambiarTab('flota')" id="btn-flota" class="py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 transition">Flota y Conductores</button>
+            </div>
+        </nav>
+
+        <!-- Contenido -->
+        <main class="flex-1 max-w-7xl w-full mx-auto p-6">
+
+            <!-- 1. DASHBOARD -->
+            <div id="seccion-dashboard" class="space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800">Resumen General de Operaciones</h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <p class="text-sm font-medium text-gray-500">Ventas Totales Hoy</p>
+                        <p class="text-3xl font-bold text-blue-600 mt-2">Gs. 1.450.000</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <p class="text-sm font-medium text-gray-500">Pedidos Activos</p>
+                        <p id="stat-pedidos" class="text-3xl font-bold text-amber-600 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <p class="text-sm font-medium text-gray-500">Productos en Catálogo</p>
+                        <p id="stat-productos" class="text-3xl font-bold text-green-600 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                        <p class="text-sm font-medium text-gray-500">Flota Activa</p>
+                        <p class="text-3xl font-bold text-purple-600 mt-2">2</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. PRODUCTOS -->
+            <div id="seccion-productos" class="space-y-6 hidden">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Catálogo de Productos de la Tienda</h2>
+                    <button onclick="abrirModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm shadow">Agregar Producto</button>
+                </div>
+
+                <div class="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Nombre</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Precio (Gs.)</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Stock</th>
+                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-productos" class="divide-y divide-gray-200 bg-white">
+                            <!-- Inyectado por JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. PEDIDOS -->
+            <div id="seccion-pedidos" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Control de Pedidos en Vivo</h2>
+                <div class="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID Pedido</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Cliente</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Estado</th>
+                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-pedidos" class="divide-y divide-gray-200 bg-white">
+                            <!-- Inyectado por JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 4. FLOTA -->
+            <div id="seccion-flota" class="space-y-6 hidden">
+                <h2 class="text-2xl font-bold text-gray-800">Gestión de Conductores y Flota</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">Juan Pérez</h3>
+                            <p class="text-sm text-gray-500">Moto 150cc - Asunción</p>
+                        </div>
+                        <span class="px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700">Disponible</span>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">Pedro Gómez</h3>
+                            <p class="text-sm text-gray-500">Furgoneta - Central</p>
+                        </div>
+                        <span class="px-3 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-700">En Ruta</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Modal -->
+        <div id="modal-producto" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-white p-6 rounded-xl w-full max-w-md shadow-lg space-y-4">
+                <h3 class="text-xl font-bold text-gray-800">Agregar Nuevo Producto</h3>
+                <input type="text" id="input-nombre" placeholder="Nombre del producto" class="w-full border p-2.5 rounded-lg text-sm">
+                <input type="text" id="input-precio" placeholder="Precio (Ej: 120.000 Gs)" class="w-full border p-2.5 rounded-lg text-sm">
+                <input type="number" id="input-stock" placeholder="Stock disponible" class="w-full border p-2.5 rounded-lg text-sm">
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button onclick="cerrarModal()" class="px-4 py-2 text-gray-600 text-sm font-medium">Cancelar</button>
+                    <button onclick="guardarProducto()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium shadow">Guardar</button>
+                </div>
+            </div>
+        </div>
+
+        <footer class="bg-white border-t py-4 text-center text-xs text-gray-500">
+            DeliveryYa Panel Pro &copy; 2026 - Todos los derechos reservados.
+        </footer>
+    </div>
+
+    <script>
+        // Datos iniciales o cargados de localStorage
+        let productos = JSON.parse(localStorage.getItem('dy_productos')) || [
+            { nombre: 'Vestido Casual Verano', precio: '120.000 Gs', stock: 15 },
+            { nombre: 'Calzado Deportivo Urbano', precio: '180.000 Gs', stock: 8 }
+        ];
+
+        let pedidos = JSON.parse(localStorage.getItem('dy_pedidos')) || [
+            { id: '#1001', cliente: 'Carlos Benítez', total: '120.000 Gs', estado: 'Pendiente' },
+            { id: '#1002', cliente: 'María Giménez', total: '180.000 Gs', estado: 'En Ruta' }
+        ];
+
+        function cambiarTab(tab) {
+            ['dashboard', 'productos', 'pedidos', 'flota'].forEach(t => {
+                document.getElementById('seccion-' + t).classList.add('hidden');
+                document.getElementById('btn-' + t).className = "py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 transition";
+            });
+            document.getElementById('seccion-' + tab).classList.remove('hidden');
+            document.getElementById('btn-' + tab).className = "py-4 px-1 border-b-2 font-medium text-sm border-blue-600 text-blue-600 transition";
+        }
+
+        function renderizar() {
+            // Productos
+            let htmlProd = '';
+            productos.forEach((p, idx) => {
+                htmlProd += `<tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.nombre}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${p.precio}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${p.stock}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="eliminarProducto(${idx})" class="text-red-600 hover:text-red-900">Eliminar</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('tabla-productos').innerHTML = htmlProd;
+            document.getElementById('stat-productos').innerText = productos.length;
+
+            // Pedidos
+            let htmlPed = '';
+            pedidos.forEach((ped, idx) => {
+                let badge = ped.estado === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
+                htmlPed += `<tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600">${ped.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${ped.cliente}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${ped.total}</td>
+                    <td class="px-6 py-4 whitespace-nowrap"><span class="px-2.5 py-1 text-xs font-semibold rounded-full ${badge}">${ped.estado}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="cambiarEstadoPedido(${idx})" class="text-blue-600 hover:text-blue-900 bg-blue-50 px-2.5 py-1 rounded">Cambiar Estado</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('tabla-pedidos').innerHTML = htmlPed;
+            document.getElementById('stat-pedidos').innerText = pedidos.length;
+
+            localStorage.setItem('dy_productos', JSON.stringify(productos));
+            localStorage.setItem('dy_pedidos', JSON.stringify(pedidos));
+        }
+
+        function abrirModal() { document.getElementById('modal-producto').classList.remove('hidden'); }
+        function cerrarModal() { document.getElementById('modal-producto').classList.add('hidden'); }
+
+        function guardarProducto() {
+            let nombre = document.getElementById('input-nombre').value;
+            let precio = document.getElementById('input-precio').value;
+            let stock = document.getElementById('input-stock').value;
+            if(nombre && precio) {
+                productos.push({ nombre, precio, stock: stock || 0 });
+                document.getElementById('input-nombre').value = '';
+                document.getElementById('input-precio').value = '';
+                document.getElementById('input-stock').value = '';
+                cerrarModal();
+                renderizar();
+            }
+        }
+
+        function eliminarProducto(idx) {
+            productos.splice(idx, 1);
+            renderizar();
+        }
+
+        function cambiarEstadoPedido(idx) {
+            pedidos[idx].estado = pedidos[idx].estado === 'Pendiente' ? 'En Ruta' : 'Entregado';
+            renderizar();
+        }
+
+        renderizar();
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeliveryYa - Gestión de Flota</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
