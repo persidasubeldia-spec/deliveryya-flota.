@@ -1,4 +1,111 @@
- <!DOCTYPE html>
+ -- Habilitar extensión UUID
+create extension if not exists "uuid-ossp";
+
+-- 1. Empresas administradoras
+create table empresas (
+    id uuid primary key default uuid_generate_v4(),
+    nombre text not null,
+    estado text default 'activo',
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. Tiendas vinculadas
+create table tiendas (
+    id uuid primary key default uuid_generate_v4(),
+    empresa_id uuid references empresas(id) on delete cascade not null,
+    nombre text not null,
+    responsable text,
+    telefono text,
+    email_comercial text,
+    direccion text,
+    latitude decimal(10, 8),
+    longitude decimal(11, 8),
+    activa boolean default true,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 3. Miembros y Roles por Tienda
+create table miembros_tienda (
+    id uuid primary key default uuid_generate_v4(),
+    tienda_id uuid references tiendas(id) on delete cascade not null,
+    usuario_id uuid references auth.users(id) on delete cascade not null,
+    rol text default 'operador',
+    activo boolean default true
+);
+
+-- 4. Tarifas de Delivery por Localidad (Guaraníes)
+create table tarifas_delivery (
+    id uuid primary key default uuid_generate_v4(),
+    localidad text unique not null,
+    precio_gs integer not null,
+    activa boolean default true
+);
+
+insert into tarifas_delivery (localidad, precio_gs) values
+('Asunción', 25000),
+('Central', 25000),
+('Limpio', 35000),
+('Itá', 35000),
+('Itauguá', 35000),
+('Ypacaraí', 35000),
+('Nueva Italia', 45000),
+('Villeta', 45000),
+('Villa Hayes', 45000),
+('San Pedro', 55000);
+
+-- 5. Clientes por Tienda (Agenda Comercial)
+create table clientes (
+    id uuid primary key default uuid_generate_v4(),
+    tienda_id uuid references tiendas(id) on delete cascade not null,
+    nombre text not null,
+    telefono_normalizado text not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 6. Pedidos Operativos
+create table pedidos (
+    id uuid primary key default uuid_generate_v4(),
+    empresa_id uuid references empresas(id) not null,
+    tienda_id uuid references tiendas(id) not null,
+    cliente_id uuid references clientes(id),
+    nombre_cliente_snapshot text not null,
+    telefono_snapshot text not null,
+    direccion_snapshot text not null,
+    localidad text not null,
+    latitude decimal(10, 8),
+    longitude decimal(11, 8),
+    precio_mercaderia_gs integer not null default 0,
+    precio_envio_gs integer not null,
+    modalidad_pago text not null, -- 'Pendiente', 'Pagado a Tienda', 'Todo Pagado'
+    total_a_cobrar_gs integer not null,
+    estado text default 'Pendiente',
+    observaciones text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- HABILITAR ROW LEVEL SECURITY (RLS)
+alter table tiendas enable row level security;
+alter table miembros_tienda enable row level security;
+alter table clientes enable row level security;
+alter table pedidos enable row level security;
+
+-- Políticas de Seguridad: Cada tienda opera estrictamente sobre sus propios registros
+create policy "Acceso restringido a miembros de la tienda" on pedidos
+    for all using (
+        tienda_id in (
+            select tienda_id from miembros_tienda 
+            where usuario_id = auth.uid() and activo = true
+        )
+    );
+
+create policy "Clientes visibles solo para su tienda" on clientes
+    for all using (
+        tienda_id in (
+            select tienda_id from miembros_tienda 
+            where usuario_id = auth.uid() and activo = true
+        )
+    ); <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
