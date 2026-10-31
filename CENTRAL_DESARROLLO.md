@@ -45,3 +45,17 @@ Actualizado: 2026-10-31
 
 ## Criterio de continuidad
 Mantener intactos pedidos reales, códigos de tienda y cuentas existentes. No presentar escenario DEMO como cobro real. Aplicar cambios pequeños, migraciones seguras, pruebas y verificación del despliegue antes de afirmar funcionalidad completa.
+
+
+## Ejecución adicional — 2026-10-31
+- Se creó control administrativo de alta e invitación de nuevas tiendas y se bloqueó la creación directa no autorizada desde App Tienda. Los comercios ya registrados mantienen su lectura por membresía.
+- Se reforzó la conciliación de caja para confirmar efectivo y transferencias separadamente; la verificación transaccional devolvió ambas diferencias en cero.
+- Se agregó prevención de cobros nuevos después de presentar la caja y cierre protegido de rutas sin pedidos abiertos.
+- Se incorporó comisión general de flota y excepción por motorista para operaciones futuras.
+- Se habilitó GPS voluntario con estado de antigüedad y optimización individual con orden separado del número general.
+- Se creó un laboratorio interactivo DEMO en simulacros.html, aislado de producción, con RPCs para estados, cambios de motorista y guardado del orden de diez paradas.
+- Se validó bajo BEGIN/ROLLBACK la transición del escenario SIM-5-R10 a entregado, cambio a motorista 2 y posición 1: efectivo ₲125.000, empresa ₲6.250. Ningún dato de prueba se persistió.
+- Se comprobó Vercel READY del commit 827bb4fa17de2658b60f8a4d702444666394f19c.
+- Se incorporaron pruebas sintácticas en scripts/smoke.mjs y GitHub Actions workflow; todavía falta confirmar estado efectivo del workflow.
+- Advertencias de Supabase pendientes: funciones SECURITY DEFINER autenticadas (algunas intencionales y protegidas por permisos), activación de protección de contraseñas filtradas, y tablas RLS sin políticas que deniegan acceso directo deliberadamente.
+- Sigue pendiente una batería de pruebas E2E autenticadas desde navegadores reales, las cinco optimizaciones viales completas y pruebas de liquidación real de tiendas. No declarar sistema terminado hasta validar estos puntos.
