@@ -78,3 +78,12 @@ Mantener intactos pedidos reales, códigos de tienda y cuentas existentes. No pr
 - Se conservan RPC existentes de numeración, reparto atómico y finanzas.
 - Validación: comprobación sintáctica JavaScript realizada. Pendiente prueba E2E autenticada y confirmación de despliegue del commit nuevo (Vercel indicó todavía READY del commit anterior 5b047236...).
 - No habilitada distribución automática multivehículo: requiere motor de optimización vehicular real, no asignación arbitraria.
+
+## Auditoría y mejoras de despacho — 2026-10-31
+- Confirmado: elegibilidad de optimización era una instantánea calculada al entrar a Rutas; corregido para evaluar pedidos actuales al optimizar y refrescar.
+- Añadido filtro de mapa por motorista, resumen de su carga y actualización al asignar.
+- Añadida selección en lote de pedidos pendientes numerados dentro del área visible del mapa (sin dibujar polígonos); botón para limpiar selección. Restricción: opera sobre vista actual y no sustituye un optimizador VRP multivehículo.
+- Enlace directo desde Centro de Despacho al laboratorio aislado con 50 pedidos DEMO; no se insertaron pedidos ficticios en producción.
+- Versiones GitHub: 859126abd4b9f37eb90bb5a3f16adf9fba7ce3bd y 0ea2f77e8ed4006acffa7465e539d5780166f0e2.
+- JavaScript validado sintácticamente. Pendientes pruebas E2E UI autenticadas y algoritmo de distribución vial para varias motos.
+- PUBLICACIÓN BLOQUEADA: Vercel create_deployment devolvió HTTP 402 api-deployments-young-hobby-team-24h. Última versión READY verificada era anterior a estos cambios. No afirmar que la versión 0ea2f77 está publicada; hace falta esperar liberación de cuota o intervención del titular de la cuenta.
