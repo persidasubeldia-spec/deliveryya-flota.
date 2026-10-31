@@ -67,10 +67,10 @@ const themeKey='deliveryya_tienda_theme_v1';
 function setTheme(mode){const dark=mode==='dark';document.body.classList.toggle('dark',dark);$('themeToggle').textContent=dark?'☀️ Día':'🌙 Noche';try{localStorage.setItem(themeKey,dark?'dark':'light')}catch{}}
 $('themeToggle').addEventListener('click',()=>setTheme(document.body.classList.contains('dark')?'light':'dark'));
 setTheme(localStorage.getItem(themeKey)||'light');
-let activeStore=null,cloudMode=false,teamRole="propietario",teamUsers=[];const pendingInvite=new URLSearchParams(location.search).get('invite');
+let activeStore=null,cloudMode=false,teamRole="propietario",teamUsers=[];let pendingInvite=new URLSearchParams(location.search).get('invite');
 async function loadCloud(){
  const {data:{user}}=await supabaseClient.auth.getUser();if(!user)return;
- if(pendingInvite){const {error:inviteError}=await supabaseClient.rpc('aceptar_invitacion_tienda',{p_token:pendingInvite});if(inviteError)throw Error('Invitación no aceptada: '+inviteError.message);history.replaceState(null,'',location.pathname)}
+ if(pendingInvite){const {error:inviteError}=await supabaseClient.rpc('aceptar_invitacion_tienda',{p_token:pendingInvite});if(inviteError)throw Error('Invitación no aceptada: '+inviteError.message);pendingInvite=null;history.replaceState(null,'',location.pathname)}
  const {data:membership,error:membershipError}=await supabaseClient.from('tienda_miembros').select('tienda_id,rol').eq('usuario_id',user.id).eq('activo',true).limit(2);
  if(membershipError)throw membershipError;
  if(membership?.length>1)throw Error('Usuario asignado a más de una tienda. Contactá a la flota.');
