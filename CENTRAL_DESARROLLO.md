@@ -87,3 +87,11 @@ Mantener intactos pedidos reales, códigos de tienda y cuentas existentes. No pr
 - Versiones GitHub: 859126abd4b9f37eb90bb5a3f16adf9fba7ce3bd y 0ea2f77e8ed4006acffa7465e539d5780166f0e2.
 - JavaScript validado sintácticamente. Pendientes pruebas E2E UI autenticadas y algoritmo de distribución vial para varias motos.
 - PUBLICACIÓN BLOQUEADA: Vercel create_deployment devolvió HTTP 402 api-deployments-young-hobby-team-24h. Última versión READY verificada era anterior a estos cambios. No afirmar que la versión 0ea2f77 está publicada; hace falta esperar liberación de cuota o intervención del titular de la cuenta.
+
+## Finanzas 5.0 — control de rechazos (2026-10-31)
+- Auditoría no destructiva de base de datos: 1 pedido, 0 movimientos financieros reales, 0 cierres y 0 detalles de rechazo. Los contadores de empresas cruzadas, duplicados, comisiones inconsistentes y saldos de rechazo inconsistentes devolvieron 0 (pruebas sin datos de movimientos reales; no demuestra lógica E2E).
+- Corrección `reporte-tienda.html`: consulta `flota_rechazos_detalle`, muestra cobrado, pendiente y responsable; suma únicamente saldo pendiente a la deuda de tienda cuando se identifica explícitamente `responsable_pago=tienda`.
+- Corrección `central.html`: deja de calcular el valor completo de envíos rechazados como deuda de tienda; utiliza el pendiente confirmado de cada detalle.
+- Conservados movimientos originales y políticas; no se modificaron datos reales de pagos.
+- Comprobación de sintaxis JavaScript completada en ambos archivos y casos matemáticos SQL sin persistencia.
+- Pendientes: flujos E2E de caja y cierres, confirmación de transferencias, ajustes contables auditados, persistencia de obligaciones por pago previo, comprobantes con conciliación, pruebas de simultaneidad, autorización y despliegue (Vercel reportó cuota 402 en despliegue anterior).
