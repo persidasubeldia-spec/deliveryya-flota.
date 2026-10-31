@@ -68,3 +68,13 @@ Mantener intactos pedidos reales, códigos de tienda y cuentas existentes. No pr
 - Finanzas: tres subpantallas de resumen, rendiciones de motoristas y tiendas sin alterar cálculo ni las operaciones de conciliación.
 - GitHub commit verificado: 5b0472363fa03a095c7a2c7e62f68bfc127e4e60; Vercel READY.
 - Pendiente de validación: navegación real con usuario autenticado, pruebas de acciones en Chrome/Safari/Android, paginación real del backend (la vista solo limita filas), nueva creación manual de pedido y pruebas E2E completas. La existencia del control y el estado READY no prueban su operación.
+
+## DeliveryYa Flota 4.0 — Centro de despacho
+- Rediseño de Rutas guardado en GitHub, commit bf989db064df89a6efe37d5e809bd9a07a581229.
+- Distribución adaptable con mapa predominante ~70 % y panel ~30 %.
+- Panel con Pedidos, Motoristas y Detalle; búsqueda por cliente, dirección o código de tienda.
+- Marcadores numerados y coloreados, selección mapa/lista y detalle contextual.
+- Vista previa vial dibuja geometría GeoJSON y muestra distancia/duración del proveedor cuando disponibles.
+- Se conservan RPC existentes de numeración, reparto atómico y finanzas.
+- Validación: comprobación sintáctica JavaScript realizada. Pendiente prueba E2E autenticada y confirmación de despliegue del commit nuevo (Vercel indicó todavía READY del commit anterior 5b047236...).
+- No habilitada distribución automática multivehículo: requiere motor de optimización vehicular real, no asignación arbitraria.
