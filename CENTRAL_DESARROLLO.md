@@ -59,3 +59,12 @@ Mantener intactos pedidos reales, códigos de tienda y cuentas existentes. No pr
 - Se incorporaron pruebas sintácticas en scripts/smoke.mjs y GitHub Actions workflow; todavía falta confirmar estado efectivo del workflow.
 - Advertencias de Supabase pendientes: funciones SECURITY DEFINER autenticadas (algunas intencionales y protegidas por permisos), activación de protección de contraseñas filtradas, y tablas RLS sin políticas que deniegan acceso directo deliberadamente.
 - Sigue pendiente una batería de pruebas E2E autenticadas desde navegadores reales, las cinco optimizaciones viales completas y pruebas de liquidación real de tiendas. No declarar sistema terminado hasta validar estos puntos.
+
+## Central 3.0 — Rediseño operativo 2026-10-31
+- Inicio: seis indicadores de actividad, acceso por indicador a pedidos/motoristas, acciones rápidas, alertas y actividad reciente.
+- Pedidos: buscador por cliente/teléfono/tienda, filtros por estado, tienda y motorista, listado acotado a 100 filas visibles y detalle lateral con navegación, llamada y WhatsApp.
+- Motoristas y Tiendas: listas antes que formularios; alta y comisión general en paneles plegables, conservando los RPC y permisos existentes.
+- Rutas: controles visibles por etapa, reduciendo saturación en preparación, reparto y avance.
+- Finanzas: tres subpantallas de resumen, rendiciones de motoristas y tiendas sin alterar cálculo ni las operaciones de conciliación.
+- GitHub commit verificado: 5b0472363fa03a095c7a2c7e62f68bfc127e4e60; Vercel READY.
+- Pendiente de validación: navegación real con usuario autenticado, pruebas de acciones en Chrome/Safari/Android, paginación real del backend (la vista solo limita filas), nueva creación manual de pedido y pruebas E2E completas. La existencia del control y el estado READY no prueban su operación.
