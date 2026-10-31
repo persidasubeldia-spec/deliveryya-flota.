@@ -29,7 +29,18 @@ const p=a.find(x=>x.id===b.dataset.complete);const option=p.modalidad_pago==='to
 b.disabled=true;const {error}=await sb.rpc('motorista_cerrar_entrega',{p_pedido:p.id,p_medio:option,p_estado:'entregado',p_motivo:null});if(error){alert('No se guardó: '+error.message);b.disabled=false;return}await load();
 });
 $('orders').querySelectorAll('[data-reject]').forEach(b=>b.onclick=async()=>{
-const motivo=prompt('Motivo del rechazo:');if(!motivo)return;if(!confirm('¿Registrar rechazo? El envío quedará pendiente de cobro a la tienda según su acuerdo.'))return;b.disabled=true;const {error}=await sb.rpc('motorista_cerrar_entrega',{p_pedido:b.dataset.reject,p_medio:null,p_estado:'rechazado',p_motivo:motivo});if(error){alert(error.message);b.disabled=false;return}await load();
+const p=a.find(x=>x.id===b.dataset.reject);if(!p)return;
+const motivo=prompt('Motivo del rechazo:');if(!motivo||motivo.trim().length<3)return;
+const responsable=prompt('¿Quién pagó el envío? Escribí cliente, tienda o pendiente','pendiente');if(!responsable)return;
+if(!['cliente','tienda','pendiente'].includes(responsable)){alert('Elegí cliente, tienda o pendiente');return}
+const raw=prompt('¿Cuánto del envío de '+money(p.precio_delivery)+' se recibió realmente? (0 si todavía no se cobró)','0');if(raw===null)return;
+const importe=Number(raw);if(!Number.isInteger(importe)||importe<0||importe>p.precio_delivery){alert('Importe inválido');return}
+const medio=importe>0?prompt('Medio de cobro: efectivo o transferencia','efectivo'):null;
+if(importe>0&&!['efectivo','transferencia'].includes(medio)){alert('Medio de cobro inválido');return}
+if(!confirm('¿Confirmar rechazo? Cobrado: '+money(importe)+'; pendiente: '+money(p.precio_delivery-importe)+'. No significa que la flota ya cobró el saldo.'))return;
+b.disabled=true;
+const {error}=await sb.rpc('motorista_registrar_rechazo_detallado',{p_pedido:p.id,p_motivo:motivo.trim(),p_responsable:responsable,p_importe:importe,p_medio:medio});
+if(error){alert('No se guardó: '+error.message);b.disabled=false;return}await load();
 });
 $('orders').querySelectorAll('[data-incident]').forEach(b=>b.onclick=async()=>{
 const estado=prompt('Incidencia: no_responde, no_recibio o pasa_manana','no_responde');if(!estado)return;const motivo=prompt('Explicá brevemente el motivo');if(!motivo)return;b.disabled=true;const {error}=await sb.rpc('motorista_actualizar_estado_pedido',{p_pedido_id:b.dataset.incident,p_motorista_id:moto.id,p_nuevo_estado:estado,p_medio_cobro:null,p_motivo_incidencia:motivo});if(error){alert(error.message);b.disabled=false;return}await load();
