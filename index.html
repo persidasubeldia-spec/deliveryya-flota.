@@ -113,6 +113,7 @@ function editarPedidoTienda(id) {
       }
       if (String(value)!==String(current[key]??'')) changes[key]=value;
     }
+    if (Object.prototype.hasOwnProperty.call(changes,'direccion_cliente') && !Object.prototype.hasOwnProperty.call(changes,'lat')) {errorBox.textContent='La dirección escrita cambió, pero el punto GPS sigue igual. Para corregir el mapa, actualizá también Ubicación (lat,lng) con las coordenadas correctas del enlace de Google Maps.';return;}
     if (!Object.keys(changes).length) {overlay.remove();return;}
     save.disabled=true;errorBox.textContent='Guardando en Supabase…';
     const {error}=await supabaseClient.rpc('editar_pedido_seguro',{p_pedido_id:p.id,p_version:p.version,p_cambios:changes});
