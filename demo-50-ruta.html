@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const sb=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv');
-const $=id=>document.getElementById(id);const colors=['#9099a8','#ce443b','#2878cf','#27a074','#ec921b','#9256c2'];
+const $=id=>document.getElementById(id);const colors=['#9099a8','#2563eb','#8b5cf6','#f59e0b','#0891b2','#92400e'];
 let all=[],ordered=[],assignments={},map=null,markers=[],paths=[],road=null,working=false,loaded=false,routeKm=null,routeMin=null,routeGeometry=[],optimized=false,selected=new Set();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const status=(v,error=false)=>{$('status').textContent=v;$('status').className=error?'error':''};
