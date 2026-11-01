@@ -5,20 +5,37 @@ async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos'
 const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',today);
 if(!orderResult.error&&orderResult.data?.length){const indexes=new Map(orderResult.data.map(x=>[x.pedido_id,x.posicion]));a.sort((x,y)=>(indexes.get(x.id)??9999)-(indexes.get(y.id)??9999)||(x.numero_general??9999)-(y.numero_general??9999))}
 $('optimizeMine').onclick=async()=>{
-const pending=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&p.lat!=null&&p.lng!=null);
-if(pending.length<2||pending.length>26){$('optimizeMessage').textContent='Se necesitan entre 2 y 26 pedidos pendientes con GPS';return}
-$('optimizeMessage').textContent='Obteniendo ubicación actual…';let pos;
-try{pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,maximumAge:15000,timeout:15000}))}catch(e){$('optimizeMessage').textContent='No se pudo obtener ubicación actual: '+e.message;return}
-const lat=pos.coords.latitude,lng=pos.coords.longitude;
-const furthest=[...pending].sort((x,y)=>((y.lat-lat)**2+(y.lng-lng)**2)-((x.lat-lat)**2+(x.lng-lng)**2))[0];
-const stops=[...pending.filter(x=>x.id!==furthest.id),furthest];
-const coords=[[lat,lng],...stops.map(x=>[x.lat,x.lng])].map(x=>x[1]+','+x[0]).join(';');
-$('optimizeMessage').textContent='Calculando ruta vial…';
-let ids;
-try{const response=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords+'?roundtrip=false&source=first&destination=last&steps=false');if(!response.ok)throw Error('Servicio de ruteo no disponible');const json=await response.json();if(json.code!=='Ok'||!json.trips?.length||json.waypoints?.length!==stops.length+1)throw Error('No se pudo optimizar esta ruta');ids=json.waypoints.slice(1).map((w,i)=>({id:stops[i].id,order:w.waypoint_index})).sort((a,b)=>a.order-b.order).map(x=>x.id);if(new Set(ids).size!==pending.length)throw Error('Orden incompleto')}catch(e){$('optimizeMessage').textContent=e.message;return}
-const preview=ids.map((id,i)=>(i+1)+'. N.º '+a.find(x=>x.id===id)?.numero_general).join('\n');
-if(!confirm('Orden propuesto desde tu GPS (números generales intactos):\n'+preview+'\n¿Guardar el orden individual?')){$('optimizeMessage').textContent='No se modificó el orden';return}
-const {error}=await sb.rpc('motorista_guardar_orden',{p_pedidos:ids});if(error){$('optimizeMessage').textContent='No se guardó: '+error.message;return}$('optimizeMessage').textContent='Ruta individual optimizada';await load();
+const btn=$('optimizeMine'),msg=$('optimizeMessage');
+if(btn.disabled)return;
+const pending=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&p.lat!=null&&p.lng!=null&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
+const missing=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&(p.lat==null||p.lng==null));
+if(pending.length<2){msg.textContent='Se necesitan al menos 2 paradas con ubicación para reorganizar.';return}
+if(pending.length>26){msg.textContent='Hay más de 26 paradas con GPS. Dividí el recorrido en sectores antes de optimizar.';return}
+if(!navigator.geolocation){msg.textContent='El dispositivo no permite obtener GPS. Activá la ubicación para optimizar desde donde estás.';return}
+btn.disabled=true;
+try{
+ msg.textContent='Localizando tu posición actual…';
+ const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,maximumAge:0,timeout:20000}));
+ if(!Number.isFinite(pos.coords.latitude)||!Number.isFinite(pos.coords.longitude)||pos.coords.accuracy>200)throw Error('GPS impreciso ('+Math.round(pos.coords.accuracy)+' m). Buscá señal y volvé a intentar.');
+ const startLat=pos.coords.latitude,startLng=pos.coords.longitude;
+ const coords=[[startLat,startLng],...pending.map(p=>[Number(p.lat),Number(p.lng)])].map(p=>p[1]+','+p[0]).join(';');
+ msg.textContent='Buscando el recorrido desde tu ubicación…';
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),20000);
+ let json;
+ try{const response=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords+'?roundtrip=false&source=first&destination=any&steps=false&overview=false',{signal:controller.signal});if(!response.ok)throw Error('Servicio de rutas no disponible');json=await response.json();}
+ finally{clearTimeout(timeout)}
+ if(json.code!=='Ok'||!json.trips?.length||json.waypoints?.length!==pending.length+1)throw Error('No se pudo calcular el recorrido vial.');
+ const ids=pending.map((p,i)=>({id:p.id,order:json.waypoints[i+1]?.waypoint_index})).sort((x,y)=>x.order-y.order).map(p=>p.id);
+ if(ids.some(id=>!id)||new Set(ids).size!==pending.length)throw Error('Orden incompleto: no se guardó ningún cambio.');
+ const preview=ids.map((id,i)=>(i+1)+'. N.º '+(a.find(p=>p.id===id)?.numero_general??'—')+' — '+(a.find(p=>p.id===id)?.nombre_cliente??'')).join('\\n');
+ if(!confirm('Recorrido desde tu ubicación actual ('+Math.round(pos.coords.accuracy)+' m de precisión).\\n'+preview+(missing.length?'\\n'+missing.length+' pedido(s) sin GPS quedan fuera de la optimización.':'')+'\\nLos números originales no cambian. ¿Guardar este orden?')){msg.textContent='Orden anterior conservado.';return}
+ msg.textContent='Guardando orden individual…';
+ const {error}=await sb.rpc('motorista_guardar_orden',{p_pedidos:ids});
+ if(error)throw Error('No se guardó: '+error.message);
+ await load();
+ msg.textContent='Recorrido actualizado desde tu ubicación. Podés optimizar nuevamente cuando quieras.';
+}catch(e){msg.textContent=(e.name==='AbortError'?'El cálculo tardó demasiado. Intentá de nuevo.':e.code===1?'Activá permiso de ubicación del navegador.':e.message||'No se pudo optimizar.');}
+finally{btn.disabled=false;}
 };
 const [movRes,closeRes]=await Promise.all([sb.from('movimientos_financieros').select('*').eq('motorista_id',moto.id),sb.from('flota_cierres_motoristas').select('*').eq('motorista_id',moto.id).order('created_at',{ascending:false}).limit(12)]);
 if(movRes.error){$('cashSummary').textContent=movRes.error.message}else{const mov=movRes.data||[],sum=k=>mov.reduce((t,x)=>t+Number(x[k]||0),0);$('cashSummary').innerHTML=[['Efectivo registrado',sum('efectivo_cobrado')],['Transferencias',sum('transferencia_cobrada')],['Mi comisión',sum('comision_motorista')],['Comisión flota',sum('comision_empresa')]].map(([n,v])=>'<div><small>'+n+'</small><div class="number">'+money(v)+'</div></div>').join('')}
