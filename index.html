@@ -56,30 +56,71 @@ function validate(v,draft){if(!v.customer)return 'Ingresá el nombre del cliente
 let saving=false;let lastFingerprint='',lastSaveTime=0;async function saveOrder(draft){if(!cloudMode||!activeStore){show('Iniciá sesión con una tienda autorizada. No se admiten pedidos locales de prueba.','error');return;}if(saving)return;saving=true;$('confirmBtn').disabled=true;$('draftBtn').disabled=true;try{if(!draft&&!coordsFrom($('mapLink').value)&&$('mapLink').value.trim())await resolveMapLink();const v=values();const error=validate(v,draft);if(error){show(error,'error');return}const fingerprint=JSON.stringify([v.customer,v.phone,v.address,v.city,v.goods,v.payment,v.mapLink,draft]);if(fingerprint===lastFingerprint&&Date.now()-lastSaveTime<5000){show('Este pedido ya se guardó. Revisá Mis pedidos antes de volver a cargarlo.','error');return}const order={id:crypto.randomUUID(),createdAt:new Date().toISOString(),customer:v.customer,phone:v.phone,address:v.address||(v.coords?'Ubicación GPS: '+v.coords.lat+','+v.coords.lng:''),city:v.city,reference:v.reference,goods:v.goods,shipping:v.shipping,payment:v.payment,total:v.shipping===null?null:v.total,coords:v.coords,mapLink:v.mapLink,notes:v.notes,status:draft?'borrador':'pendiente'};if(cloudMode&&!draft){const payload={empresa_id:activeStore.empresa_id,tienda_id:activeStore.id,nombre_cliente:v.customer,telefono_cliente:v.phone,direccion_cliente:v.address||'Ubicación GPS: '+v.coords.lat+','+v.coords.lng,lat:v.coords.lat,lng:v.coords.lng,referencias:v.reference,observaciones:v.notes,precio_mercaderia:v.goods,precio_delivery:v.shipping,modalidad_pago:v.payment,estado:'pendiente'};const {data:created,error}=await supabaseClient.from('pedidos').insert(payload).select('id,created_at').single();if(error)throw Error('No se guardó en Supabase: '+error.message);order.id=created.id;order.createdAt=created.created_at;data.orders.unshift(order)}else{data.orders.unshift(order);if(!persist()){data.orders.shift();return}}lastFingerprint=fingerprint;lastSaveTime=Date.now();$('orderForm').reset();updateForm();show(draft?'Borrador guardado en este navegador.':cloudMode?'Pedido guardado en Supabase.':'Pedido guardado LOCALMENTE. Aún no fue enviado a la empresa.');go('pedidos')}catch(err){show(err.message||'Error al guardar el pedido.','error')}finally{saving=false;$('confirmBtn').disabled=false;$('draftBtn').disabled=false}}
 const statusText={borrador:'Borrador',pendiente:'Pendiente',entregado:'Entregado',en_ruta:'En ruta',rechazado:'Rechazado'};
 function orderCard(p){let author=cloudMode&&teamRole==='propietario'?'<div class="muted tiny">Cargado por: '+escapeHTML(teamUsers.find(u=>u.usuario_id===p.createdBy)?.correo||(p.createdBy?'Propietaria':'Sin identificar'))+'</div>':'';let map=p.coords?`<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.coords.lat+','+p.coords.lng)}">Ver ubicación</a>`:'';return `<article class="order" data-open-order="${cloudMode&&p.status==='pendiente'?escapeHTML(p.id):''}"><div class="order-top"><div><b>${escapeHTML(p.customer)}</b><div class="muted tiny">${escapeHTML(new Date(p.createdAt).toLocaleString('es-PY'))} · ${escapeHTML(p.phone)}</div></div><span class="pill ${p.status==='borrador'?'draft':p.status==='entregado'?'done':p.status==='rechazado'?'bad':''}">${escapeHTML(statusText[p.status]||p.status)}</span></div><p class="tiny">${escapeHTML(p.address||'Dirección pendiente')} · ${escapeHTML(p.city||'Localidad pendiente')}</p>${author}<div class="summary-line"><span>Mercadería: ${money(p.goods)} · Delivery: ${p.shipping===null?'Sin tarifa':money(p.shipping)}</span><b>${p.total===null?'Por cotizar':money(p.total)}</b></div><div class="buttons tiny">${map}<button class="btn light" type="button" data-copy="${escapeHTML(p.id)}">Copiar resumen</button>${cloudMode&&p.status==='pendiente'?`<button class="btn secondary" type="button" data-edit="${escapeHTML(p.id)}">Editar</button>`:''}</div></article>`}
-async function editarPedidoTienda(id){
- if(!cloudMode||!activeStore)return;
- const item=data.orders.find(p=>p.id===id);if(!item)return;
- const campos=item.assigned?['customer','phone','reference','notes']:['customer','phone','address','reference','notes','goods','shipping','payment','coords'];
- const etiquetas={customer:'Cliente',phone:'Teléfono',address:'Dirección',reference:'Referencias',notes:'Observaciones',goods:'Mercadería (Gs)',shipping:'Envío (Gs)',payment:'Modalidad (pendiente/producto_pagado/todo_pagado)',coords:'Coordenadas lat,lng'};
- const nombres={customer:'nombre_cliente',phone:'telefono_cliente',address:'direccion_cliente',reference:'referencias',notes:'observaciones',goods:'precio_mercaderia',shipping:'precio_delivery',payment:'modalidad_pago'};
- const cambios={};
- for(const campo of campos){
-  const anterior=campo==='coords'?(item.coords?item.coords.lat+','+item.coords.lng:''):String(item[campo]??'');
-  const nuevo=prompt('EDITAR PEDIDO · '+etiquetas[campo]+'\nDejá el valor igual para conservarlo.',anterior);
-  if(nuevo===null)return;
-  if(nuevo.trim()===anterior.trim())continue;
-  if(campo==='coords'){
-   const pos=coordsFrom(nuevo);if(nuevo.trim()&&!pos){show('Coordenadas inválidas. No se guardaron cambios.','error');return;}
-   cambios.lat=pos?.lat??null;cambios.lng=pos?.lng??null;
-  }else if(campo==='goods'||campo==='shipping'){
-   const n=parseGs(nuevo);if(!Number.isSafeInteger(n)||n<0){show('Importe inválido.','error');return;}cambios[nombres[campo]]=n;
-  }else cambios[nombres[campo]]=nuevo.trim();
- }
- if(!Object.keys(cambios).length)return;
- if(!confirm('¿Guardar '+Object.keys(cambios).length+' campos modificados?'))return;
- const {error}=await supabaseClient.rpc('editar_pedido_seguro',{p_pedido_id:id,p_version:item.version,p_cambios:cambios});
- if(error){show('No se guardó: '+error.message,'error');return;}
- try{await loadCloud();show('Pedido actualizado y sincronizado con la Central.')}catch(e){show('Se guardó en Supabase, pero falló la actualización de pantalla. Recargá.','error');}
+function editarPedidoTienda(id) {
+  if (!cloudMode || !activeStore) return;
+  const p = data.orders.find(x => x.id === id);
+  if (!p || p.status !== 'pendiente') return;
+  let overlay = document.getElementById('dyEditOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'dyEditOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0d1d33a8;display:flex;align-items:center;justify-content:center;padding:12px';
+    overlay.innerHTML = '<form id="dyEditForm" style="max-height:94vh;overflow:auto;width:min(720px,100%);background:white;padding:20px;border-radius:15px;box-shadow:0 20px 60px #0004"><h2>Editar pedido</h2><p id="dyEditHelp"></p><div id="dyEditFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px"></div><p id="dyEditError" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:10px"><button type="button" id="dyEditCancel" class="btn light">Cancelar</button><button type="submit" id="dyEditSave" class="btn">Guardar cambios</button></div></form>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#dyEditCancel').onclick = () => { overlay.remove(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  }
+  const restrict = !!p.assigned;
+  overlay.querySelector('#dyEditHelp').textContent = restrict ? 'Pedido asignado: solo podés corregir contacto y observaciones.' : 'Corregí los datos y guardá una sola vez.';
+  const fields = overlay.querySelector('#dyEditFields');
+  fields.replaceChildren();
+  const current = {nombre_cliente:p.customer, telefono_cliente:p.phone,direccion_cliente:p.address,ubicacion:p.coords?p.coords.lat+','+p.coords.lng:'',referencias:p.reference,observaciones:p.notes,precio_mercaderia:p.goods,precio_delivery:p.shipping,modalidad_pago:p.payment};
+  const labels = {nombre_cliente:'Cliente',telefono_cliente:'Teléfono',direccion_cliente:'Dirección',ubicacion:'Ubicación (lat,lng)',referencias:'Referencias',observaciones:'Observaciones',precio_mercaderia:'Mercadería (Gs)',precio_delivery:'Envío (Gs)',modalidad_pago:'Modalidad'};
+  const controls = {};
+  for (const key of Object.keys(current)) {
+    const label = document.createElement('label');
+    label.textContent = labels[key];
+    label.style.cssText = 'display:block;font-size:13px;font-weight:700';
+    let el;
+    if (key === 'modalidad_pago') {
+      el = document.createElement('select');
+      for (const value of ['pendiente','producto_pagado','todo_pagado']) { const op=document.createElement('option');op.value=value;op.textContent=value;el.appendChild(op); }
+    } else if (key === 'observaciones'||key === 'referencias') el = document.createElement('textarea');
+    else { el = document.createElement('input');el.type='text'; }
+    el.value = current[key] ?? '';
+    el.disabled = restrict && !['nombre_cliente','telefono_cliente','referencias','observaciones'].includes(key);
+    el.style.marginTop = '5px';
+    label.appendChild(el);fields.appendChild(label);controls[key]=el;
+  }
+  const errorBox = overlay.querySelector('#dyEditError'),save = overlay.querySelector('#dyEditSave');
+  errorBox.textContent = '';save.disabled = false;
+  overlay.querySelector('#dyEditForm').onsubmit = async e => {
+    e.preventDefault();
+    const changes = {};
+    for (const key of Object.keys(current)) {
+      if (controls[key].disabled) continue;
+      const raw = controls[key].value.trim();
+      if (key === 'ubicacion') {
+        if (raw === String(current[key]??'')) continue;
+        const pos = raw ? coordsFrom(raw) : null;
+        if(raw && !pos) { errorBox.textContent='La ubicación debe tener coordenadas válidas.';return; }
+        changes.lat=pos?.lat??null;changes.lng=pos?.lng??null;continue;
+      }
+      let value = raw;
+      if (key === 'precio_mercaderia' || key === 'precio_delivery') {
+        value = parseGs(raw);
+        if (!Number.isSafeInteger(value)||value<0) {errorBox.textContent='Importe inválido';return;}
+      }
+      if (String(value)!==String(current[key]??'')) changes[key]=value;
+    }
+    if (!Object.keys(changes).length) {overlay.remove();return;}
+    save.disabled=true;errorBox.textContent='Guardando en Supabase…';
+    const {error}=await supabaseClient.rpc('editar_pedido_seguro',{p_pedido_id:p.id,p_version:p.version,p_cambios:changes});
+    if (error) {save.disabled=false;errorBox.textContent='No se guardó: '+error.message;return;}
+    overlay.remove();
+    try {await loadCloud();show('Pedido actualizado correctamente.');}
+    catch(err){show('Se guardó, pero la pantalla no se actualizó: '+err.message,'error');}
+  };
 }
 function render(){const all=data.orders;const selectedForSummary=$('employeeFilter').value;const day=all.filter(p=>withinPeriod(p)&&(teamRole!=='propietario'||selectedForSummary==='todos'||p.createdBy===selectedForSummary)).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));$('welcome').textContent='Bienvenido a '+data.store.name;$('headerStore').textContent=data.store.name;$('nAll').textContent=day.length;$('nPending').textContent=day.filter(p=>p.status==='pendiente').length;$('nDone').textContent=day.filter(p=>p.status==='entregado').length;$('nDraft').textContent=day.filter(p=>p.status==='borrador').length;$('recent').innerHTML=day.length?day.slice(0,4).map(orderCard).join(''):'<div class="empty">Todavía no hay pedidos. Creá el primero.</div>';const q=$('searchOrders').value.toLowerCase().trim(),f=$('filterOrders').value;const selectedEmployee=$('employeeFilter').value;const filtered=all.filter(p=>(teamRole!=='propietario'||selectedEmployee==='todos'||p.createdBy===selectedEmployee)&&withinPeriod(p)&&(f==='todos'||p.status===f)&&[p.customer,p.phone,p.city,p.id].some(x=>String(x||'').toLowerCase().includes(q))).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));$('orderList').innerHTML=filtered.length?filtered.map(orderCard).join(''):'<div class="empty">No hay pedidos con ese filtro.</div>';const byPhone=new Map();for(const p of [...all].sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt))){if(!byPhone.has(p.phone))byPhone.set(p.phone,[]);byPhone.get(p.phone).push(p)}const cq=$('searchClients').value.toLowerCase().trim();$('clientList').innerHTML=[...byPhone].filter(([phone,orders])=>phone.includes(cq)||orders.some(o=>o.customer.toLowerCase().includes(cq))).map(([phone,orders])=>`<div class="order"><b>${escapeHTML(orders[0].customer)}</b><p class="muted tiny">${escapeHTML(phone)} · ${orders.length} pedido(s)</p><p class="tiny">Última dirección: ${escapeHTML(orders.find(x=>x.address)?.address||'No disponible')}</p><button type="button" class="btn secondary" data-reuse="${escapeHTML(orders[0].id)}">Nuevo pedido para este cliente</button></div>`).join('')||'<div class="empty">No hay clientes registrados.</div>';$('storeName').value=data.store.name;$('storeOwner').value=data.store.owner;$('storePhone').value=data.store.phone}
 function copyOrder(id){const p=data.orders.find(o=>o.id===id);if(!p)return;const str=`Pedido ${p.id}\nCliente: ${p.customer}\nTeléfono: ${p.phone}\nDirección: ${p.address}, ${p.city}\nMercadería: ${money(p.goods)}\nDelivery: ${p.shipping===null?'Por cotizar':money(p.shipping)}\nCobrar al recibir: ${p.total===null?'Por cotizar':money(p.total)}\nEstado: ${statusText[p.status]||p.status}`;navigator.clipboard?.writeText(str).then(()=>show('Resumen copiado.')).catch(()=>show('No se pudo copiar automáticamente.','error'))}
