@@ -20,6 +20,7 @@ jobs:
             test -s "$f" || { echo "::error::Falta $f"; exit 1; }
             cp "$f" dist/
           done
+          # Mantener archivos HTML en la raíz para evitar error 404.
           # No incluir simuladores, repositorio, auditorías ni archivos secretos.
           if find dist -iname '*demo*' -o -iname '*simulacr*' | grep .; then
             echo "::error::Contenido DEMO detectado"
