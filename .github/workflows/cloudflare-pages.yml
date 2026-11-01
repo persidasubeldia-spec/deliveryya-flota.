@@ -1,0 +1,54 @@
+name: Publicar DeliveryYa Flota en Cloudflare
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener versión actual
+        uses: actions/checkout@v4
+      - name: Preparar directorio público, sin DEMO
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for f in index.html central.html motorista.html tienda-alta.html reporte-tienda.html manifest.webmanifest sw.js; do
+            test -s "$f" || { echo "::error::Falta $f"; exit 1; }
+            cp "$f" dist/
+          done
+          # No incluir simuladores, repositorio, auditorías ni archivos secretos.
+          if find dist -iname '*demo*' -o -iname '*simulacr*' | grep .; then
+            echo "::error::Contenido DEMO detectado"
+            exit 1
+          fi
+      - name: Validar JavaScript de páginas
+        run: node scripts/smoke.mjs
+      - name: Comprobar credenciales de despliegue
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Falta el secreto CLOUDFLARE_API_TOKEN"; exit 1; }
+      - name: Publicar al proyecto Cloudflare existente
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: f47a55b7e74f1e7ff09975ebe7f6a1a1
+        run: npx --yes wrangler@4 pages deploy dist --project-name=deliveryya-flota --branch=main
+      - name: Verificar página publicada
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5; do
+            if curl --fail --location --silent --show-error --retry 2 'https://deliveryya-flota.pages.dev/' | grep -q 'DeliveryYa'; then
+              echo "Página principal verificada."
+              break
+            fi
+            if [ "$i" -eq 5 ]; then echo "::error::La página principal no responde con DeliveryYa"; exit 1; fi
+            sleep 5
+          done
+          for route in central.html motorista.html; do
+            curl --fail --location --silent --show-error "https://deliveryya-flota.pages.dev/$route" | grep -qi 'DeliveryYa' || { echo "::error::No responde $route"; exit 1; }
+          done
