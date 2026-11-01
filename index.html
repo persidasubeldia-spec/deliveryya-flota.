@@ -10,7 +10,7 @@
 body.dark{background:#0b1220;color:#e6edf9}body.dark .panel,body.dark .metric,body.dark .order,body.dark .auth-card{background:#172235;border-color:#32425a;color:#e6edf9}body.dark .tabs{background:#101b2b;border-color:#32425a}body.dark .tabs button:not(.active){background:#26364e;color:#d7e4f9}body.dark input,body.dark select,body.dark textarea{background:#101b2b;border-color:#43536c;color:#f1f5ff;color-scheme:dark}body.dark .muted,body.dark .metric span,body.dark footer{color:#a8bad2}body.dark .summary{background:#1b3154;border-color:#3c5986}body.dark .summary-line{border-color:#43536c}body.dark .pay-option{border-color:#425572}body.dark .pay-option:has(input:checked){background:#1d365a}body.dark .notice{background:#362c17;border-color:#8d6f2e;color:#ffe6ac}body.dark .notice.ok{background:#163c2f;color:#c4f6d7}body.dark .notice.error{background:#492224;color:#ffd7d7}body.dark .btn.light{background:#243148;color:#e2ecff;border-color:#516178}body.dark .btn.secondary{background:#244677;color:#f0f6ff}body.dark .metric strong{color:#87b4ff}body.dark .pill.draft{background:#37465d;color:#d7e3f7}body.dark .pill.done{background:#174c37;color:#b9f0cd}body.dark .pill.bad{background:#572935;color:#ffd0d5}body.dark a{color:#a8caff}
 .header-actions{display:flex;align-items:center;gap:10px;font-size:13px}.header-btn{background:#ffffff1b;border:1px solid #ffffff55;border-radius:9px;color:#fff;padding:9px 10px;white-space:nowrap}.datebar{display:flex;flex-wrap:wrap;align-items:end;gap:10px;background:#fff;padding:13px;border:1px solid #dfe8f2;border-radius:13px;margin:12px 0 15px}.datebar>div{flex:1;min-width:155px}.datebar input,.datebar select{padding:10px}.datebar .btn{padding:11px}body.dark .datebar{background:#172235;border-color:#32425a}.auth-overlay{position:fixed;inset:0;background:#0b1220e8;z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow-y:auto;overscroll-behavior:contain}.auth-card{width:min(100%,460px);max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;background:#fff;padding:22px;border-radius:17px;margin:auto 0;flex-shrink:0}.auth-card .btn{width:100%}@media(max-width:650px){header{align-items:start}#headerStore{display:none}.header-actions{gap:5px}.header-btn{font-size:12px;padding:8px 7px}}
 </style>
-</head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
 <body>
 <header><div><b>Delivery<span style="color:#77a5ff">Ya</span></b><small>App Tienda · Paraguay</small></div><div class="header-actions"><span id="headerStore"></span><button id="themeToggle" type="button" class="header-btn" aria-label="Cambiar modo día o noche">🌙 Noche</button><button id="loginOpenBtn" type="button" class="header-btn">Ingresar</button><button id="logoutBtn" type="button" class="header-btn hide">Salir</button></div></header>
 <nav class="tabs hide" id="tabs"><button data-tab="inicio" class="active">Inicio</button><button data-tab="nuevo">+ Nuevo pedido</button><button data-tab="pedidos">Mis pedidos</button><button data-tab="clientes">Clientes</button><button data-tab="config">Mi tienda</button></nav>
@@ -91,6 +91,37 @@ function editarPedidoTienda(id) {
     el.disabled = restrict && !['nombre_cliente','telefono_cliente','referencias','observaciones'].includes(key);
     el.style.marginTop = '5px';
     label.appendChild(el);fields.appendChild(label);controls[key]=el;
+  }
+  // Selector visual: el usuario confirma el punto real; nunca geocodificamos texto inventando GPS.
+  if (!restrict && p.coords) {
+    const section=document.createElement('div');
+    section.style.cssText='grid-column:1/-1';
+    const btn=document.createElement('button');btn.type='button';btn.className='btn secondary';btn.textContent='📍 Elegir ubicación en el mapa';
+    const help=document.createElement('p');help.className='muted';help.textContent='Pulsá el mapa para colocar el punto correcto. También podés pegar un enlace de Google Maps en Ubicación.';
+    const mapBox=document.createElement('div');mapBox.style.cssText='height:300px;width:100%;border-radius:12px;overflow:hidden;margin-top:8px;display:none';
+    section.append(btn,help,mapBox);fields.appendChild(section);
+    let editMap=null,pin=null;
+    const choose=(lat,lng)=>{
+      if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return;
+      controls.ubicacion.value=lat.toFixed(7)+','+lng.toFixed(7);
+      if(pin)pin.setLatLng([lat,lng]);
+    };
+    btn.onclick=()=>{
+      if(!window.L){overlay.querySelector('#dyEditError').textContent='No cargó el mapa. Pegá un enlace de Google Maps en Ubicación.';return;}
+      if(editMap){mapBox.style.display=mapBox.style.display==='none'?'block':'none';if(mapBox.style.display==='block')setTimeout(()=>editMap.invalidateSize(),30);return;}
+      mapBox.style.display='block';
+      const lat=Number(p.coords.lat),lng=Number(p.coords.lng);
+      editMap=L.map(mapBox).setView([lat,lng],15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(editMap);
+      pin=L.marker([lat,lng],{draggable:true}).addTo(editMap);
+      editMap.on('click',e=>choose(e.latlng.lat,e.latlng.lng));
+      pin.on('dragend',()=>{const v=pin.getLatLng();choose(v.lat,v.lng);});
+      setTimeout(()=>editMap.invalidateSize(),60);
+    };
+    const originalClose=overlay.querySelector('#dyEditCancel').onclick;
+    overlay.querySelector('#dyEditCancel').onclick=()=>{if(editMap){editMap.remove();editMap=null;}originalClose();};
+    // El modal se destruye al cerrar; evitar mapas huérfanos al reabrirlo.
+    overlay.addEventListener('click',e=>{if(e.target===overlay&&editMap){editMap.remove();editMap=null;}},{once:true});
   }
   const errorBox = overlay.querySelector('#dyEditError'),save = overlay.querySelector('#dyEditSave');
   errorBox.textContent = '';save.disabled = false;
