@@ -42,14 +42,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for i in 1 2 3 4 5; do
-            if curl --fail --location --silent --show-error --retry 2 'https://deliveryya-flota.pages.dev/' | grep -q 'DeliveryYa'; then
-              echo "Página principal verificada."
-              break
+          for route in index.html central.html motorista.html; do
+            ok=false
+            for intento in 1 2 3 4 5; do
+              if curl --fail --location --silent --show-error --max-time 20 "https://deliveryya-flota.pages.dev/$route" --output /tmp/deliveryya-verify.html && grep -qi 'DeliveryYa' /tmp/deliveryya-verify.html; then
+                echo "Verificado: $route"
+                ok=true
+                break
+              fi
+              sleep 4
+            done
+            if [ "$ok" != true ]; then
+              echo "::error::No responde correctamente $route"
+              exit 1
             fi
-            if [ "$i" -eq 5 ]; then echo "::error::La página principal no responde con DeliveryYa"; exit 1; fi
-            sleep 5
-          done
-          for route in central.html motorista.html; do
-            curl --fail --location --silent --show-error "https://deliveryya-flota.pages.dev/$route" | grep -qi 'DeliveryYa' || { echo "::error::No responde $route"; exit 1; }
           done
