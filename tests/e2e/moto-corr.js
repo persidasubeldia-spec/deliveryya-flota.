@@ -1,0 +1,17 @@
+const {chromium,devices}=require('playwright');const fs=require('fs');const cp=require('child_process');
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({...devices['Galaxy S9+']});const p=await ctx.newPage();p.on('pageerror',e=>console.log('ERROR JS',e.message));p.on('dialog',d=>d.accept());
+await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/fake-moto-corr.js','utf8')}));await p.route(/maps\.googleapis\.com/,r=>r.abort());
+await p.route(/cdnjs\.cloudflare\.com/,r=>{const body=cp.execFileSync('curl',['-s','--max-time','40',r.request().url()]);r.fulfill({status:200,contentType:'application/javascript',body})});
+await p.goto('http://localhost:8765/motorista.html');await p.waitForTimeout(2500);await p.evaluate(()=>{if(!document.body.classList.contains('dark'))document.getElementById('themeToggle').click()});
+await p.locator('[data-tab=caja]').click();await p.waitForTimeout(300);
+const R=[];const ok=(n,c,d)=>R.push((c?'OK    ':'FALLA ')+n+(d?' → '+d:''));
+ok('Campos habilitados en rendición presentada con 0',await p.locator('#cashDeclared').isEnabled()&&await p.locator('#transferDeclared').isEnabled());
+ok('Precargado con lo esperado (140.000)',await p.locator('#cashDeclared').inputValue()==='140000');
+ok('Botón Corregir visible',await p.locator('#dyCorregir').isVisible());
+await p.screenshot({path:'/tmp/corr-antes.png'});
+await p.locator('#dyCorregir').click();await p.waitForTimeout(2500);
+ok('Tras corregir aparece la hoja para enviar el PDF',await p.getByText('Rendición lista').isVisible());
+await p.locator('.dy-sh .dy-cancel').last().click();await p.waitForTimeout(300);
+ok('Rendición queda cerrada y campos bloqueados',/Rendición enviada y cerrada/.test(await p.locator('#closeMsg').innerText())&&!(await p.locator('#cashDeclared').isEnabled())&&!(await p.locator('#dyCorregir').isVisible()),await p.locator('#closeMsg').innerText());
+await p.screenshot({path:'/tmp/corr-despues.png'});
+console.log(R.join('\n'));await b.close()})();

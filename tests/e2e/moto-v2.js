@@ -29,7 +29,7 @@ const col=await p.evaluate(()=>{const k=document.querySelector('.dy-kpi-main'),c
 const lum=s=>{const [r,g,b]=s.match(/\d+/g).map(Number);return (0.299*r+0.587*g+0.114*b)};
 ok('Modo noche: "Entrego al jefe" legible',Math.abs(lum(col.kpi[0])-lum(col.kpiNum))>90,JSON.stringify(col.kpi)+' num '+col.kpiNum);
 ok('Modo noche: aviso de rendición legible',Math.abs(lum(col.msg[0])-lum(col.msg[1]))>90,JSON.stringify(col.msg));
-ok('Rendición "presentada" se explica bien',/Rendición enviada · declaraste ₲ 0/.test(col.txt),col.txt);
+ok('Rendición "presentada" se explica bien',/Rendición enviada declarando ₲ 0[\s\S]*Corregir/.test(col.txt),col.txt);
 await p.screenshot({path:'/tmp/v2-caja-noche.png'});
 await p.locator('[data-tab=entregas]').click();await p.waitForTimeout(300);await p.screenshot({path:'/tmp/v2-entregas-noche.png',fullPage:true});
 console.log(R.join('\n'));await b.close()})();
