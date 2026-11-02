@@ -69,3 +69,9 @@ jobs:
           if [ "$code" != 200 ]; then
             echo "::warning::El enlace real todavía no resuelve; no darlo por solucionado."
           fi
+
+      - name: Diagnosticar redirección de Maps sin alterar pedidos
+        shell: bash
+        run: |
+          curl -I -L -sS --max-time 15 -o /tmp/google-headers -w 'URL FINAL: %{url_effective}\nHTTP: %{http_code}\n' 'https://maps.app.goo.gl/zrWvmjztNjgndb1o6?g_st=ac' || true
+          grep -Ei '^(HTTP/|location:|content-type:)' /tmp/google-headers | tail -15 || true
