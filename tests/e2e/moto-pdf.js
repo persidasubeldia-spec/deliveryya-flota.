@@ -1,0 +1,11 @@
+const {chromium,devices}=require('playwright');const fs=require('fs');const cp=require('child_process');
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({...devices['Galaxy S9+'],acceptDownloads:true});const p=await ctx.newPage();p.on('pageerror',e=>console.log('ERROR JS',e.message));p.on('dialog',d=>d.accept());ctx.on('page',np=>np.route('**/*',r=>r.abort()));
+await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/fake-moto-det.js','utf8')}));await p.route(/maps\.googleapis\.com/,r=>r.abort());
+await p.route(/cdnjs\.cloudflare\.com/,r=>{const body=cp.execFileSync('curl',['-s','--max-time','40',r.request().url()]);r.fulfill({status:200,contentType:'application/javascript',body})});
+await p.goto('http://localhost:8765/motorista.html');await p.waitForTimeout(2500);
+await p.locator('[data-tab=caja]').click();await p.locator('#submitClose').click();await p.waitForTimeout(300);await p.getByText('Está todo bien · Terminar ruta y enviar').click();await p.waitForTimeout(2500);
+console.log('Hoja de envío:',await p.getByText('Rendición lista').isVisible(),'| botones:',(await p.locator('.dy-sh button').allInnerTexts()).join(' / '));
+await p.screenshot({path:'/tmp/pdf-hoja.png'});
+const [dl]=await Promise.all([p.waitForEvent('download',{timeout:20000}),p.getByText('📤 Enviar PDF al jefe').click()]);const out='/tmp/'+dl.suggestedFilename();await dl.saveAs(out);console.log('PDF:',dl.suggestedFilename(),fs.statSync(out).size,'bytes');
+console.log('aviso:',await p.locator('.dy-sh .dy-err').innerText());
+await p.locator('.dy-sh .dy-cancel').last().click();await p.waitForTimeout(300);console.log('Botón caja ahora:',await p.locator('#submitClose').innerText());await b.close()})();
