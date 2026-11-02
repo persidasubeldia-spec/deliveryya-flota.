@@ -40,7 +40,8 @@ export async function onRequestPost({request}){
     for(const candidate of candidates){coords=extract(candidate);if(coords)return json({coords});}
     // Google Maps puede ubicar el punto real en datos embebidos (no en la URL).
     // Priorizar !3d(lat)!4d(lng) de lugares; jamás confundir con el centro del mapa.
-    const direct=html.match(/!3d(-?\\d{1,2}\\.\\d+)!4d(-?\\d{1,3}\\.\\d+)/);
+    const direct=html.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);
+    if(direct){const lat=Number(direct[1]),lng=Number(direct[2]);if(lat>=-28&&lat<=-19&&lng>=-63&&lng<=-54)return json({coords:{lat,lng},source:'place_pin'});}
 
 
    }
