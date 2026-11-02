@@ -1,0 +1,16 @@
+const {chromium,devices}=require('playwright');const fs=require('fs');
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({...devices['Galaxy S9+']});const p=await ctx.newPage();p.on('pageerror',e=>console.log('ERROR JS',e.message));p.on('dialog',d=>d.accept());let wa=null;ctx.on('page',async np=>{await np.route('**/*',r=>{if(/api\.whatsapp\.com\/send|wa\.me/.test(r.request().url())&&!wa)wa=r.request().url();r.abort()})});
+await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/fake-moto-det.js','utf8')}));await p.route(/maps\.googleapis\.com/,r=>r.abort());
+await p.goto('http://localhost:8765/motorista.html');await p.waitForTimeout(2500);if(!(await p.evaluate(()=>document.body.classList.contains('dark'))))await p.evaluate(()=>document.getElementById('themeToggle').click());
+const R=[];const ok=(n,c,d)=>R.push((c?'OK    ':'FALLA ')+n+(d?' → '+d:''));
+await p.locator('[data-tab=caja]').click();await p.locator('#dyVerificarBtn').click();await p.waitForTimeout(400);
+const t=await p.locator('.dy-sh').innerText();
+ok('Cada pedido con tienda, producto, precios y estado',/Ana Gómez[\s\S]*✅ Entregado[\s\S]*T3 · Persa Boutique[\s\S]*2 camperas talle M[\s\S]*Mercadería[\s\S]*₲ 100\.000[\s\S]*Envío[\s\S]*₲ 25\.000[\s\S]*Cobré[\s\S]*₲ 125\.000 en efectivo/.test(t),t.replace(/\n/g,' | ').slice(0,300));
+ok('Rechazo con motivo y saldo',/Bruno Díaz[\s\S]*❌ Rechazado[\s\S]*₲ 15\.000 del envío[\s\S]*falta ₲ 10\.000 \(cliente\)[\s\S]*Motivo[\s\S]*Cliente rechazó/.test(t));
+const contraste=await p.evaluate(()=>{const lum=s=>{const [r,g,b]=s.match(/\d+/g).map(Number);return .299*r+.587*g+.114*b};const sh=document.querySelector('.dy-sh'),bg=lum(getComputedStyle(sh).backgroundColor);return [...sh.querySelectorAll('b,h3,.dy-ver-g span')].map(e=>Math.abs(lum(getComputedStyle(e).color)-bg)).reduce((m,x)=>Math.min(m,x),999)});
+ok('Modo noche: todo el texto de la hoja se lee (contraste mínimo)',contraste>70,String(Math.round(contraste)));
+await p.screenshot({path:'/tmp/det-noche.png'});
+await p.getByText('Está todo bien · Terminar ruta y enviar').click();await p.waitForTimeout(1500);
+wa=wa||ctx.pages().map(x=>x.url()).find(u=>/whatsapp/.test(u))||null;console.log('WA:',String(wa).slice(0,90));const txt=wa&&wa.includes('text=')?decodeURIComponent(wa.split('text=')[1].split('&type=')[0].replace(/\+/g,' ')):'';
+ok('WhatsApp al jefe incluye tienda y producto',/T3 · 📦 2 camperas talle M · merc\. ₲ 100\.000 \+ envío ₲ 25\.000/.test(txt),txt.split('\n').slice(6,9).join(' / '));
+console.log(R.join('\n'));await b.close()})();
