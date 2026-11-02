@@ -1,7 +1,7 @@
 const {chromium,devices}=require('playwright');const fs=require('fs');
 (async()=>{const b=await chromium.launch();const ctx=await b.newContext({...devices['iPhone 13']});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{console.log('  confirm:',d.message().replace(/\n/g,' | '));d.accept()});
 let wa=null;ctx.on('page',async np=>{await np.route('**/*',r=>{if(/wa\.me|whatsapp/.test(r.request().url()))wa=r.request().url();r.abort()})});
-await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/fake-moto2.js','utf8')}));await p.route(/maps\.googleapis\.com/,r=>r.abort());
+await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync(__dirname+'/fake-moto2.js','utf8')}));await p.route(/maps\.googleapis\.com/,r=>r.abort());await p.route(/cdnjs\.cloudflare\.com/,r=>{const body=require('child_process').execFileSync('curl',['-s','--max-time','40',r.request().url()]);r.fulfill({status:200,contentType:'application/javascript',body})});
 await p.goto('http://localhost:8765/motorista.html');await p.waitForTimeout(2500);
 const R=[];const ok=(n,c,d)=>R.push((c?'OK    ':'FALLA ')+n+(d?' → '+d:''));
 ok('Pestañas abajo',await p.locator('.dy-nav button').count()===3);
@@ -17,13 +17,13 @@ ok('Caja de hoy (sin el movimiento viejo): efectivo 140.000',/140\.000/.test(awa
 ok('Mapa oculto en Caja',!(await p.locator('#map').isVisible()));
 ok('Importe a entregar precargado',await p.locator('#cashDeclared').inputValue()==='140000');
 await p.screenshot({path:'/tmp/app-caja.png',fullPage:true});
-await p.locator('#submitClose').click();await p.waitForTimeout(300);await p.getByText('Está todo bien · Terminar ruta y enviar').click();await p.waitForTimeout(1500);
+await p.locator('#submitClose').click();await p.waitForTimeout(300);await p.getByText('Está todo bien · Terminar ruta y enviar').click();await p.waitForTimeout(2500);await p.getByText('💬 Enviar también como texto').click();await p.waitForTimeout(1500);
 console.log('closeMsg:',await p.locator('#closeMsg').innerText());console.log('paginas:',ctx.pages().map(x=>x.url()));const rpcs=await p.evaluate(()=>window.__rpc.map(x=>x.n));ok('Rendición presentada (cierre directo)',rpcs.includes('motorista_presentar_cierre'));
 wa=ctx.pages().map(x=>x.url()).find(u=>u.includes('whatsapp'))||wa;ok('WhatsApp al jefe 595981123456',!!wa&&wa.includes('595981123456'));
 const txt=wa?decodeURIComponent(wa.split('text=')[1].split('&type=')[0].replace(/\+/g,' ')):'';ok('Emojis intactos (sin �)',!txt.includes('\uFFFD')&&txt.includes('📋'));
 ok('Resumen con detalle por cliente',/Ana Gómez[\s\S]*efectivo ₲ 125\.000[\s\S]*Bruno Díaz[\s\S]*rechazo[\s\S]*pendiente ₲ 10\.000[\s\S]*Carla Ruiz[\s\S]*SIGUE PENDIENTE/.test(txt));
-ok('Botón pasa a "Reenviar"',/Reenviar/.test(await p.locator('#submitClose').innerText()));
-await p.locator('[data-tab=ajustes]').click();await p.waitForTimeout(300);
+await p.locator('.dy-sh .dy-cancel').last().click().catch(()=>{});ok('Botón pasa a "Reenviar"',/Reenviar/.test(await p.locator('#submitClose').innerText()));
+await p.locator('.dy-sh .dy-cancel').last().click().catch(()=>{});await p.locator('[data-tab=ajustes]').click();await p.waitForTimeout(300);
 ok('Ajustes: noche, GPS, WhatsApp jefe, cuenta',(await p.locator('.dy-fila').count())===4);
 await p.screenshot({path:'/tmp/app-ajustes.png',fullPage:true});
 await p.locator('[data-tab=entregas]').click();await p.locator('.dy-next [data-complete]').click();await p.waitForTimeout(300);ok('Entregado abre panel de botones',await p.getByText('ya estaba pagado').isVisible());
