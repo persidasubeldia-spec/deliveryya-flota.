@@ -13,3 +13,14 @@ jobs:
           node-version: '20'
       - name: Verificar sintaxis y pantallas esenciales
         run: node scripts/smoke.mjs
+      - name: Empaquetar código fuente exacto sin secretos de acciones
+        if: github.event_name == 'push'
+        run: |
+          git archive --format=zip --output=DELIVERYYA_FUENTE.zip HEAD
+      - name: Subir respaldo fuente para migración
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deliveryya-migration-source
+          path: DELIVERYYA_FUENTE.zip
+          retention-days: 3
