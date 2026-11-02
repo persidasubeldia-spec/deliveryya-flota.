@@ -24,7 +24,7 @@ export async function onRequestPost({request}){
     const parts=current.pathname.split('/').filter(Boolean);
     const dir=parts.indexOf('dir');
     const stops=parts.slice(dir+1).filter(p=>!p.startsWith('data='));
-    const points=stops.map(p=>{const m=decodeURIComponent(p).match(/^(-?\\d{1,2}\\.\\d+),(-?\\d{1,3}\\.\\d+)$/);return m?{lat:Number(m[1]),lng:Number(m[2])}:null}).filter(Boolean);
+    const points=stops.map(p=>{const a=decodeURIComponent(p).split(',');if(a.length!==2||!a.every(x=>/^-?[0-9]+(?:\.[0-9]+)?$/.test(x)))return null;return {lat:Number(a[0]),lng:Number(a[1])};}).filter(Boolean);
     if(points.length>=2){const destination=points[points.length-1];if(destination.lat>=-28&&destination.lat<=-19&&destination.lng>=-63&&destination.lng<=-54)return json({coords:destination,source:'directions_destination'});}
    }
    let coords=extract(current.href);if(coords)return json({coords});
