@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b2a5e">
+<title>DeliveryYa Flota — Ingresar</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<style>
+:root{--navy:#0b2a5e;--navy2:#071733;--blue:#1565d8;--red:#e5283a;--line:#dbe4ef;--muted:#5d6f87}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#10233f;background:#eef3f9}
+.top{background:linear-gradient(160deg,var(--navy2),#0f3a80);color:#fff;padding:calc(34px + env(safe-area-inset-top)) 22px 64px;text-align:center}
+.top img{width:76px;height:76px;border-radius:20px;box-shadow:0 8px 24px #0006}
+.top h1{margin:14px 0 4px;font-size:26px;letter-spacing:-.3px}
+.top h1 span{color:#5aa9ff}
+.top p{margin:0;color:#b9d2ff;font-size:15px}
+main{max-width:440px;margin:-40px auto 0;padding:0 16px 30px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px 18px;box-shadow:0 12px 30px rgba(7,23,51,.12)}
+h2{margin:0 0 4px;font-size:20px}
+.muted{color:var(--muted);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:16px 0 6px}
+.pw{position:relative}
+input{width:100%;font:inherit;padding:13px 14px;border:1.5px solid #c5d2e3;border-radius:12px;background:#fff;color:inherit}
+input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px #1565d826}
+.pw button{position:absolute;right:6px;top:6px;bottom:6px;border:0;background:#eef3fa;color:var(--navy);border-radius:9px;padding:0 12px;font:600 13px system-ui}
+.btn{display:block;width:100%;margin-top:18px;padding:14px;border:0;border-radius:12px;font:700 16px system-ui;cursor:pointer;background:var(--blue);color:#fff}
+.btn.sec{background:#fff;color:var(--navy);border:1.5px solid #c5d2e3;margin-top:10px}
+.btn:disabled{opacity:.55}
+.link{display:block;margin:14px auto 0;background:none;border:0;color:var(--blue);font:600 14px system-ui;cursor:pointer}
+#msg{min-height:20px;margin:14px 0 0;font-size:14px}
+#msg.err{color:#b4162a}#msg.ok{color:#0e7a3a}
+.roles{display:grid;gap:10px;margin-top:14px}
+.role{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;font:inherit;color:inherit}
+.role b{display:block;font-size:16px}.role small{color:var(--muted)}
+.role i{font-style:normal;font-size:26px;width:44px;height:44px;border-radius:12px;background:#e8f1ff;display:flex;align-items:center;justify-content:center;flex:none}
+.hint{margin-top:18px;padding:12px 14px;border-radius:12px;background:#f4f8ff;color:#33506f;font-size:13.5px}
+.hide{display:none!important}
+footer{text-align:center;margin-top:18px;font-size:12.5px;color:var(--muted)}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="top">
+  <img src="/icon-512.png" alt="">
+  <h1>DeliveryYa <span>Flota</span></h1>
+  <p>Tiendas · Motoristas · Central</p>
+</div>
+<main>
+  <section class="card" id="loginCard">
+    <h2 id="title">Ingresar</h2>
+    <p class="muted" id="subtitle">Entrá con tu correo. La app abre tu panel según tu cuenta.</p>
+    <form id="form" novalidate>
+      <label for="email">Correo electrónico</label>
+      <input id="email" type="email" autocomplete="username" inputmode="email" placeholder="tucorreo@gmail.com" required>
+      <label for="password">Contraseña</label>
+      <div class="pw"><input id="password" type="password" autocomplete="current-password" placeholder="Mínimo 8 caracteres" required><button type="button" id="togglePw">Ver</button></div>
+      <button class="btn" id="submit" type="submit">Ingresar</button>
+    </form>
+    <button class="btn sec" id="switchMode" type="button">¿Tenés una tienda? Crear cuenta nueva</button>
+    <button class="link" id="forgot" type="button">Olvidé mi contraseña</button>
+    <p id="msg" role="status" aria-live="polite"></p>
+    <div class="hint">🛵 <b>Motoristas:</b> la primera vez abrí el enlace de invitación que te mandó la empresa por WhatsApp. Después entrás siempre desde acá.</div>
+  </section>
+  <section class="card hide" id="rolesCard">
+    <h2>¿A qué panel querés entrar?</h2>
+    <p class="muted" id="rolesEmail"></p>
+    <div class="roles" id="roles"></div>
+    <button class="link" id="otherAccount" type="button">Usar otra cuenta</button>
+  </section>
+  <footer><a href="/privacidad.html">Privacidad</a> · <a href="/eliminar-cuenta.html">Eliminar cuenta</a></footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const URL_SB='https://sxhuvjvbqkovivcbisrn.supabase.co',KEY_SB='sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv';
+const KEY_APP='dyf-auth-app';
+const DEST={central:{key:'dyf-auth-central',url:'/central',icon:'🧭',name:'Central de la flota',desc:'Pedidos, rutas, motoristas y rendiciones'},
+ motorista:{key:'dyf-auth-motorista',url:'/motorista',icon:'🛵',name:'Mi ruta de motorista',desc:'Entregas, cobros y rendición'},
+ tienda:{key:'dyf-auth-tienda',url:'/',icon:'🏪',name:'Mi tienda',desc:'Cargar y seguir pedidos'}};
+const db=supabase.createClient(URL_SB,KEY_SB,{auth:{storageKey:KEY_APP,persistSession:true,autoRefreshToken:false,detectSessionInUrl:false}});
+const $=id=>document.getElementById(id);
+let mode='login';
+const say=(t,k='err')=>{$('msg').textContent=t;$('msg').className=k};
+const ls={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch{return false}}};
+function setMode(m){mode=m;const reg=m==='register';$('title').textContent=reg?'Crear cuenta de tienda':'Ingresar';$('subtitle').textContent=reg?'Solo correo y contraseña. Tu tienda queda activa al instante y después completás sus datos.':'Entrá con tu correo. La app abre tu panel según tu cuenta.';$('submit').textContent=reg?'Crear mi tienda':'Ingresar';$('switchMode').textContent=reg?'Ya tengo cuenta — Ingresar':'¿Tenés una tienda? Crear cuenta nueva';$('password').autocomplete=reg?'new-password':'current-password';say('')}
+function abrir(rol){const d=DEST[rol];const s=ls.get(KEY_APP);if(!s||!ls.set(d.key,s)){say('Tu navegador no permite guardar la sesión. Revisá que no esté en modo privado.');return}ls.set('dyf-ultimo-rol',rol);location.replace(d.url)}
+async function roles(uid){const [c,m,t]=await Promise.all([
+ db.from('flota_usuarios').select('rol').eq('usuario_id',uid).eq('activo',true).limit(1),
+ db.from('motoristas').select('id').eq('usuario_id',uid).eq('activo',true).limit(1),
+ db.from('tienda_miembros').select('tienda_id').eq('usuario_id',uid).eq('activo',true).limit(1)]);
+ const r=[];if(c.data?.length)r.push('central');if(m.data?.length)r.push('motorista');if(t.data?.length)r.push('tienda');return r}
+async function continuar(user){say('Abriendo tu panel…','ok');const r=await roles(user.id);
+ if(!r.length){abrir('tienda');return} // cuenta nueva: la app Tienda la activa sola
+ if(r.length===1){abrir(r[0]);return}
+ $('loginCard').classList.add('hide');$('rolesCard').classList.remove('hide');$('rolesEmail').textContent=user.email||'';
+ $('roles').innerHTML='';r.forEach(k=>{const d=DEST[k];const b=document.createElement('button');b.type='button';b.className='role';b.innerHTML='<i>'+d.icon+'</i><span><b>'+d.name+'</b><small>'+d.desc+'</small></span>';b.onclick=()=>abrir(k);$('roles').appendChild(b)})}
+function credenciales(){const email=$('email').value.trim().toLowerCase(),password=$('password').value;if(!/^\S+@\S+\.\S+$/.test(email))throw Error('Ingresá un correo válido.');if(password.length<8)throw Error('La contraseña debe tener al menos 8 caracteres.');return {email,password}}
+$('form').onsubmit=async e=>{e.preventDefault();$('submit').disabled=true;try{const c=credenciales();
+ if(mode==='register'){const {data,error}=await db.auth.signUp({email:c.email,password:c.password,options:{emailRedirectTo:location.origin+'/app.html'}});
+  if(error){if(/already|registered|exists/i.test(error.message||'')||error.code==='user_already_exists'){setMode('login');throw Error('Ese correo ya tiene cuenta. Ingresá con tu contraseña.')}throw Error('No se pudo crear la cuenta: '+error.message)}
+  if(!data.session){say('Te enviamos un correo para confirmar la cuenta. Abrilo y después ingresá acá.','ok');return}
+  abrir('tienda');return}
+ const {data,error}=await db.auth.signInWithPassword(c);
+ if(error)throw Error(/confirm/i.test(error.message||'')?'Confirmá tu correo con el enlace que te enviamos y volvé a intentar.':'Correo o contraseña incorrectos. Si no recordás la contraseña, tocá «Olvidé mi contraseña».');
+ await continuar(data.user)}catch(err){say(err.message||'No se pudo ingresar.')}finally{$('submit').disabled=false}};
+$('switchMode').onclick=()=>setMode(mode==='login'?'register':'login');
+$('togglePw').onclick=()=>{const p=$('password');p.type=p.type==='password'?'text':'password';$('togglePw').textContent=p.type==='password'?'Ver':'Ocultar'};
+$('forgot').onclick=async()=>{const email=$('email').value.trim();if(!/^\S+@\S+\.\S+$/.test(email)){say('Escribí primero tu correo y volvé a tocar «Olvidé mi contraseña».');return}const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/tienda-registro.html'});say(error?'No se pudo enviar: '+error.message:'Si el correo existe, te llegó un enlace para crear una contraseña nueva.',error?'err':'ok')};
+$('otherAccount').onclick=async()=>{await db.auth.signOut().catch(()=>{});$('rolesCard').classList.add('hide');$('loginCard').classList.remove('hide');say('')};
+// Si ya hay una sesión abierta en algún panel, entrar directo.
+(function(){const ult=ls.get('dyf-ultimo-rol');const orden=ult&&DEST[ult]?[ult,...Object.keys(DEST).filter(k=>k!==ult)]:Object.keys(DEST);
+ for(const k of orden){const raw=ls.get(DEST[k].key);if(!raw)continue;try{const s=JSON.parse(raw);if(s&&(s.refresh_token||s.access_token)){location.replace(DEST[k].url);return}}catch{}}})();
+</script>
+</body>
+</html>
