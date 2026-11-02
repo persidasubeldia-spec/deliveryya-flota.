@@ -178,5 +178,17 @@ do $$declare e text; r uuid; begin
  perform t.check('I1 no cierra ruta con pedidos sin resolver', e is not null, e);
 end$$;
 
+-- ===== J. Limpieza y endurecimiento =====
+do $$declare e text; begin
+ perform t.login('a0000000-0000-0000-0000-000000000001');
+ e:=t.err(format('select public.admin_asignar_pedido_motorista(%L,%L,1)', t.p(23),'90000000-0000-0000-0000-000000000001'));
+ perform t.check('J1 ya no existe la asignación manual sin ruta', e is not null, e);
+ e:=t.err(format('select public.flota_crear_ruta(%L)', t.hoy()));
+ perform t.check('J2 ya no se pueden crear rutas sin turno', e is not null, e);
+ perform t.login(null);
+ e:=t.err('select count(*) from public.tiendas');
+ perform t.check('J3 sin sesión no hay acceso directo a tablas', e is not null, e);
+end$$;
+
 select case when ok then 'OK   ' else 'FALLA' end || ' ' || name || coalesce('  → '||detail,'') from t.results order by id;
 select format('%s aprobadas / %s fallidas', count(*) filter(where ok), count(*) filter(where not ok)) from t.results;
