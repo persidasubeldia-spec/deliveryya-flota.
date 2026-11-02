@@ -218,9 +218,9 @@ if(eligible.length>26){
   proposedOrder=sequence.map(i=>eligible[i].id);
   if(routePath){if(googleDispatch)routePath.setMap(null);else routeMap.removeLayer(routePath);routePath=null}
   $('routeDistance').textContent='Vista previa geográfica de '+eligible.length+' paradas; pendiente optimización vial por sectores (sin tiempo ni km por calles)';
-  $('routeConfirm').disabled=false;
+  $('routeConfirm').disabled=true;
   view();
-  $('routeMsg').textContent='Orden aproximado de '+eligible.length+' puntos. Se puede confirmar, pero NO es un recorrido optimizado por calles. Para una operación real, validar por sectores antes de repartir.';
+  $('routeMsg').textContent='Recorrido geográfico aproximado. No se permite confirmar como optimizado por calles: dividí la ruta en sectores de hasta 26 paradas.';
   return;
 }
  let origin;
