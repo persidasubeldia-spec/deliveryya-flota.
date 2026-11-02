@@ -85,7 +85,7 @@ let mode='login';
 const say=(t,k='err')=>{$('msg').textContent=t;$('msg').className=k};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch{return false}}};
 function setMode(m){mode=m;const reg=m==='register';$('title').textContent=reg?'Crear cuenta de tienda':'Ingresar';$('subtitle').textContent=reg?'Solo correo y contraseña. Tu tienda queda activa al instante y después completás sus datos.':'Entrá con tu correo. La app abre tu panel según tu cuenta.';$('submit').textContent=reg?'Crear mi tienda':'Ingresar';$('switchMode').textContent=reg?'Ya tengo cuenta — Ingresar':'¿Tenés una tienda? Crear cuenta nueva';$('password').autocomplete=reg?'new-password':'current-password';say('')}
-function abrir(rol){const d=DEST[rol];const s=ls.get(KEY_APP);if(!s||!ls.set(d.key,s)){say('Tu navegador no permite guardar la sesión. Revisá que no esté en modo privado.');return}ls.set('dyf-ultimo-rol',rol);location.replace(d.url)}
+function abrir(rol){const d=DEST[rol];const s=ls.get(KEY_APP);if(!s||!ls.set(d.key,s)){say('Tu navegador no permite guardar la sesión. Revisá que no esté en modo privado.');return}ls.set('dyf-ultimo-rol',rol);try{localStorage.removeItem(KEY_APP)}catch(e){}location.replace(d.url)}
 async function roles(uid){const [c,m,t]=await Promise.all([
  db.from('flota_usuarios').select('rol').eq('usuario_id',uid).eq('activo',true).limit(1),
  db.from('motoristas').select('id').eq('usuario_id',uid).eq('activo',true).limit(1),
