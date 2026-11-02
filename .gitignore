@@ -1,2 +1,8 @@
 tests/e2e/proddata.json
 tests/shots/
+android-twa/keys/
+android-twa/local.properties
+android-twa/app/build/
+android-twa/.gradle/
+*.jks
+*.keystore

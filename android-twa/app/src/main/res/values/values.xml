@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="icon_bg">#0F2E64</color>
+  <color name="navy">#0B2A5E</color>
+  <string name="asset_statements" translatable="false">[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"web\",\"site\":\"https://deliveryya-flota.pages.dev\"}}]</string>
+  <style name="Theme.DYF" parent="android:Theme.Material.Light.NoActionBar">
+    <item name="android:statusBarColor">@color/navy</item>
+    <item name="android:navigationBarColor">@color/navy</item>
+    <item name="android:windowBackground">@color/navy</item>
+  </style>
+</resources>

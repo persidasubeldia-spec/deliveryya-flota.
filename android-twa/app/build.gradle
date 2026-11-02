@@ -1,0 +1,24 @@
+plugins{id 'com.android.application'}
+def host='deliveryya-flota.pages.dev'
+android{
+  namespace 'com.deliveryya.flota'
+  compileSdk 36
+  defaultConfig{
+    applicationId 'com.deliveryya.flota'
+    minSdk 24
+    targetSdk 36
+    versionCode 1
+    versionName '1.0.0'
+    manifestPlaceholders=[hostName:host,defaultUrl:'https://'+host+'/app.html',launcherName:'DeliveryYa Flota',assetStatements:'[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"web","site":"https://'+host+'"}}]']
+    resValue 'string','appName','DeliveryYa Flota'
+  }
+  signingConfigs{release{
+    storeFile file(System.getenv('DYF_KEYSTORE')?:'../keys/upload.jks')
+    storePassword System.getenv('DYF_KS_PASS')
+    keyAlias 'upload'
+    keyPassword System.getenv('DYF_KS_PASS')
+  }}
+  buildTypes{release{minifyEnabled false;signingConfig signingConfigs.release}}
+  compileOptions{sourceCompatibility JavaVersion.VERSION_17;targetCompatibility JavaVersion.VERSION_17}
+}
+dependencies{implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'}
