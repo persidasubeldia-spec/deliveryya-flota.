@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const files=['index.html','central.html','motorista.html','tienda-alta.html','reporte-tienda.html'];
 const expect={
- 'central.html':['flota_registrar_motorista','flota_asignar_lote','admin_confirmar_ruta_optimizada','flota_confirmar_cierre_completo','flota_registrar_tienda','flota_crear_invitacion'],
- 'motorista.html':['motorista_cerrar_entrega','motorista_presentar_cierre','motorista_guardar_orden','motorista_compartir_gps'],
+ 'index.html':['tienda_agregar_pedido_a_ruta','p_turno:turno','routeId:p.ruta_general_id','turno:p.turno'],
+ 'central.html':['flota_crear_ruta_turno','flota_reorganizar_pendientes_heredados','routeRequeue','selectedShift','shiftMatch','flota_registrar_motorista','flota_asignar_lote','admin_confirmar_ruta_optimizada','flota_confirmar_cierre_completo','flota_registrar_tienda','flota_crear_invitacion'],
+ 'motorista.html':['numero_general,turno','motorista_cerrar_entrega','motorista_presentar_cierre','motorista_guardar_orden','motorista_compartir_gps'],
  'tienda-alta.html':['flota_aceptar_tienda_propietaria'],
  'reporte-tienda.html':['movimientos_financieros']
 };
