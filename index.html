@@ -83,19 +83,34 @@ function elegirTurnoParaRuta(){
   overlay.onclick=e=>{if(e.target===overlay)finish(null)};
  });
 }
+function mostrarResultadoRuta({ok,cliente,turno,detalle}){
+ const overlay=document.createElement('div');
+ overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:#0d1d33b5;display:flex;align-items:center;justify-content:center;padding:16px';
+ const panel=document.createElement('section');panel.setAttribute('role','alertdialog');panel.setAttribute('aria-modal','true');panel.style.cssText='background:white;width:min(450px,100%);border-radius:17px;padding:26px;box-shadow:0 20px 55px #0005;display:grid;gap:12px';
+ const title=document.createElement('h2');title.style.margin='0';title.textContent=ok?'✅ Pedido agregado a la ruta':'⚠️ No se pudo agregar';
+ const line=document.createElement('p');line.style.margin='0';line.textContent=ok?cliente+' · Turno '+(turno==='manana'?'Mañana':'Tarde'):detalle;
+ const more=document.createElement('p');more.className='muted';more.textContent=ok?'Confirmado en Supabase. Ya está disponible para organizar en la Central.':'El pedido permanece sin modificar. Podés volver a intentarlo.';
+ const button=document.createElement('button');button.type='button';button.className='btn';button.textContent='Entendido';button.onclick=()=>overlay.remove();
+ panel.append(title,line,more,button);overlay.appendChild(panel);document.body.appendChild(overlay);button.focus();
+}
 async function tiendaEnviarPedidoARuta(id,button){
  if(!cloudMode||!activeStore)return;
  const p=data.orders.find(o=>o.id===id);
- if(!p||p.status!=='pendiente'||p.assigned){show('Solo se pueden preparar pedidos pendientes sin motorista.','error');return;}
- if(!p.coords){show('Primero editá el pedido y agregá su ubicación GPS.','error');return;}
+ if(!p||p.status!=='pendiente'||p.assigned){mostrarResultadoRuta({ok:false,detalle:'Solo se pueden preparar pedidos pendientes sin motorista.'});return;}
+ if(!p.coords){mostrarResultadoRuta({ok:false,detalle:'Primero editá el pedido y agregá su ubicación GPS.'});return;}
  const turno=await elegirTurnoParaRuta();if(!turno)return;
  button.disabled=true;
+ let saved=false;
  try{
-  const {error}=await supabaseClient.rpc('tienda_agregar_pedido_a_ruta',{p_pedido:id,p_turno:turno});
+  const {data:routeId,error}=await supabaseClient.rpc('tienda_agregar_pedido_a_ruta',{p_pedido:id,p_turno:turno});
   if(error)throw error;
-  await loadCloud();
-  show('Pedido agregado al turno '+(turno==='manana'?'Mañana':'Tarde')+' de la Central. Se numerará al optimizar la ruta.');
- }catch(e){show('No se pudo agregar a la ruta: '+e.message,'error');button.disabled=false;}
+  const {data:verified,error:verifyError}=await supabaseClient.from('pedidos').select('id,ruta_general_id,turno').eq('id',id).eq('tienda_id',activeStore.id).single();
+  if(verifyError||verified?.ruta_general_id!==routeId||verified?.turno!==turno)throw Error('El servidor no confirmó el turno y la ruta. Actualizá antes de reintentar.');
+  saved=true;
+  mostrarResultadoRuta({ok:true,cliente:p.customer,turno});
+  try{await loadCloud();}catch(e){console.warn('Pedido guardado, actualización visual pendiente:',e);}
+ }catch(e){mostrarResultadoRuta({ok:false,detalle:e.message});}
+ finally{button.disabled=false;}
 }
 function editarPedidoTienda(id) {
   if (!cloudMode || !activeStore) return;
