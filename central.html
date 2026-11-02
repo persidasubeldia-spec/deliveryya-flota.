@@ -237,7 +237,7 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
   const btn=$('routeCreate');btn.disabled=true;
   try{
    const day=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
-   if(selectedShift==='todos'){throw Error('Elegí Mañana, Tarde o Sin turno para crear una ruta.');}const {data,error}=await client.rpc('flota_crear_ruta_turno',{p_fecha:day,p_turno:selectedShift});
+   if(selectedShift==='todos'){btn.disabled=false;const elegido=await elegirTurnoDespacho();if(!elegido)return;document.querySelector('[data-shift-button="'+elegido+'"]')?.click();setTimeout(()=>$('routeCreate')?.click(),50);return;}const {data,error}=await client.rpc('flota_crear_ruta_turno',{p_fecha:day,p_turno:selectedShift});
    if(error)throw error;
    const {data:updated,error:readErr}=await client.from('rutas_generales').select('*').eq('empresa_id',account.empresa_id).order('fecha',{ascending:false}).limit(100);
    if(readErr)throw readErr;
@@ -292,7 +292,8 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
  let origin;
  try{origin=parseRouteOrigin($('routeOrigin').value);}
  catch(e){msg.textContent=e.message;return;}
- if(!origin){msg.textContent='Elegí un punto de salida (coordenadas, enlace Maps o Usar mi ubicación) para calcular un recorrido confiable.';return;}
+ if(origin){try{localStorage.setItem('dyf-salida-despacho',$('routeOrigin').value.trim())}catch(_){}}
+ if(!origin){$('routeOrigin')?.focus();msg.textContent='Falta el punto de salida: tocá «Usar mi ubicación» o pegá coordenadas / enlace de Google Maps del depósito, y volvé a tocar Optimizar. Elegí un punto de salida (coordenadas, enlace Maps o Usar mi ubicación) para calcular un recorrido confiable.';return;}
  const signature=JSON.stringify({ids:[...ids].sort(),origin:[origin.lat,origin.lng],route:$('routeChoice')?.value||''});
  if(bestRoutePreview?.signature!==signature){bestRoutePreview=null;optimizationTrial=0;}
  const shuffled=[...eligible];
@@ -431,4 +432,9 @@ function enableStoreRequestPolling(){
  },30000);
 }
 $('enter').onclick=async()=>{const {error}=await client.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error){$('error').textContent=error.message;return}start()};$('register').onclick=async()=>{const email=$('email').value.trim(),password=$('password').value;if(!email||password.length<8){$('error').textContent='Ingresá el correo autorizado y una contraseña nueva de al menos 8 caracteres.';return}const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:location.origin+'/central.html'}});if(error){$('error').textContent=error.message;return}$('error').textContent=data.session?'Cuenta creada. Activando acceso…':'Registro solicitado. Revisá tu correo y confirmá la cuenta; después ingresá aquí.';if(data.session)await start()};$('logout').onclick=async()=>{await client.auth.signOut();location.reload()};start();
+
+// --- Rutas guiado: mensajes visibles, elección de turno y punto de salida recordado ---
+function elegirTurnoDespacho(){return new Promise(res=>{const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:10000;background:#0d1d33b8;display:flex;align-items:center;justify-content:center;padding:16px';const box=document.createElement('section');box.setAttribute('role','dialog');box.style.cssText='background:#fff;border-radius:16px;padding:22px;width:min(420px,100%);display:grid;gap:10px;box-shadow:0 20px 50px #0005';const h=document.createElement('h3');h.style.margin='0';h.textContent='¿Qué turno querés preparar?';box.append(h);for(const [v,t,c] of [['manana','🌅 Mañana','#2563EB'],['tarde','🌇 Tarde','#EA580C'],['sin_definir','Sin turno','#64748B']]){const b=document.createElement('button');b.type='button';b.textContent=t;b.style.cssText='min-height:54px;font-size:18px;font-weight:700;border:0;border-radius:12px;color:#fff;background:'+c;b.onclick=()=>{ov.remove();res(v)};box.append(b)}const x=document.createElement('button');x.type='button';x.textContent='Cancelar';x.style.cssText='min-height:44px;border-radius:12px';x.onclick=()=>{ov.remove();res(null)};box.append(x);ov.append(box);document.body.append(ov)})}
+(function(){const css=document.createElement('style');css.textContent='#routeMsg{font-size:16px;font-weight:600;color:#1d3350;background:#fff6dc;border-left:6px solid #e0a100;border-radius:10px;padding:12px 14px;margin:12px 0 0}#routeMsg:empty{display:none}#routeMsg.dy-flash{animation:dyflash 1.2s ease}@keyframes dyflash{0%{background:#ffe08a}100%{background:#fff6dc}}';document.head.append(css);
+let ultimo='';new MutationObserver(()=>{const m=document.getElementById('routeMsg');if(m&&m.textContent!==ultimo){ultimo=m.textContent;m.classList.remove('dy-flash');void m.offsetWidth;m.classList.add('dy-flash');const r=m.getBoundingClientRect();if(r.top<0||r.bottom>innerHeight)m.scrollIntoView({behavior:'smooth',block:'center'})}const o=document.getElementById('routeOrigin');if(o&&!o.dataset.dyInit){o.dataset.dyInit='1';try{if(!o.value)o.value=localStorage.getItem('dyf-salida-despacho')||''}catch(_){}}}).observe(document.body,{subtree:true,childList:true,characterData:true});})();
 </script></body></html>
