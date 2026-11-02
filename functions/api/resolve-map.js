@@ -32,10 +32,7 @@ export async function onRequestPost({request}){
     // Google Maps puede ubicar el punto real en datos embebidos (no en la URL).
     // Priorizar !3d(lat)!4d(lng) de lugares; jamás confundir con el centro del mapa.
     const direct=html.match(/!3d(-?\\d{1,2}\\.\\d+)!4d(-?\\d{1,3}\\.\\d+)/);
-    if(direct){coords={lat:Number(direct[1]),lng:Number(direct[2])};if(coords.lat>=-28&&coords.lat<=-19&&coords.lng>=-63&&coords.lng<=-54)return json({coords});}
-    const embedded=[...html.matchAll(/\\[(-?2[3-7]\\.\\d{4,}),\\s*(-?5[4-9]\\.\\d{4,})\\]/g)].slice(0,60).map(m=>({lat:Number(m[1]),lng:Number(m[2])}));
-    // No elegir coordenadas ambiguas: solo aceptar un único punto cercano.
-    if(embedded.length){const first=embedded[0];const consistent=embedded.every(p=>Math.abs(p.lat-first.lat)<0.00015&&Math.abs(p.lng-first.lng)<0.00015);if(consistent)return json({coords:first});}
+
 
    }
    break;
