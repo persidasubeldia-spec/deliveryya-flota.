@@ -16,7 +16,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          for f in index.html central.html motorista.html tienda-alta.html reporte-tienda.html manifest.webmanifest sw.js; do
+          for f in index.html central.html motorista.html tienda-alta.html tienda-registro.html reporte-tienda.html manifest.webmanifest sw.js; do
             test -s "$f" || { echo "::error::Falta $f"; exit 1; }
             cp "$f" dist/
           done
