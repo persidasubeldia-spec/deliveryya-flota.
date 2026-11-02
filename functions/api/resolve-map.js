@@ -27,8 +27,16 @@ export async function onRequestPost({request}){
    if(location){let next;try{next=safe(new URL(location,current).href)}catch{}if(!next)return json({error:'Redirección externa no admitida'},422);current=next;continue;}
    if(response.ok&&(response.headers.get('content-type')||'').includes('text/html')){
     const html=(await response.text()).slice(0,300000);
-    const candidates=[...html.matchAll(/(?:https?:\\?\/\\?\/)(?:www\\?\.)?google\\?\.com[^"'<>\s]{1,600}/gi)].slice(0,25).map(x=>x[0].replace(/\\\//g,'/'));
+    const candidates=[...html.matchAll(/(?:https?:\\?\\/\\?\\/)(?:www\\?\\.)?google\\?\\.com[^"'<>\\s]{1,1600}/gi)].slice(0,35).map(x=>x[0].replace(/\\\\\\//g,'/').replace(/&amp;/g,'&'));
     for(const candidate of candidates){coords=extract(candidate);if(coords)return json({coords});}
+    // Google Maps puede ubicar el punto real en datos embebidos (no en la URL).
+    // Priorizar !3d(lat)!4d(lng) de lugares; jamás confundir con el centro del mapa.
+    const direct=html.match(/!3d(-?\\d{1,2}\\.\\d+)!4d(-?\\d{1,3}\\.\\d+)/);
+    if(direct){coords={lat:Number(direct[1]),lng:Number(direct[2])};if(coords.lat>=-28&&coords.lat<=-19&&coords.lng>=-63&&coords.lng<=-54)return json({coords});}
+    const embedded=[...html.matchAll(/\\[(-?2[3-7]\\.\\d{4,}),\\s*(-?5[4-9]\\.\\d{4,})\\]/g)].slice(0,60).map(m=>({lat:Number(m[1]),lng:Number(m[2])}));
+    // No elegir coordenadas ambiguas: solo aceptar un único punto cercano.
+    if(embedded.length){const first=embedded[0];const consistent=embedded.every(p=>Math.abs(p.lat-first.lat)<0.00015&&Math.abs(p.lng-first.lng)<0.00015);if(consistent)return json({coords:first});}
+
    }
    break;
   }
