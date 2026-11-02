@@ -251,7 +251,7 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
   finally{btn.disabled=false;}
  };
  $('routeChoice').onchange=()=>{selectedOrders.clear();proposedOrder=null;bestRoutePreview=null;optimizationTrial=0;$('routeConfirm').disabled=true;view();};
- $('routeReload').onclick=async()=>{let all;try{all=await cargarTodosLosPedidos(account.empresa_id)}catch(e){alert('No se pudo actualizar la lista completa: '+e.message);return}const m=await client.from('motoristas').select('*').eq('empresa_id',account.empresa_id);if(m.error){alert(m.error.message);return}orders=all;drivers=m.data||[];proposedOrder=null;selectedOrders.clear();mapFitted=false;refreshDrivers();view()};
+ $('routeReload').onclick=async()=>{let all;try{all=await cargarTodosLosPedidos(account.empresa_id)}catch(e){$('routeMsg').textContent='No se pudieron refrescar pedidos: '+e.message;return}const [m,r]=await Promise.all([client.from('motoristas').select('*').eq('empresa_id',account.empresa_id),client.from('rutas_generales').select('*').eq('empresa_id',account.empresa_id).order('fecha',{ascending:false}).limit(100)]);if(m.error||r.error){$('routeMsg').textContent='Error al refrescar rutas: '+(m.error||r.error).message;return}orders=all;drivers=m.data||[];routes=r.data||[];const selected=$('routeChoice').value;$('routeChoice').innerHTML='<option value="">Elegir ruta</option>'+routes.map(x=>'<option value="'+escapeHtml(x.id)+'">'+escapeHtml(x.fecha)+' · '+escapeHtml(x.estado)+'</option>').join('');if(routes.some(x=>x.id===selected))$('routeChoice').value=selected;else if(routes.length===1)$('routeChoice').value=routes[0].id;proposedOrder=null;bestRoutePreview=null;optimizationTrial=0;selectedOrders.clear();mapFitted=false;refreshDrivers();view();};
  $('routeVisible').onclick=()=>{if(!routeMap){$('routeMsg').textContent='No hay mapa disponible';return}const bounds=routeMap.getBounds();const matching=orders.filter(o=>o.lat!=null&&o.lng!=null&&(googleDispatch?bounds?.contains({lat:Number(o.lat),lng:Number(o.lng)}):bounds.contains([o.lat,o.lng]))&&assignableOrder(o));matching.forEach(o=>selectedOrders.add(o.id));view();$('routeMsg').textContent=matching.length+' pedidos del área visible agregados a la selección';};
  $('routeClear').onclick=()=>{selectedOrders.clear();view()};
  $('routeDriver').onchange=()=>{renderQuickDrivers();const d=drivers.find(x=>x.id===$('routeDriver').value);$('routeMsg').textContent=d?'Motorista elegido: '+d.nombre+' · '+orders.filter(o=>o.motorista_id===d.id).length+' pedidos ya asignados':'Elegí motorista para repartir'};
@@ -384,15 +384,17 @@ async function checkIncomingOrders(){
  if(!account||orderWatchBusy)return;
  orderWatchBusy=true;
  try{
-  const {data,error}=await client.from('pedidos').select('id,empresa_id,tienda_id,nombre_cliente,created_at,estado').eq('empresa_id',account.empresa_id).order('created_at',{ascending:false}).limit(100);
+  const {data,error}=await client.from('pedidos').select('id,empresa_id,tienda_id,nombre_cliente,created_at,updated_at,estado,turno,ruta_general_id').eq('empresa_id',account.empresa_id).order('updated_at',{ascending:false}).limit(1000);
   if(error)throw error;
   const known=new Set(orders.map(o=>o.id));
   const arrivals=(data||[]).filter(o=>!known.has(o.id));
-  if(arrivals.length){
+  const changes=(data||[]).some(o=>{const prior=orders.find(p=>p.id===o.id);return prior&&(prior.updated_at!==o.updated_at||prior.ruta_general_id!==o.ruta_general_id||prior.turno!==o.turno);});
+  if(arrivals.length||changes){
    const fresh=await cargarTodosLosPedidos(account.empresa_id);
    const stillNew=fresh.filter(o=>!known.has(o.id));
-   orders=fresh;notifyNewOrders(stillNew);
-   if($('newOrdersPanel'))page('Inicio');
+   orders=fresh;if(stillNew.length)notifyNewOrders(stillNew);
+   if($('routeReload'))await $('routeReload').onclick();
+   else if($('newOrdersPanel'))page('Inicio');
   }
   lastOrderWatchError='';
   const status=$('newOrdersWatchStatus');if(status)status.textContent='Última comprobación: '+new Date().toLocaleTimeString('es-PY');
