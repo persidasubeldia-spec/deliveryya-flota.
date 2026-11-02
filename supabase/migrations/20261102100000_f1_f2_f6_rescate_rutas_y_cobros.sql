@@ -22,11 +22,6 @@ begin
   where empresa_id = v_empresa and fecha = p_fecha and turno = p_turno and estado in ('abierta','optimizada','en_reparto')
   order by created_at limit 1 for update;
  if v_destino is null then raise exception 'Primero creá la ruta del turno'; end if;
- -- Si la ruta de hoy ya está confirmada, los rescatados quedan sin ruta y "para revisión":
- -- Central los suma al final con flota_anexar_pedidos_a_ruta (no se renumera lo confirmado).
-
- -- Origen: rutas sin turno abiertas (hasta p_fecha) o rutas no cerradas de días anteriores.
- -- Solo pedidos pendientes, sin motorista y sin movimientos financieros, del mismo turno.
  for r in
   select p.id, p.version_edicion, p.tienda_id, p.ruta_general_id, p.numero_general
   from public.pedidos p join public.rutas_generales g on g.id = p.ruta_general_id
@@ -51,16 +46,10 @@ begin
                              'motivo', 'rescate de pedido pendiente desde ruta anterior'));
   v_total := v_total + 1;
  end loop;
-
- -- Pedidos del turno que quedaron "para revisión" sin ruta (llegaron con la ruta ya confirmada)
- -- no se tocan aquí: Central los suma con flota_anexar_pedidos_a_ruta o al optimizar.
-
- -- Cerrar rutas de origen que quedaron vacías (no afecta rutas con pedidos).
  update public.rutas_generales g set estado = 'cerrada'
   where g.empresa_id = v_empresa and g.id <> v_destino and g.estado <> 'cerrada'
     and ((g.turno is null and g.fecha <= p_fecha) or g.fecha < p_fecha)
     and not exists (select 1 from public.pedidos p where p.ruta_general_id = g.id);
-
  return v_total;
 end $function$;
 
@@ -73,8 +62,6 @@ create or replace function public.motorista_actualizar_estado_pedido(p_pedido_id
 as $function$
 declare v_empresa uuid; v_estado text; v_moto uuid;
 begin
- -- Solo incidencias. Entregado y Rechazado van por motorista_cerrar_entrega / motorista_registrar_rechazo_detallado,
- -- que validan modalidad de pago y registran el movimiento financiero.
  if p_nuevo_estado is null or p_nuevo_estado not in ('no_recibio','no_responde','pasa_manana') then
   raise exception 'Usá Entregado o Rechazado desde su botón; aquí solo se registran incidencias';
  end if;
@@ -110,30 +97,25 @@ begin
  if v.estado <> 'pendiente' or v.motorista_id is not null then raise exception 'Pedido ya asignado o procesado'; end if;
  if v.lat is null or v.lng is null or v.lat not between -28 and -19 or v.lng not between -63 and -54 then raise exception 'GPS inválido'; end if;
  if exists (select 1 from public.movimientos_financieros m where m.pedido_id = v.id) then raise exception 'Pedido con cobros: no puede cambiarse'; end if;
-
  if v.ruta_general_id is not null then
   select id into r from public.rutas_generales where id = v.ruta_general_id and empresa_id = v.empresa_id and estado = 'abierta' and turno = p_turno;
-  if r is not null and v.turno = p_turno then return r; end if;            -- reintento idempotente
+  if r is not null and v.turno = p_turno then return r; end if;
   if exists (select 1 from public.rutas_generales where id = v.ruta_general_id and estado <> 'abierta') then
    raise exception 'Ruta confirmada: solicitá reorganización a Central';
   end if;
  elsif v.requiere_revisar_ruta and v.turno = p_turno then
-  return null;                                                              -- reintento idempotente (en revisión)
+  return null;
  end if;
-
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(v.empresa_id::text), pg_catalog.hashtext(day::text || p_turno));
  select id into r from public.rutas_generales
   where empresa_id = v.empresa_id and fecha = day and turno = p_turno and estado in ('abierta','optimizada','en_reparto')
   order by created_at limit 1;
-
  if r is not null and exists (select 1 from public.rutas_generales where id = r and estado <> 'abierta') then
-  -- La ruta del turno ya fue confirmada: el pedido queda en el turno, sin ruta, marcado para que Central lo sume.
   update public.pedidos set ruta_general_id = null, turno = p_turno, numero_general = null, requiere_revisar_ruta = true,
          version_edicion = coalesce(version_edicion, 0) + 1, updated_at = now()
    where id = v.id;
   return null;
  end if;
-
  if r is null then
   insert into public.rutas_generales(empresa_id, fecha, turno, estado, version_optimizacion)
   values (v.empresa_id, day, p_turno, 'abierta', 0) returning id into r;
