@@ -106,6 +106,33 @@ body:has(#dispatchMotoristsCard) .dispatch-layout .dispatch-map{height:420px;min
 body:has(#dispatchMotoristsCard) .dispatch-layout>.dispatch-side,
 body:has(#dispatchMotoristsCard) .dispatch-layout>#dispatchMotoristsCard{height:440px;min-height:440px}
 }
+
+/* Despacho 6: prioridad a pedidos, mapa y motoristas; funciones secundarias accesibles */
+body:has(#dispatchMotoristsCard) .dy-shift-compact{padding:8px 12px!important}
+body:has(#dispatchMotoristsCard) .dy-shift-compact>.toolbar{margin:0!important}
+body:has(#dispatchMotoristsCard) .dy-shift-compact>#dispatchActiveShift{display:inline-block;margin:3px 12px 0 0!important}
+body:has(#dispatchMotoristsCard) .dy-shift-compact>.dispatch-kpis{display:inline-flex;gap:10px}
+body:has(#dispatchMotoristsCard) .dy-extra-stores{margin:2px 0;font-size:12px;color:#41617d}
+body:has(#dispatchMotoristsCard) .dy-extra-stores summary{cursor:pointer;display:inline-block;color:#1765ba;font-size:12px}
+body:has(#dispatchMotoristsCard) .dy-extra-stores>div{margin-top:7px!important}
+body:has(#dispatchMotoristsCard) .dy-extra-stores>div span{padding:5px 7px!important;font-size:11px}
+body:has(#dispatchMotoristsCard) .dy-dispatch-tools{padding:8px 12px!important}
+body:has(#dispatchMotoristsCard) .dy-dispatch-tools>.row{margin:0 0 4px!important}
+body:has(#dispatchMotoristsCard) .dy-dispatch-tools #routeActionPanel{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0!important}
+body:has(#dispatchMotoristsCard) .dy-dispatch-tools #routeActionPanel button{padding:7px 10px}
+body:has(#dispatchMotoristsCard) .dy-more-actions{font-size:12px;margin:4px 0;color:#27557e}
+body:has(#dispatchMotoristsCard) .dy-more-actions summary{cursor:pointer;font-weight:650;display:inline-flex;padding:4px 8px;border:1px solid #cbd8e8;border-radius:6px}
+body:has(#dispatchMotoristsCard) .dy-more-actions-inner{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f3f7fc;border-radius:8px}
+body:has(#dispatchMotoristsCard) .dy-more-actions-inner button,
+body:has(#dispatchMotoristsCard) .dy-more-actions-inner input{font-size:12px;padding:6px 8px}
+body:has(#dispatchMotoristsCard) .dy-dispatch-tools #routeMsg+div{max-height:24px;overflow:auto}
+@media(min-width:1150px){
+body:has(#dispatchMotoristsCard) .dispatch-layout{grid-template-columns:minmax(280px,1.04fr) minmax(440px,1.7fr) minmax(225px,.76fr)}
+body:has(#dispatchMotoristsCard) .dispatch-layout .dispatch-map{height:clamp(500px,calc(100vh - 270px),900px);min-height:500px;max-height:none}
+body:has(#dispatchMotoristsCard) .dispatch-layout>.dispatch-side,
+body:has(#dispatchMotoristsCard) .dispatch-layout>#dispatchMotoristsCard{height:clamp(500px,calc(100vh - 270px),900px);min-height:500px;max-height:none}
+}
+@media(max-width:1149px){body:has(#dispatchMotoristsCard) .dy-dispatch-tools #routeActionPanel{gap:7px}}
 </style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></head><body>
 <header><strong>DeliveryYa Flota</strong><div>Central de Mando</div></header><main><section id="login"><h2>Acceso administrativo</h2><p>Solo propietario, socios y operadores autorizados.</p><input id="email" type="email" placeholder="Correo" autocomplete="username"><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password"><button id="enter">Ingresar</button> <button id="register" type="button">Crear cuenta del propietario</button><p class="muted">Primera vez: creá tu cuenta y verificá el correo electrónico antes de ingresar.</p><p id="error"></p></section>
 <section id="app" class="hidden"><nav id="nav"></nav><div id="content"></div><button id="logout">Cerrar sesión</button></section></main>
@@ -266,6 +293,37 @@ rows.forEach(o=>{
  $('routeMsg').textContent='Pedido guardado. Las modificaciones de ubicación en rutas se marcan para revisión.';
 };
 const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelectorAll('[data-side]').forEach(b=>b.classList.toggle('active',b.dataset.side==='detail'));$('routeRows').hidden=true;$('routeDrivers').hidden=true;$('routeDetail').hidden=false;$('routeListTools').hidden=true;const phone=String(o.telefono_cliente||'').replace(/[^0-9]/g,'');$('routeDetail').innerHTML='<h3>'+escapeHtml(o.nombre_cliente)+'</h3><p>'+escapeHtml(stores.find(t=>t.id===o.tienda_id)?.codigo||'Tienda')+' · N.º '+escapeHtml(o.numero_general??'—')+'</p><p>'+escapeHtml(o.direccion_cliente)+'</p><p>Mercadería: '+money(o.precio_mercaderia)+' · Envío: '+money(o.precio_delivery)+'</p><p>Estado: '+escapeHtml(o.estado)+'</p>'+(o.requiere_revisar_ruta?'<p class="notice">Ubicación modificada: revisar recorrido</p>':'')+'<div class="toolbar">'+(o.estado==='pendiente'?'<button id="centralEditPedido">Editar pedido</button>':'')+(o.lat!=null&&o.lng!=null?'<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng)+'">Mapa</a>':'')+'<a href="tel:'+encodeURIComponent(o.telefono_cliente||'')+'">Llamar</a><a target="_blank" rel="noopener" href="https://wa.me/'+(phone.startsWith('595')?phone:'595'+phone.replace(/^0/,''))+'">WhatsApp</a></div>';const edit=$('centralEditPedido');if(edit)edit.onclick=()=>editarPedidoCentral(o);};
+
+ // Centro de despacho 6: priorizar controles de uso diario sin duplicar ni sustituir eventos.
+ const shiftBar=$('dispatchShiftButtons');
+ const shiftCard=shiftBar?.closest('.card');
+ if(shiftCard){
+   shiftCard.classList.add('dy-shift-compact');
+   const storeTags=shiftCard.lastElementChild;
+   if(storeTags&&storeTags!==shiftBar&&storeTags.tagName==='DIV'){
+     const storeDetails=document.createElement('details');
+     storeDetails.className='dy-extra-stores';
+     storeDetails.innerHTML='<summary>Ver pedidos por tienda</summary>';
+     storeTags.parentNode.insertBefore(storeDetails,storeTags);
+     storeDetails.appendChild(storeTags);
+   }
+ }
+ const actionBar=$('routeActionPanel');
+ if(actionBar){
+   const toolsCard=actionBar.closest('.card');
+   if(toolsCard)toolsCard.classList.add('dy-dispatch-tools');
+   const more=document.createElement('details');
+   more.className='dy-more-actions';
+   more.innerHTML='<summary>Más opciones de ruta</summary><div class="dy-more-actions-inner"></div>';
+   actionBar.after(more);
+   const secondary=['routeRequeue','routeClose','routeReload','routeOrigin','routeUseGps','routeResetBest','routeAppend','routeVisible','routeClear'];
+   secondary.forEach(id=>{
+     const el=$(id);
+     if(!el)return;
+     const move=el.closest('label')||el;
+     more.querySelector('.dy-more-actions-inner').appendChild(move);
+   });
+ }
  const dispatchLayout=document.querySelector('.dispatch-layout');const motoristasPanel=$('dispatchMotoristsCard');if(dispatchLayout&&motoristasPanel)dispatchLayout.appendChild(motoristasPanel);
  document.querySelectorAll('[data-side]').forEach(b=>b.onclick=()=>{routeSide=b.dataset.side;document.querySelectorAll('[data-side]').forEach(x=>x.classList.toggle('active',x===b));$('routeRows').hidden=routeSide!=='orders';$('routeDrivers').hidden=routeSide!=='drivers';$('routeDetail').hidden=routeSide!=='detail';$('routeListTools').hidden=routeSide!=='orders';});
  document.querySelectorAll('[data-shift-button]').forEach(b=>{b.onclick=()=>{const shift=b.dataset.shiftButton;if(!['todos','manana','tarde','sin_definir'].includes(shift))return;$('dispatchShift').value=shift;$('dispatchShift').onchange();};b.style.background=b.dataset.shiftButton===selectedShift?'#1765ba':'#fff';b.style.color=b.dataset.shiftButton===selectedShift?'#fff':'#1b2c42';b.setAttribute('aria-pressed',String(b.dataset.shiftButton===selectedShift));});
