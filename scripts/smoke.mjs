@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
-const files=['index.html','central.html','motorista.html','tienda-alta.html','tienda-registro.html','reporte-tienda.html'];
+const files=['index.html','app.html','central.html','motorista.html','tienda-alta.html','tienda-registro.html','reporte-tienda.html'];
 const expect={
  'index.html':['tienda_agregar_pedido_a_ruta','p_turno:turno','routeId:p.ruta_general_id','turno:p.turno','requiere_revisar_ruta'],
  'central.html':['flota_crear_ruta_turno','flota_reorganizar_pendientes_heredados','routeRequeue','selectedShift','shiftMatch','flota_registrar_motorista','flota_asignar_lote','admin_confirmar_ruta_optimizada','flota_confirmar_cierre_completo','flota_registrar_tienda','flota_crear_invitacion','flota_anexar_pedidos_a_ruta'],
  'motorista.html':['numero_general,turno','motorista_cerrar_entrega','motorista_presentar_cierre','motorista_guardar_orden','motorista_compartir_gps','motorista_registrar_rechazo_detallado'],
+ 'app.html':['dyf-auth-app','flota_usuarios','tienda_miembros'],
  'tienda-alta.html':['flota_aceptar_tienda_propietaria'],
  'tienda-registro.html':['flota_solicitar_alta_tienda_simple'],
  'reporte-tienda.html':['movimientos_financieros']
