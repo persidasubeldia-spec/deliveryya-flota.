@@ -40,3 +40,25 @@ Sos el ingeniero que audita **cada función** de la pantalla **Central › Rutas
   - El filtro de turno está en Mañana o Tarde, no en "Todos", antes de Optimizar.
   - Hay un punto de salida cargado.
   - La lista de Ruta muestra "fecha · turno · optimizada" antes de Repartir.
+
+## Resultado de la auditoría (2026-11-02, `tests/e2e/rutas-auditoria.js`)
+17/17 comprobaciones OK con datos de producción anonimizados y OSRM real:
+
+| # | Resultado |
+|---|---|
+| 1 | Filtros: Mañana 4 / Tarde 2, sin escribir en la base |
+| 2–3 | Preparar crea la ruta de hoy, rescata 3 pedidos y deja elegida la ruta |
+| 4 | Organizar: aviso "No había pedidos antiguos… turno Mañana" (antes decía "manana") |
+| 5 | Actualizar mapa |
+| 6 | Usar mi ubicación |
+| 7 | Optimizar sin salida avisa qué falta; con salida calcula por calles sin guardar |
+| 8 | Reiniciar propuestas (antes el aviso se borraba) |
+| 9 | Confirmar 1..N |
+| 10 | Sumar al final: sin nuevos avisa; un pedido tardío pasa a N.º 5 sin renumerar |
+| 11 | Selección de moto |
+| 12 | Intervalo, Limpiar, Visibles; intervalo inválido con aviso amarillo (antes ventana del navegador) |
+| 13 | Asignar lote |
+| 14 | Avance |
+| 15 | Cerrar con pendientes: bloqueado con motivo |
+
+Pendiente: repetir el flujo en producción con la cuenta de administrador.
