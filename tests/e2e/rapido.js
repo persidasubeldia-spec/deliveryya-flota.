@@ -1,0 +1,17 @@
+const {chromium}=require('playwright');const fs=require('fs');
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1500,height:950}});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{console.log('  confirm:',d.message());d.accept()});
+let popupUrl=null;ctx.on('page',async np=>{await np.route('**/*',r=>{if(r.request().url().includes('wa.me'))popupUrl=r.request().url();r.abort()})});
+const prod=fs.readFileSync(__dirname+'/proddata.json','utf8');
+await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:'window.__PROD='+prod+';'+fs.readFileSync(__dirname+'/fake-prod.js','utf8')}));
+await p.route(/maps\.googleapis\.com/,r=>r.abort());
+await p.goto('http://localhost:8765/central.html');await p.waitForTimeout(2000);await p.locator('#nav button',{hasText:'Rutas'}).click();await p.waitForTimeout(1200);
+await p.locator('[data-shift-button="manana"]').click();await p.waitForTimeout(400);
+await p.locator('[data-quick-driver]').nth(1).click();await p.waitForTimeout(300);
+const habilitadas=await p.locator('#routeRows input[type=checkbox]:not([disabled])').count();console.log('casillas habilitadas sin preparar:',habilitadas);
+await p.locator('#routeRows input[type=checkbox]').nth(0).check();await p.locator('#routeRows input[type=checkbox]').nth(2).check();await p.waitForTimeout(300);
+await p.locator('#routeSend').click();await p.waitForTimeout(2500);
+console.log('aviso:',await p.locator('#routeMsg').innerText());
+console.log('servidor:',JSON.stringify((await p.evaluate(()=>window.__rpc)).map(x=>x.n).filter(n=>!/solicitudes|comision/.test(n))));
+const st=await p.evaluate(()=>window.__PROD.pedidos.filter(x=>x.turno==='manana').map(x=>[x.numero_general,x.motorista_id?'asignado':'-']));console.log('pedidos mañana [N.º, moto]:',JSON.stringify(st));
+console.log('WhatsApp:',popupUrl?decodeURIComponent(popupUrl.split('text=')[1]).slice(0,700):'NO SE ABRIÓ');
+console.log(errs.length?'ERRORES: '+errs.join('|'):'sin errores JS');await b.close()})();
