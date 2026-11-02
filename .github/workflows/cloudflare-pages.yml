@@ -57,3 +57,15 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Probar resolución del enlace real de Google Maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --max-time 35 -o /tmp/maps-response.json -w '%{http_code}' -X POST 'https://deliveryya-flota.pages.dev/api/resolve-map' -H 'Content-Type: application/json' --data '{"url":"https://maps.app.goo.gl/zrWvmjztNjgndb1o6?g_st=ac"}')
+          echo "Estado resolutor: $code"
+          cat /tmp/maps-response.json
+          echo
+          if [ "$code" != 200 ]; then
+            echo "::warning::El enlace real todavía no resuelve; no darlo por solucionado."
+          fi
