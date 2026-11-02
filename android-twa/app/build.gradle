@@ -4,7 +4,7 @@ android{
   namespace 'com.deliveryya.flota'
   compileSdk 36
   defaultConfig{
-    applicationId 'com.deliveryya.flota'
+    applicationId 'py.deliveryya.flota'
     minSdk 24
     targetSdk 36
     versionCode 1

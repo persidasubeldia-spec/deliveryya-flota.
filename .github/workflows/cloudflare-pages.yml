@@ -64,5 +64,5 @@ jobs:
 
       - name: Verificar archivo de la app Android
         run: |
-          for i in 1 2 3 4 5; do curl --fail --silent --max-time 20 https://deliveryya-flota.pages.dev/.well-known/assetlinks.json | grep -q com.deliveryya.flota && { echo "assetlinks OK"; exit 0; }; sleep 5; done
+          for i in 1 2 3 4 5; do curl --fail --silent --max-time 20 https://deliveryya-flota.pages.dev/.well-known/assetlinks.json | grep -q py.deliveryya.flota && { echo "assetlinks OK"; exit 0; }; sleep 5; done
           echo "::error::assetlinks.json no publicado"; exit 1

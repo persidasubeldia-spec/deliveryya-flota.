@@ -2,7 +2,7 @@
 
 Abre `https://deliveryya-flota.pages.dev/app.html` a pantalla completa. El rol lo define el correo.
 
-- Paquete: `com.deliveryya.flota` (no se puede cambiar nunca).
+- Paquete: `py.deliveryya.flota` (no se puede cambiar nunca).
 - Antes de cada versión nueva: subir `versionCode` y `versionName` en `app/build.gradle`.
 - Compilar (la clave de subida NO está en el repositorio):
 

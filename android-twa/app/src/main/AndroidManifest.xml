@@ -11,14 +11,14 @@
       <meta-data android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE" android:resource="@drawable/splash"/>
       <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR" android:resource="@color/navy"/>
       <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION" android:value="300"/>
-      <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY" android:value="com.deliveryya.flota.fileprovider"/>
+      <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY" android:value="py.deliveryya.flota.fileprovider"/>
       <meta-data android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY" android:value="customtabs"/>
       <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
       <intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https" android:host="${hostName}"/></intent-filter>
     </activity>
     <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity"/>
     <activity android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity" android:configChanges="orientation|screenSize" android:exported="false"/>
-    <provider android:name="androidx.core.content.FileProvider" android:authorities="com.deliveryya.flota.fileprovider" android:grantUriPermissions="true" android:exported="false">
+    <provider android:name="androidx.core.content.FileProvider" android:authorities="py.deliveryya.flota.fileprovider" android:grantUriPermissions="true" android:exported="false">
       <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/filepaths"/>
     </provider>
     <service android:name="com.google.androidbrowserhelper.trusted.DelegationService" android:enabled="true" android:exported="true">
