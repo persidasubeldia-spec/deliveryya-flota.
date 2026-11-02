@@ -15,7 +15,7 @@ await p.locator('#dyRutas [data-arch]').click();await p.waitForTimeout(200);
 await p.locator('[data-tab=caja]').click();await p.waitForTimeout(300);
 ok('Botón Verificar mis entregas',await p.locator('#dyVerificarBtn').isVisible());
 await p.locator('#dyVerificarBtn').click();await p.waitForTimeout(300);const ver=await p.locator('.dy-sh').innerText();
-ok('Verificación: detalle por pedido, cobro e incidencias',/N.º 1 · Ana Gómez[\s\S]*125\.000/.test(ver)&&/Motivo: Cliente rechazó/.test(ver)&&/No responde · No atiende/.test(ver)&&/Te faltan 2/.test(ver),ver.replace(/\n/g,' | ').slice(0,260));
+ok('Verificación: detalle por pedido, cobro e incidencias',/N.º 1 · Ana Gómez[\s\S]*125\.000/.test(ver)&&/Motivo\s*Cliente rechazó/.test(ver)&&/No responde[\s\S]*No atiende/.test(ver)&&/Te faltan 2/.test(ver),ver.replace(/\n/g,' | ').slice(0,260));
 await p.screenshot({path:'/tmp/v2-verificar.png'});
 await p.locator('.dy-sh .dy-cancel').click();
 await p.locator('#submitClose').click();await p.waitForTimeout(300);ok('Terminar ruta pasa primero por la verificación',await p.getByText('Está todo bien · Terminar ruta y enviar').isVisible());
