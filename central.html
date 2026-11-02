@@ -286,7 +286,7 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
  confirmButton.disabled=true;
  const eligible=getEligible();
  if(eligible.length<2){msg.textContent='No hay suficientes pedidos disponibles en la ruta seleccionada. Elegí Mañana o Tarde y tocá «1. Preparar turno y ruta». Después optimizá.';return;}
- if(eligible.length>26){msg.textContent='Más de 26 pedidos: organizá sectores antes de calcular. No se confirmará una ruta aproximada.';return;}
+ if(eligible.length>99){msg.textContent='Más de 99 pedidos en el turno: el servicio de calles (OSRM) admite hasta 100 puntos incluyendo la salida. Repartí por sectores antes de calcular. No se confirmará una ruta aproximada.';return;}
  const ids=eligible.map(p=>p.id);
  if(new Set(ids).size!==ids.length){msg.textContent='Pedidos duplicados: revisá los IDs antes de calcular.';return;}
  let origin;
