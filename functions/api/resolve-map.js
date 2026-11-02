@@ -14,7 +14,7 @@ export async function onRequestPost({request}){
  if(typeof body?.url!=='string'||body.url.length>2048)return json({error:'Enlace inválido'},400);
  let current;try{current=safe(body.url)}catch{}
  if(!current)return json({error:'Solo enlaces HTTPS de Google Maps'},400);
- const visited=new Set();
+ const visited=new Set(),trace=[];
  try{
   for(let i=0;i<6;i++){
    if(visited.has(current.href))break;visited.add(current.href);
@@ -32,7 +32,7 @@ export async function onRequestPost({request}){
    let response;
    try{response=await fetch(current.href,{redirect:'manual',signal:controller.signal,headers:{Accept:'text/html,application/xhtml+xml'}})}
    finally{clearTimeout(timer)}
-   const location=response.headers.get('location');
+   const location=response.headers.get('location');trace.push({status:response.status,host:current.hostname,redirect:!!location,contentType:(response.headers.get('content-type')||'').slice(0,40)});
    if(location){let next;try{next=safe(new URL(location,current).href)}catch{}if(!next)return json({error:'Redirección externa no admitida'},422);current=next;continue;}
    if(response.ok&&(response.headers.get('content-type')||'').includes('text/html')){
     const html=(await response.text()).slice(0,300000);
@@ -47,5 +47,5 @@ export async function onRequestPost({request}){
    break;
   }
  }catch{return json({error:'Google Maps no respondió o bloqueó la resolución. Pegá coordenadas directas o usá tu GPS.'},422)}
- return json({error:'No fue posible comprobar coordenadas en este enlace de Google Maps. Probá copiar el enlace de un punto específico.'},422);
+ return json({error:'No fue posible comprobar coordenadas en este enlace de Google Maps. Probá copiar el enlace de un punto específico.',diagnostico:trace},422);
 }
