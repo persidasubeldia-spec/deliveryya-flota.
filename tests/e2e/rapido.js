@@ -1,6 +1,6 @@
 const {chromium}=require('playwright');const fs=require('fs');
 (async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1500,height:950}});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{console.log('  confirm:',d.message());d.accept()});
-let popupUrl=null;ctx.on('page',async np=>{await np.route('**/*',r=>{if(r.request().url().includes('wa.me'))popupUrl=r.request().url();r.abort()})});
+let popupUrl=null;ctx.on('page',async np=>{await np.route('**/*',r=>{if(/wa\.me|whatsapp/.test(r.request().url()))popupUrl=r.request().url();r.abort()})});
 const prod=fs.readFileSync(__dirname+'/proddata.json','utf8');
 await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:'window.__PROD='+prod+';'+fs.readFileSync(__dirname+'/fake-prod.js','utf8')}));
 await p.route(/maps\.googleapis\.com/,r=>r.abort());

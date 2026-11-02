@@ -143,31 +143,32 @@ do $$declare n int; e text; m record; ok boolean; begin
  perform public.motorista_cerrar_entrega(t.p(15),'efectivo','entregado',null);
 end$$;
 
--- ===== H. Caja y rendición =====
-do $$declare c1 uuid; c2 uuid; e text; v record; begin
+-- ===== H. Caja y rendición directa (sin confirmación del jefe) =====
+do $$declare c1 uuid; c2 uuid; e text; v record; j record; begin
  perform t.login('c0000000-0000-0000-0000-000000000001');
+ select * into j from public.motorista_contacto_jefe();
+ perform t.check('H0 la moto obtiene el WhatsApp de su empresa', j.empresa='Flota Prueba', coalesce(j.empresa,'(nada)'));
  c1:=public.motorista_presentar_cierre(t.hoy(),25000,134000);
  select * into v from public.flota_cierres_motoristas where id=c1;
- perform t.check('H1 Moto Uno (rinde todo): a rendir 25.000 efectivo', v.efectivo_esperado=25000 and v.a_rendir_esperado=25000 and v.transferencia_registrada=134000, row(v.efectivo_esperado,v.a_rendir_esperado,v.transferencia_registrada)::text);
+ perform t.check('H1 Moto Uno: a rendir 25.000 y cierre directo CONFIRMADO al cuadrar', v.a_rendir_esperado=25000 and v.transferencia_registrada=134000 and v.estado='confirmada' and v.diferencia=0, row(v.a_rendir_esperado,v.transferencia_registrada,v.estado)::text);
  e:=t.err(format('select public.motorista_cerrar_entrega(%L,%L,%L,null)', t.p(19),'efectivo','entregado'));
- perform t.check('H2 tras presentar caja no se aceptan cobros del día', e is not null, e);
+ perform t.check('H2 tras rendir no se aceptan cobros del día', e is not null, e);
  e:=t.err(format('select public.motorista_presentar_cierre(%L,0,0)', t.hoy()));
  perform t.check('H3 no hay doble cierre del día', e is not null, e);
  perform t.login('c0000000-0000-0000-0000-000000000002');
  c2:=public.motorista_presentar_cierre(t.hoy(),140000,0);
  select * into v from public.flota_cierres_motoristas where id=c2;
- perform t.check('H4 Moto Dos (retiene comisión): efectivo 180.000, a rendir 145.000', v.efectivo_esperado=180000 and v.a_rendir_esperado=180000-17500-17500, row(v.efectivo_esperado,v.a_rendir_esperado)::text);
- perform t.login('c0000000-0000-0000-0000-000000000001');
- e:=t.err(format('select public.flota_confirmar_cierre_completo(%L,25000,134000)', c1));
- perform t.check('H5 la moto no puede confirmarse su propia caja', e is not null, e);
- perform t.login('a0000000-0000-0000-0000-000000000001');
- perform public.flota_confirmar_cierre_completo(c1,25000,134000);
- perform public.flota_confirmar_cierre_completo(c2,140000,0);
- perform t.check('H6 caja exacta queda confirmada', (select estado from public.flota_cierres_motoristas where id=c1)='confirmada', null);
- perform t.check('H7 caja con faltante queda en diferencia (-5.000)', (select estado='diferencia' and diferencia=-5000 from public.flota_cierres_motoristas where id=c2), (select diferencia::text from public.flota_cierres_motoristas where id=c2));
+ perform t.check('H4 Moto Dos (retiene comisión): a rendir 145.000; entrega 140.000 → DIFERENCIA -5.000', v.efectivo_esperado=180000 and v.a_rendir_esperado=145000 and v.estado='diferencia' and v.diferencia=-5000, row(v.efectivo_esperado,v.a_rendir_esperado,v.estado,v.diferencia)::text);
+ e:=t.err(format('select public.flota_confirmar_cierre_completo(%L,145000,0)', c2));
+ perform t.check('H5 la moto no puede corregir su propia caja', e is not null, e);
  perform t.login('a0000000-0000-0000-0000-000000000002');
+ e:=t.err(format('select public.flota_confirmar_cierre_completo(%L,145000,0)', c2));
+ perform t.check('H6 operador sin permiso financiero no corrige', e is not null, e);
+ perform t.login('a0000000-0000-0000-0000-000000000001');
+ perform public.flota_confirmar_cierre_completo(c2,145000,0);
+ perform t.check('H7 el jefe puede corregir una diferencia (opcional)', (select estado from public.flota_cierres_motoristas where id=c2)='confirmada', null);
  e:=t.err(format('select public.flota_confirmar_cierre_completo(%L,1,1)', c1));
- perform t.check('H8 operador sin permiso financiero no confirma', e is not null, e);
+ perform t.check('H8 una rendición confirmada no se vuelve a tocar', e is not null, e);
 end$$;
 
 -- ===== I. Cierre de ruta =====
