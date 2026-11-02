@@ -27,7 +27,7 @@ export async function onRequestPost({request}){
    if(location){let next;try{next=safe(new URL(location,current).href)}catch{}if(!next)return json({error:'Redirección externa no admitida'},422);current=next;continue;}
    if(response.ok&&(response.headers.get('content-type')||'').includes('text/html')){
     const html=(await response.text()).slice(0,300000);
-    const candidates=[...html.matchAll(/(?:https?:\\?\\/\\?\\/)(?:www\\?\\.)?google\\?\\.com[^"'<>\\s]{1,1600}/gi)].slice(0,35).map(x=>x[0].replace(/\\\\\\//g,'/').replace(/&amp;/g,'&'));
+    const candidates=[...html.matchAll(/https?:[^\s"'<>]{5,1200}/gi)].slice(0,35).map(x=>x[0].replace(/\\\//g,'/').replace(/&amp;/g,'&'));
     for(const candidate of candidates){coords=extract(candidate);if(coords)return json({coords});}
     // Google Maps puede ubicar el punto real en datos embebidos (no en la URL).
     // Priorizar !3d(lat)!4d(lng) de lugares; jamás confundir con el centro del mapa.
