@@ -6,8 +6,8 @@ function setTheme(night){
  const toggle=$('themeToggle');toggle.textContent=night?'☀️ Día':'🌙 Noche';toggle.setAttribute('aria-pressed',String(night));
  try{localStorage.setItem('deliveryya_moto_theme',night?'dark':'light')}catch{}
  if(map){
-  if(googleMap)map.setOptions({styles:night?nightMapStyle:[]});
-  else if(osmTiles&&window.L){if(night){$('map').style.filter='brightness(.75) contrast(1.15)';}else $('map').style.filter='';}
+  if(googleMap)map.setOptions({styles:[]});
+  $('map').style.filter='';
  }
 }
 $('themeToggle').onclick=()=>setTheme(!document.body.classList.contains('dark'));
@@ -92,7 +92,7 @@ const estado=prompt('Incidencia: no_responde, no_recibio o pasa_manana','no_resp
 });
 if(!map){
  if(window.google?.maps&&!window.deliveryyaGoogleError){
-   googleMap=true;map=new google.maps.Map($('map'),{center:{lat:-25.33,lng:-57.55},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:true,styles:document.body.classList.contains('dark')?nightMapStyle:[]});
+   googleMap=true;map=new google.maps.Map($('map'),{center:{lat:-25.33,lng:-57.55},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:true,styles:[]});
    google.maps.event.addListenerOnce(map,'tilesloaded',()=>{map._deliveryyaTilesReady=true;});
    setTimeout(()=>{if(googleMap&&map&&!map._deliveryyaTilesReady)recoverMotoristaMap();},6500);
    $('mapSource').textContent='Google Maps · mismo proveedor que la Central';
@@ -136,7 +136,7 @@ if(map){
    else map.fitBounds(coords,{padding:[24,24],maxZoom:15});
  }
  lastMapSignature=signature;
- if(!googleMap){$('map').style.filter=document.body.classList.contains('dark')?'brightness(.75) contrast(1.15)':'';setTimeout(()=>map.invalidateSize(),80);}
+ if(!googleMap){$('map').style.filter='';setTimeout(()=>map.invalidateSize(),80);}
  if(!coords.length)$('mapSource').textContent=(googleMap?'Google Maps':'Mapa alternativo')+' · Sin pedidos asignados con ubicación';
 }
 }
