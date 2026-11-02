@@ -206,58 +206,47 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
   if(Math.abs(lat)>90||Math.abs(lng)>180)throw Error('Las coordenadas de salida están fuera de rango.');
   return {lat,lng};
  };
- $('routeOptimize').onclick=async()=>{const eligible=getEligible();if(eligible.length<2||eligible.length>2000){alert('Se requieren entre 2 y 2.000 pedidos pendientes con GPS.');return}
-if(eligible.length>26){
-  const rad=Math.PI/180;
-  const dist=(a,b)=>{const la=(b.lat-a.lat)*rad,lo=(b.lng-a.lng)*rad,aa=Math.sin(la/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(lo/2)**2;return 6371*2*Math.atan2(Math.sqrt(aa),Math.sqrt(Math.max(0,1-aa)))};
-  const unused=new Set(eligible.map((_,i)=>i));
-  const sequence=[0];unused.delete(0);let curr=0;
-  while(unused.size){let next=-1,best=Infinity;for(const j of unused){const d=dist(eligible[curr],eligible[j]);if(d<best){best=d;next=j}}sequence.push(next);unused.delete(next);curr=next}
-  // Mejora local por intercambio de bordes sin alterar el primer punto.
-  for(let pass=0;pass<3;pass++){let changed=false;for(let i=1;i<sequence.length-2;i++){for(let j=i+1;j<Math.min(sequence.length-1,i+60);j++){const a=eligible[sequence[i-1]],b=eligible[sequence[i]],c=eligible[sequence[j]],d=eligible[sequence[j+1]];if(dist(a,c)+dist(b,d)+1e-7<dist(a,b)+dist(c,d)){for(let l=i,r=j;l<r;l++,r--)[sequence[l],sequence[r]]=[sequence[r],sequence[l]];changed=true}}}if(!changed)break}
-  proposedOrder=sequence.map(i=>eligible[i].id);
-  if(routePath){if(googleDispatch)routePath.setMap(null);else routeMap.removeLayer(routePath);routePath=null}
-  $('routeDistance').textContent='Vista previa geográfica de '+eligible.length+' paradas; pendiente optimización vial por sectores (sin tiempo ni km por calles)';
-  $('routeConfirm').disabled=true;
-  view();
-  $('routeMsg').textContent='Recorrido geográfico aproximado. No se permite confirmar como optimizado por calles: dividí la ruta en sectores de hasta 26 paradas.';
-  return;
-}
+ $('routeOptimize').onclick=async()=>{
+ const msg=$('routeMsg'),confirmButton=$('routeConfirm'),button=$('routeOptimize');
+ confirmButton.disabled=true;proposedOrder=null;
+ if(routePath){if(googleDispatch)routePath.setMap(null);else routeMap.removeLayer(routePath);routePath=null;}
+ $('routeDistance').textContent='';
+ const eligible=getEligible();
+ if(eligible.length<2){msg.textContent='Necesitás al menos 2 pedidos pendientes con GPS.';return;}
+ if(eligible.length>26){msg.textContent='Más de 26 pedidos: organizá sectores antes de calcular. No se confirmará una ruta aproximada.';return;}
+ const ids=eligible.map(p=>p.id);
+ if(new Set(ids).size!==ids.length){msg.textContent='Pedidos duplicados: revisá los IDs antes de calcular.';return;}
  let origin;
  try{origin=parseRouteOrigin($('routeOrigin').value);}
- catch(e){$('routeMsg').textContent=e.message;return}
- // Sin origen explícito, seleccionar un extremo espacial como primer pedido provisional;
- // nunca imponer el último pedido como destino.
- const rad=Math.PI/180;
- const hav=(p,q)=>{const dl=(q.lat-p.lat)*rad,do_=(q.lng-p.lng)*rad;const a=Math.sin(dl/2)**2+Math.cos(p.lat*rad)*Math.cos(q.lat*rad)*Math.sin(do_/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))};
- let stops=[...eligible];
- if(!origin){
-  const center={lat:eligible.reduce((n,p)=>n+Number(p.lat),0)/eligible.length,lng:eligible.reduce((n,p)=>n+Number(p.lng),0)/eligible.length};
-  const candidates=[...eligible].sort((a,b)=>hav(b,center)-hav(a,center)).slice(0,Math.min(4,eligible.length));
-  const score=start=>{const remaining=eligible.filter(p=>p.id!==start.id),path=[start];let total=0;
-   while(remaining.length){const last=path[path.length-1];remaining.sort((a,b)=>hav(last,a)-hav(last,b));const next=remaining.shift();total+=hav(last,next);path.push(next)}
-   return total};
-  stops.sort((a,b)=>score(a)-score(b)); // enforce an explicit start only, not an end
-  origin={lat:Number(stops[0].lat),lng:Number(stops[0].lng),isFirstStop:true};
- }
- const allCoords=origin.isFirstStop?stops:[{...origin,id:null},...stops];
+ catch(e){msg.textContent=e.message;return;}
+ if(!origin){msg.textContent='Elegí un punto de salida (coordenadas, enlace Maps o Usar mi ubicación) para calcular un recorrido confiable.';return;}
+ const allCoords=[{id:null,lat:origin.lat,lng:origin.lng},...eligible];
  const coords=allCoords.map(p=>Number(p.lng)+','+Number(p.lat)).join(';');
- $('routeMsg').textContent='Calculando desde '+(origin.isFirstStop?'primera parada provisional':'punto de salida indicado')+' sin imponer destino…';
+ button.disabled=true;
  try{
- const response=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords+'?roundtrip=false&source=first&destination=any&steps=false&geometries=geojson');
- if(!response.ok)throw Error('Servicio vial temporalmente no disponible');
- const data=await response.json();
- if(data.code!=='Ok'||!data.waypoints||data.waypoints.length!==allCoords.length||!data.trips?.length||!data.trips[0]?.geometry?.coordinates)throw Error('La respuesta de ruteo está incompleta');
- const snapped=data.waypoints.some((w,i)=>!w||!Number.isFinite(w.waypoint_index)||w.distance>2500);
- if(snapped)throw Error('Una o más ubicaciones están demasiado lejos de una calle navegable. Corregí su GPS antes de optimizar.');
- proposedOrder=allCoords.map((p,i)=>({id:p.id,order:data.waypoints[i].waypoint_index})).filter(p=>p.id).sort((a,b)=>a.order-b.order).map(p=>p.id);
- if(proposedOrder.length!==eligible.length||new Set(proposedOrder).size!==eligible.length)throw Error('No se obtuvo un orden completo de pedidos');
- if(routePath){if(googleDispatch)routePath.setMap(null);else routeMap.removeLayer(routePath);routePath=null}
- if(routeMap){routePath=googleDispatch?new google.maps.Polyline({map:routeMap,path:data.trips[0].geometry.coordinates.map(p=>({lat:p[1],lng:p[0]})),strokeColor:'#1765ba',strokeWeight:5,strokeOpacity:.8}):L.geoJSON(data.trips[0].geometry,{style:{color:'#1765ba',weight:5,opacity:.8}}).addTo(routeMap)}
- $('routeDistance').textContent='Vista previa vial: '+(data.trips[0].distance/1000).toFixed(1)+' km · '+Math.round(data.trips[0].duration/60)+' minutos estimados · '+(origin.isFirstStop?'Salida aproximada':'Salida indicada');
- $('routeConfirm').disabled=false;view();
- $('routeMsg').textContent='Recorrido vial calculado. Revisá el punto de salida y confirmá solo si corresponde.';
- }catch(e){proposedOrder=null;$('routeConfirm').disabled=true;$('routeMsg').textContent='Ruta anterior conservada: '+e.message}
+  msg.textContent='Consultando calles desde el punto de salida…';
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
+  let response;
+  try{response=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords+'?roundtrip=false&source=first&destination=any&steps=false&geometries=geojson&overview=full',{signal:controller.signal})}
+  finally{clearTimeout(timer)}
+  if(!response.ok)throw Error('El servicio vial devolvió HTTP '+response.status);
+  const data=await response.json();
+  if(data.code!=='Ok'||!Array.isArray(data.waypoints)||data.waypoints.length!==allCoords.length||!data.trips?.[0]?.geometry?.coordinates?.length)throw Error('Respuesta vial incompleta');
+  if(data.waypoints.some(w=>!w||!Number.isInteger(w.waypoint_index)||w.distance>1000))throw Error('Alguna ubicación no coincide con una calle cercana. Revisá su GPS.');
+  const indices=data.waypoints.map(w=>w.waypoint_index);
+  if(new Set(indices).size!==allCoords.length||Math.min(...indices)!==0||Math.max(...indices)!==allCoords.length-1||indices[0]!==0)throw Error('La secuencia vial es incorrecta o el origen no quedó primero.');
+  const candidate=eligible.map((p,i)=>({id:p.id,position:indices[i+1]})).sort((a,b)=>a.position-b.position).map(x=>x.id);
+  if(candidate.length!==eligible.length||new Set(candidate).size!==eligible.length||candidate.some(id=>!ids.includes(id)))throw Error('No se pudieron incluir todas las paradas exactamente una vez.');
+  if(!Number.isFinite(data.trips[0].distance)||!Number.isFinite(data.trips[0].duration))throw Error('El proveedor no devolvió distancia o tiempo válidos.');
+  const geometry=data.trips[0].geometry.coordinates;
+  if(!geometry.every(p=>Array.isArray(p)&&p.length>=2&&Number.isFinite(p[0])&&Number.isFinite(p[1])))throw Error('La geometría vial no es válida.');
+  proposedOrder=candidate;
+  if(routeMap)routePath=googleDispatch?new google.maps.Polyline({map:routeMap,path:geometry.map(p=>({lat:p[1],lng:p[0]})),strokeColor:'#1765ba',strokeWeight:5,strokeOpacity:.8}):L.geoJSON(data.trips[0].geometry,{style:{color:'#1765ba',weight:5,opacity:.8}}).addTo(routeMap);
+  $('routeDistance').textContent='Vista previa vial: '+(data.trips[0].distance/1000).toFixed(1)+' km · '+Math.round(data.trips[0].duration/60)+' min estimados · '+candidate.length+' paradas';
+  view();confirmButton.disabled=false;
+  msg.textContent='Ruta calculada desde la salida indicada: '+candidate.length+' pedidos únicos. Revisá y confirmá.';
+ }catch(e){proposedOrder=null;confirmButton.disabled=true;msg.textContent='No se modificó la ruta: '+(e.name==='AbortError'?'tiempo de cálculo agotado':e.message);}
+ finally{button.disabled=false;}
 };
  $('routeConfirm').onclick=async()=>{if(!proposedOrder)return;const btn=$('routeConfirm');btn.disabled=true;let id=$('routeChoice')?.value||'';if(!id){$('routeMsg').textContent='Seleccioná o creá una ruta general antes de confirmar. No se creó ninguna ruta nueva.';btn.disabled=false;return;}const {error}=await client.rpc('admin_confirmar_ruta_optimizada',{p_ruta_general_id:id,p_orden_ids:proposedOrder});if(error){$('routeMsg').textContent=error.message;btn.disabled=false;return}proposedOrder.forEach((id,i)=>{const o=orders.find(p=>p.id===id);if(o)o.numero_general=i+1});proposedOrder=null;selectedOrders.clear();view();$('routeMsg').textContent='Orden confirmado y guardado'};
  const assignSelected=async(sendWhatsApp)=>{const motor=$('routeDriver').value;if(!motor||!selectedOrders.size){alert('Elegí motorista y pedidos');return}if(!confirm('¿Asignar '+selectedOrders.size+' pedidos al motorista?'))return;const btn=$('routeAssign'),wbtn=$('routeSend');btn.disabled=true;wbtn.disabled=true;const ids=[...selectedOrders];const {data,error}=await client.rpc('flota_asignar_lote',{p_pedidos:ids,p_motorista:motor});btn.disabled=false;wbtn.disabled=false;if(error){$('routeMsg').textContent='No se asignó ningún pedido: '+error.message;return}ids.forEach(id=>{const o=orders.find(p=>p.id===id);if(o)o.motorista_id=motor});selectedOrders.clear();refreshDrivers();view();$('routeMsg').textContent=data+' pedidos asignados en Supabase.';if(sendWhatsApp){const d=drivers.find(x=>x.id===motor),digits=String(d?.telefono||'').replace(/\D/g,'');const phone=digits.startsWith('595')?digits:'595'+digits.replace(/^0/,'');const assigned=orders.filter(o=>o.motorista_id===motor).sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999));const detailed=assigned.slice(0,35).map(o=>'N.º '+(o.numero_general??'S/N')+' · '+o.nombre_cliente+(o.lat!=null&&o.lng!=null?'\nhttps://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng):' · Sin ubicación')).join('\n\n');const msg='*DeliveryYa Flota*\nMotorista: '+d.nombre+'\nPedidos asignados: '+assigned.length+'\n\n'+detailed+(assigned.length>35?'\n\nHay más pedidos. Consultá la lista completa en la App Motorista.':'')+'\n\n*Abrir mi ruta:* '+location.origin+'/motorista.html';const url='https://wa.me/'+phone+'?text='+encodeURIComponent(msg);$('routeMsg').innerHTML='Asignación guardada. <a target="_blank" rel="noopener" href="'+url+'">Abrir mensaje de WhatsApp</a>.';}};
