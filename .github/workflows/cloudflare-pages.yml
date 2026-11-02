@@ -16,10 +16,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          for f in index.html central.html motorista.html tienda-alta.html tienda-registro.html reporte-tienda.html manifest.webmanifest sw.js icon-192.png icon-512.png; do
+          for f in index.html app.html central.html motorista.html tienda-alta.html tienda-registro.html reporte-tienda.html privacidad.html eliminar-cuenta.html manifest.webmanifest sw.js icon-192.png icon-512.png; do
             test -s "$f" || { echo "::error::Falta $f"; exit 1; }
             cp "$f" dist/
           done
+          # Verificación de la app Android (Trusted Web Activity)
+          test -s .well-known/assetlinks.json || { echo "::error::Falta .well-known/assetlinks.json"; exit 1; }
+          mkdir -p dist/.well-known && cp .well-known/assetlinks.json dist/.well-known/
+          printf '/.well-known/assetlinks.json\n  Content-Type: application/json\n  Access-Control-Allow-Origin: *\n' > dist/_headers
           # Mantener archivos HTML en la raíz para evitar error 404.
           # No incluir simuladores, repositorio, auditorías ni archivos secretos.
           if find dist -iname '*demo*' -o -iname '*simulacr*' | grep .; then
@@ -42,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for route in index.html central.html motorista.html; do
+          for route in index.html app.html central.html motorista.html privacidad.html eliminar-cuenta.html; do
             ok=false
             for intento in 1 2 3 4 5; do
               if curl --fail --location --silent --show-error --max-time 20 "https://deliveryya-flota.pages.dev/$route" --output /tmp/deliveryya-verify.html && grep -qi 'DeliveryYa' /tmp/deliveryya-verify.html; then
@@ -58,3 +62,7 @@ jobs:
             fi
           done
 
+      - name: Verificar archivo de la app Android
+        run: |
+          for i in 1 2 3 4 5; do curl --fail --silent --max-time 20 https://deliveryya-flota.pages.dev/.well-known/assetlinks.json | grep -q com.deliveryya.flota && { echo "assetlinks OK"; exit 0; }; sleep 5; done
+          echo "::error::assetlinks.json no publicado"; exit 1
