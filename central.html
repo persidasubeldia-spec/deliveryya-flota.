@@ -161,6 +161,17 @@ rows.forEach(o=>{
  const editarPedidoCentral=async o=>{
  const campos=o.motorista_id?['nombre_cliente','telefono_cliente','referencias','observaciones']:['nombre_cliente','telefono_cliente','direccion_cliente','referencias','observaciones','lat','lng','precio_mercaderia','precio_delivery','modalidad_pago'];
  const cambios={};
+ if(!o.motorista_id){
+  const link=prompt('Opcional: pegá un enlace de Google Maps para actualizar el destino de este pedido. Dejá vacío para mantener su ubicación.','');
+  if(link===null)return;
+  if(link.trim()){
+   let url;
+   try{url=new URL(link.trim());}catch{alert('Enlace inválido.');return;}
+   if(url.protocol!=='https:'||!['maps.app.goo.gl','goo.gl','share.google','google.com','www.google.com','maps.google.com','google.com.py','www.google.com.py'].includes(url.hostname.toLowerCase())){alert('Ingresá un enlace HTTPS válido de Google Maps.');return;}
+   try{const res=await fetch('/api/resolve-map',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:link.trim()})});const result=await res.json();if(!res.ok||!result.coords)throw Error(result.error||'No se pudieron leer coordenadas');cambios.lat=Number(result.coords.lat);cambios.lng=Number(result.coords.lng);if(!Number.isFinite(cambios.lat)||!Number.isFinite(cambios.lng))throw Error('Coordenadas inválidas');}
+   catch(e){alert('No se modificó el pedido: '+e.message);return;}
+  }
+ }
  for(const campo of campos){
   const valor=String(o[campo]??'');
   const nuevo=prompt('Editar '+campo.replaceAll('_',' ')+' · pedido N.º '+(o.numero_general??'—'),valor);
