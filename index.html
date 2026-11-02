@@ -250,7 +250,7 @@ async function loadCloud(){
 }
 async function prepareAuth(){
  if(!AUTH_ENABLED||!window.supabase?.createClient){$('authMessage').textContent='No se cargó la conexión. Revisá internet y recargá.';return}
- supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+ supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{storageKey:'dyf-auth-tienda',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  $('togglePassword').addEventListener('click',()=>{const field=$('loginPassword'),visible=field.type==='password';field.type=visible?'text':'password';$('togglePassword').textContent=visible?'Ocultar':'Mostrar';$('togglePassword').setAttribute('aria-pressed',String(visible));$('togglePassword').setAttribute('aria-label',visible?'Ocultar contraseña':'Mostrar contraseña')});
  $('resetPasswordBtn').addEventListener('click',async()=>{const email=$('loginEmail').value.trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){$('authMessage').textContent='Primero ingresá un correo electrónico válido.';return}const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:location.origin});$('authMessage').textContent=error?'No se pudo solicitar la recuperación.':'Si el correo está registrado, recibirás instrucciones para recuperar tu contraseña.'});
  if(pendingInvite){$('registerBox').classList.remove('hide');$('registerOpenBtn').textContent='Registro por invitación';for(const id of ['registerStore','registerPhone','registerAddress'])$(id).closest('.field').classList.add('hide');$('registerSubmitBtn').textContent='Crear cuenta de empleada'}
