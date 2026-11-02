@@ -171,6 +171,31 @@ do $$declare c1 uuid; c2 uuid; e text; v record; j record; begin
  perform t.check('H8 una rendición confirmada no se vuelve a tocar', e is not null, e);
 end$$;
 
+-- ===== H2. La moto corrige su rendición mientras no esté cerrada =====
+do $$declare e text; c uuid; begin
+ perform t.login('a0000000-0000-0000-0000-000000000001');
+ perform t.check('HC0 preparación', true);
+end$$;
+do $$declare e text; st text; begin
+ -- Moto Uno ya está 'confirmada' (H1): no puede tocarla
+ perform t.login('c0000000-0000-0000-0000-000000000001');
+ e:=t.err(format('select public.motorista_corregir_cierre(%L,1,1)', t.hoy()));
+ perform t.check('HC1 rendición cuadrada queda bloqueada para la moto', e is not null, e);
+ -- simular rendición vieja 'presentada' con 0 en Moto Dos
+ reset role;
+ update public.flota_cierres_motoristas set estado='presentada',efectivo_declarado=0,confirmado_por=null,confirmed_at=null,efectivo_recibido=null,diferencia=null where motorista_id='90000000-0000-0000-0000-000000000002';
+ perform t.login('c0000000-0000-0000-0000-000000000002');
+ st:=public.motorista_corregir_cierre(t.hoy(),140000,0);
+ perform t.check('HC2 moto corrige: entrega 140.000 de 145.000 → diferencia', st='diferencia' and (select diferencia from public.flota_cierres_motoristas where motorista_id='90000000-0000-0000-0000-000000000002')=-5000, st);
+ st:=public.motorista_corregir_cierre(t.hoy(),145000,0);
+ perform t.check('HC3 moto corrige a 145.000 → confirmada', st='confirmada', st);
+ e:=t.err(format('select public.motorista_corregir_cierre(%L,0,0)', t.hoy()));
+ perform t.check('HC4 una vez cuadrada ya no se puede cambiar', e is not null, e);
+ perform t.login('c0000000-0000-0000-0000-000000000001');
+ e:=t.err(format('select public.motorista_corregir_cierre(%L,0,0)', t.hoy()-1));
+ perform t.check('HC5 no se corrige un día sin rendición', e is not null, e);
+end$$;
+
 -- ===== I. Cierre de ruta =====
 do $$declare e text; r uuid; begin
  perform t.login('a0000000-0000-0000-0000-000000000001');
