@@ -28,7 +28,8 @@ function recoverMotoristaMap(){
 }
 window.addEventListener('deliveryya-google-failed',recoverMotoristaMap);
 sb.auth.onAuthStateChange((evento,sesion)=>{if(moto&&(evento==='SIGNED_OUT'||(sesion?.user?.id&&sesion.user.id!==moto.usuario_id)))location.reload();});
-async function open(){const {data:{session}}=await sb.auth.getSession();if(!session)return;const token=new URLSearchParams(location.search).get('invite');if(token){const {error}=await sb.rpc('motorista_aceptar_invitacion',{p_token:token});if(error){$('msg').textContent=error.message;return}history.replaceState(null,'',location.pathname)}const {data,error}=await sb.from('motoristas').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(error||!data?.length){$('msg').textContent='Cuenta sin acceso de motorista autorizado. Abrí tu enlace de invitación.';return}moto=data[0];$('access').classList.add('hidden');$('app').classList.remove('hidden');$('name').textContent=moto.nombre;await load()}
+let motoVivo=null;function motoTiempoReal(){if(motoVivo||!moto)return;try{let t=null;motoVivo=sb.channel('moto-'+moto.id).on('postgres_changes',{event:'*',schema:'public',table:'pedidos',filter:'motorista_id=eq.'+moto.id},()=>{clearTimeout(t);t=setTimeout(load,700)}).subscribe()}catch(e){}setInterval(()=>{if(!document.hidden)load()},30000)}
+async function open(){const {data:{session}}=await sb.auth.getSession();if(!session)return;const token=new URLSearchParams(location.search).get('invite');if(token){const {error}=await sb.rpc('motorista_aceptar_invitacion',{p_token:token});if(error){$('msg').textContent=error.message;return}history.replaceState(null,'',location.pathname)}const {data,error}=await sb.from('motoristas').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(error||!data?.length){$('msg').textContent='Cuenta sin acceso de motorista autorizado. Abrí tu enlace de invitación.';return}moto=data[0];motoTiempoReal();$('access').classList.add('hidden');$('app').classList.remove('hidden');$('name').textContent=moto.nombre;await load()}
 async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos').select('id,nombre_cliente,telefono_cliente,direccion_cliente,lat,lng,numero_general,turno,precio_mercaderia,precio_delivery,modalidad_pago,estado,motivo_incidencia,referencias,observaciones,version_edicion').eq('motorista_id',moto.id).order('numero_general',{ascending:true});if(error){$('orders').textContent=error.message;return}let a=data||[];
 const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',today);
 if(!orderResult.error&&orderResult.data?.length){const indexes=new Map(orderResult.data.map(x=>[x.pedido_id,x.posicion]));a.sort((x,y)=>(indexes.get(x.id)??9999)-(indexes.get(y.id)??9999)||(x.numero_general??9999)-(y.numero_general??9999))}
@@ -97,13 +98,13 @@ if(map){
   const near=points.filter(q=>Math.abs(Number(q.lat)-lat)<0.00065&&Math.abs(Number(q.lng)-lng)<0.00075);
   const index=near.findIndex(q=>q.id===p.id),angle=2*Math.PI*index/near.length,radius=0.00028+(near.length>8?0.00012:0);
   const shown=near.length<2?{lat,lng}:{lat:lat+radius*Math.cos(angle),lng:lng+radius*Math.sin(angle)/Math.max(.2,Math.cos(lat*Math.PI/180))};
-  const label=String(p.numero_general??a.findIndex(v=>v.id===p.id)+1),desc='N.º '+label+' — '+p.nombre_cliente+' · ID '+p.id.slice(0,8);
+  const label=String(p.numero_general??a.findIndex(v=>v.id===p.id)+1),estadoTxt={entregado:'✅ Entregado',rechazado:'❌ Rechazado',no_responde:'⚠️ No responde',no_recibio:'⚠️ No recibió',pasa_manana:'📅 Pasa mañana',pendiente:'Pendiente'}[p.estado]||p.estado,desc='N.º '+label+' — '+p.nombre_cliente+' · '+estadoTxt,colorEstado=p.estado==='entregado'?'#16a34a':p.estado==='rechazado'?'#dc2626':['no_responde','no_recibio'].includes(p.estado)?'#f59e0b':p.estado==='pasa_manana'?'#7c3aed':'#1765ba';
   if(googleMap){
-    const m=new google.maps.Marker({map,position:shown,title:desc,label:{text:label,color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:19,fillColor:'#1765ba',fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
+    const m=new google.maps.Marker({map,position:shown,title:desc,label:{text:p.estado==='entregado'?'✓':label,color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:19,fillColor:colorEstado,fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
     const info=new google.maps.InfoWindow({content:'<strong>'+safe(desc)+'</strong>'});
     m.addListener('click',()=>info.open({map,anchor:m}));mapPoints.push(m);
   }else{
-    const icon=L.divIcon({className:'',html:'<div class="moto-marker">'+safe(label)+'</div>',iconSize:[32,32],iconAnchor:[16,16]});
+    const icon=L.divIcon({className:'',html:'<div class="moto-marker" style="background:'+colorEstado+'">'+(p.estado==='entregado'?'✓':safe(label))+'</div>',iconSize:[32,32],iconAnchor:[16,16]});
     mapPoints.push(L.marker([shown.lat,shown.lng],{icon}).bindPopup(safe(desc)).addTo(map));
   }
  }
