@@ -18,6 +18,15 @@ export async function onRequestPost({request}){
  try{
   for(let i=0;i<6;i++){
    if(visited.has(current.href))break;visited.add(current.href);
+   // Los vínculos de Google Maps de tipo /maps/dir/origen/destino
+   // deben resolverse al DESTINO y no a la ubicación del remitente.
+   if(current.pathname.includes('/maps/dir/')){
+    const parts=current.pathname.split('/').filter(Boolean);
+    const dir=parts.indexOf('dir');
+    const stops=parts.slice(dir+1).filter(p=>!p.startsWith('data='));
+    const points=stops.map(p=>{const m=decodeURIComponent(p).match(/^(-?\\d{1,2}\\.\\d+),(-?\\d{1,3}\\.\\d+)$/);return m?{lat:Number(m[1]),lng:Number(m[2])}:null}).filter(Boolean);
+    if(points.length>=2){const destination=points[points.length-1];if(destination.lat>=-28&&destination.lat<=-19&&destination.lng>=-63&&destination.lng<=-54)return json({coords:destination,source:'directions_destination'});}
+   }
    let coords=extract(current.href);if(coords)return json({coords});
    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
    let response;
