@@ -66,6 +66,46 @@ header::after{content:"●  Central operativa";font-size:12px;color:#a6f0d1;bord
 #dispatchMotoristsCard #driverQuickSelected{font-size:12px;margin-top:10px}
 @media(max-width:1149px){.dispatch-layout{grid-template-columns:minmax(0,1fr) minmax(250px,.8fr)}.dispatch-layout>#dispatchMotoristsCard{grid-column:1/-1}.dispatch-layout #driverQuickCards{display:flex!important;flex-wrap:wrap;gap:8px}.dispatch-layout [data-quick-driver]{max-width:260px}}
 @media(max-width:800px){.dispatch-layout{display:flex;flex-direction:column}.dispatch-layout>.card{width:100%}.dispatch-layout>.dispatch-side{order:1}.dispatch-layout>#dispatchMotoristsCard{order:2}.dispatch-layout>.card:has(#routeMap){order:3}.dispatch-layout .dispatch-map{min-height:340px}}
+
+/* Centro de despacho 5.0 — pantalla de trabajo visible sin desplazamiento excesivo */
+@media(min-width:1150px){
+body:has(#dispatchMotoristsCard) main{padding-top:10px}
+body:has(#dispatchMotoristsCard) #content>h2{margin:0 0 5px;font-size:21px}
+body:has(#dispatchMotoristsCard) #content>.dispatch-kpis{margin:0 0 5px;gap:13px}
+body:has(#dispatchMotoristsCard) #content>.card{margin:6px 0;padding:9px 13px}
+body:has(#dispatchMotoristsCard) #content>.card>.toolbar{margin:3px 0;gap:6px}
+body:has(#dispatchMotoristsCard) #content>.card>.toolbar button,
+body:has(#dispatchMotoristsCard) #routeActionPanel button,
+body:has(#dispatchMotoristsCard) #routeActionPanel select,
+body:has(#dispatchMotoristsCard) #routeActionPanel input{padding:6px 9px;font-size:12px;min-height:32px}
+body:has(#dispatchMotoristsCard) #dispatchShiftButtons button{padding:5px 10px;font-size:12px}
+body:has(#dispatchMotoristsCard) #dispatchActiveShift{margin:2px 0!important;font-size:12px}
+body:has(#dispatchMotoristsCard) #dispatchShiftButtons{gap:4px!important}
+body:has(#dispatchMotoristsCard) #content>.card>.dispatch-kpis{font-size:11px;gap:9px}
+body:has(#dispatchMotoristsCard) #content>.card>.dispatch-kpis+div{max-height:33px;overflow:auto;font-size:11px}
+body:has(#dispatchMotoristsCard) #routeActionPanel{gap:5px;margin:5px 0}
+body:has(#dispatchMotoristsCard) #routeActionPanel label{font-size:12px}
+body:has(#dispatchMotoristsCard) #routeActionPanel #routeOrigin{width:170px!important}
+body:has(#dispatchMotoristsCard) #routeMsg{margin:2px 0;font-size:12px}
+body:has(#dispatchMotoristsCard) #routeMsg+div{margin-top:3px!important;gap:7px!important;font-size:10px!important}
+body:has(#dispatchMotoristsCard) #content>.card .row{margin-bottom:4px!important}
+body:has(#dispatchMotoristsCard) #content>.card .row button{padding:6px 11px;font-size:12px}
+body:has(#dispatchMotoristsCard) .dispatch-layout{grid-template-columns:minmax(280px,1.04fr) minmax(440px,1.7fr) minmax(225px,.76fr);gap:9px;align-items:start}
+body:has(#dispatchMotoristsCard) .dispatch-layout>.card{padding:10px;margin:0}
+body:has(#dispatchMotoristsCard) .dispatch-layout .dispatch-map{min-height:calc(100vh - 340px);height:calc(100vh - 340px);max-height:800px}
+body:has(#dispatchMotoristsCard) .dispatch-layout>.dispatch-side,
+body:has(#dispatchMotoristsCard) .dispatch-layout>#dispatchMotoristsCard{height:calc(100vh - 320px);min-height:390px;max-height:820px;overflow-y:auto}
+body:has(#dispatchMotoristsCard) .dispatch-layout .dispatch-head{gap:4px}
+body:has(#dispatchMotoristsCard) .dispatch-layout .dispatch-head button{padding:6px 9px;font-size:12px}
+body:has(#dispatchMotoristsCard) .dispatch-layout #routeListTools{margin:6px 0}
+body:has(#dispatchMotoristsCard) .dispatch-layout #routeSearch{padding:7px 9px;font-size:12px}
+body:has(#dispatchMotoristsCard) #dispatchMotoristsCard #driverQuickCards{margin-top:6px!important}
+}
+@media(min-width:1150px) and (max-height:750px){
+body:has(#dispatchMotoristsCard) .dispatch-layout .dispatch-map{height:420px;min-height:420px}
+body:has(#dispatchMotoristsCard) .dispatch-layout>.dispatch-side,
+body:has(#dispatchMotoristsCard) .dispatch-layout>#dispatchMotoristsCard{height:440px;min-height:440px}
+}
 </style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></head><body>
 <header><strong>DeliveryYa Flota</strong><div>Central de Mando</div></header><main><section id="login"><h2>Acceso administrativo</h2><p>Solo propietario, socios y operadores autorizados.</p><input id="email" type="email" placeholder="Correo" autocomplete="username"><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password"><button id="enter">Ingresar</button> <button id="register" type="button">Crear cuenta del propietario</button><p class="muted">Primera vez: creá tu cuenta y verificá el correo electrónico antes de ingresar.</p><p id="error"></p></section>
 <section id="app" class="hidden"><nav id="nav"></nav><div id="content"></div><button id="logout">Cerrar sesión</button></section></main>
