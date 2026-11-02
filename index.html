@@ -72,17 +72,29 @@ function validate(v,draft){if(!draft&&!['manana','tarde'].includes(v.turno))retu
 let saving=false;let lastFingerprint='',lastSaveTime=0;async function saveOrder(draft){if(!cloudMode||!activeStore){show('Iniciá sesión con una tienda autorizada. No se admiten pedidos locales de prueba.','error');return;}if(saving)return;saving=true;$('confirmBtn').disabled=true;$('draftBtn').disabled=true;try{if(!draft&&!coordsFrom($('mapLink').value)&&$('mapLink').value.trim())await resolveMapLink();const v=values();const error=validate(v,draft);if(error){show(error,'error');return}const fingerprint=JSON.stringify([v.customer,v.phone,v.address,v.city,v.goods,v.payment,v.mapLink,v.turno,draft]);if(fingerprint===lastFingerprint&&Date.now()-lastSaveTime<5000){show('Este pedido ya se guardó. Revisá Mis pedidos antes de volver a cargarlo.','error');return}const order={id:crypto.randomUUID(),createdAt:new Date().toISOString(),customer:v.customer,phone:v.phone,address:v.address||(v.coords?'Ubicación GPS: '+v.coords.lat+','+v.coords.lng:''),city:v.city,reference:v.reference,goods:v.goods,shipping:v.shipping,payment:v.payment,turno:v.turno,total:v.shipping===null?null:v.total,coords:v.coords,mapLink:v.mapLink,notes:v.notes,status:draft?'borrador':'pendiente'};if(cloudMode&&!draft){const payload={empresa_id:activeStore.empresa_id,tienda_id:activeStore.id,nombre_cliente:v.customer,telefono_cliente:v.phone,direccion_cliente:v.address||'Ubicación GPS: '+v.coords.lat+','+v.coords.lng,lat:v.coords.lat,lng:v.coords.lng,referencias:v.reference,observaciones:v.notes,precio_mercaderia:v.goods,precio_delivery:v.shipping,modalidad_pago:v.payment,turno:v.turno,estado:'pendiente'};const {data:created,error}=await supabaseClient.from('pedidos').insert(payload).select('id,created_at').single();if(error)throw Error('No se guardó en Supabase: '+error.message);order.id=created.id;order.createdAt=created.created_at;data.orders.unshift(order)}else{data.orders.unshift(order);if(!persist()){data.orders.shift();return}}lastFingerprint=fingerprint;lastSaveTime=Date.now();$('orderForm').reset();updateForm();show(draft?'Borrador guardado en este navegador.':cloudMode?'Pedido guardado en Supabase.':'Pedido guardado LOCALMENTE. Aún no fue enviado a la empresa.');go('pedidos')}catch(err){show(err.message||'Error al guardar el pedido.','error')}finally{saving=false;$('confirmBtn').disabled=false;$('draftBtn').disabled=false}}
 const statusText={borrador:'Borrador',pendiente:'Pendiente',entregado:'Entregado',en_ruta:'En ruta',rechazado:'Rechazado'};
 function orderCard(p){let author=cloudMode&&teamRole==='propietario'?'<div class="muted tiny">Cargado por: '+escapeHTML(teamUsers.find(u=>u.usuario_id===p.createdBy)?.correo||(p.createdBy?'Propietaria':'Sin identificar'))+'</div>':'';let map=p.coords?`<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.coords.lat+','+p.coords.lng)}">Ver ubicación</a>`:'';return `<article class="order" data-open-order="${cloudMode&&p.status==='pendiente'?escapeHTML(p.id):''}"><div class="order-top"><div><b>${escapeHTML(p.customer)}</b><div class="muted tiny">${escapeHTML(new Date(p.createdAt).toLocaleString('es-PY'))} · ${escapeHTML(p.phone)}</div></div><span class="pill ${p.status==='borrador'?'draft':p.status==='entregado'?'done':p.status==='rechazado'?'bad':''}">${escapeHTML(statusText[p.status]||p.status)}</span></div><p class="tiny">${escapeHTML(p.address||'Dirección pendiente')} · ${escapeHTML(p.city||'Localidad pendiente')}</p>${author}<div class="summary-line"><span>Mercadería: ${money(p.goods)} · Delivery: ${p.shipping===null?'Sin tarifa':money(p.shipping)}</span><b>${p.total===null?'Por cotizar':money(p.total)}</b></div><div class="buttons tiny">${map}<button class="btn light" type="button" data-copy="${escapeHTML(p.id)}">Copiar resumen</button>${cloudMode&&p.status==='pendiente'?`<button class="btn secondary" type="button" data-edit="${escapeHTML(p.id)}">Editar</button><button class="btn" type="button" data-send-route="${escapeHTML(p.id)}">📦 Agregar a ruta</button>`:''}</div></article>`}
+function elegirTurnoParaRuta(){
+ return new Promise(resolve=>{
+  const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:#0d1d33b5;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML='<div role="dialog" aria-modal="true" aria-label="Elegir turno" style="width:min(420px,100%);background:white;border-radius:16px;padding:24px;box-shadow:0 16px 48px #0004"><h2 style="margin:0 0 8px">📦 Agregar a ruta</h2><p>¿En qué turno se entregará este pedido?</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin:18px 0"><button type="button" class="btn" data-turno="manana">🌅 Mañana</button><button type="button" class="btn" data-turno="tarde">🌇 Tarde</button></div><button type="button" class="btn secondary" data-cancel>Cancelar</button></div>';
+  document.body.appendChild(overlay);
+  const finish=value=>{overlay.remove();resolve(value)};
+  overlay.querySelectorAll('[data-turno]').forEach(b=>b.onclick=()=>finish(b.dataset.turno));
+  overlay.querySelector('[data-cancel]').onclick=()=>finish(null);
+  overlay.onclick=e=>{if(e.target===overlay)finish(null)};
+ });
+}
 async function tiendaEnviarPedidoARuta(id,button){
  if(!cloudMode||!activeStore)return;
  const p=data.orders.find(o=>o.id===id);
  if(!p||p.status!=='pendiente'||p.assigned){show('Solo se pueden preparar pedidos pendientes sin motorista.','error');return;}
  if(!p.coords){show('Primero editá el pedido y agregá su ubicación GPS.','error');return;}
+ const turno=await elegirTurnoParaRuta();if(!turno)return;
  button.disabled=true;
  try{
-  const {error}=await supabaseClient.rpc('tienda_agregar_pedido_a_ruta',{p_pedido:id});
+  const {error}=await supabaseClient.rpc('tienda_agregar_pedido_a_ruta',{p_pedido:id,p_turno:turno});
   if(error)throw error;
   await loadCloud();
-  show('Pedido agregado al despacho de la Central. El administrador lo numerará al optimizar la ruta.');
+  show('Pedido agregado al turno '+(turno==='manana'?'Mañana':'Tarde')+' de la Central. Se numerará al optimizar la ruta.');
  }catch(e){show('No se pudo agregar a la ruta: '+e.message,'error');button.disabled=false;}
 }
 function editarPedidoTienda(id) {
