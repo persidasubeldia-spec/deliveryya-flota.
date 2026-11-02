@@ -32,7 +32,7 @@ export async function onRequestPost({request}){
    let response;
    try{response=await fetch(current.href,{redirect:'manual',signal:controller.signal,headers:{Accept:'text/html,application/xhtml+xml'}})}
    finally{clearTimeout(timer)}
-   const location=response.headers.get('location');trace.push({status:response.status,host:current.hostname,redirect:!!location,contentType:(response.headers.get('content-type')||'').slice(0,40)});
+   const location=response.headers.get('location');trace.push({status:response.status,host:current.hostname,pathname:current.pathname.slice(0,230),redirect:!!location,redirectPath:location?new URL(location,current).pathname.slice(0,230):null,contentType:(response.headers.get('content-type')||'').slice(0,40)});
    if(location){let next;try{next=safe(new URL(location,current).href)}catch{}if(!next)return json({error:'Redirección externa no admitida'},422);current=next;continue;}
    if(response.ok&&(response.headers.get('content-type')||'').includes('text/html')){
     const html=(await response.text()).slice(0,300000);
