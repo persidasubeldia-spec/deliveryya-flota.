@@ -343,7 +343,7 @@ async function checkIncomingOrders(){
    const fresh=await cargarTodosLosPedidos(account.empresa_id);
    const stillNew=fresh.filter(o=>!known.has(o.id));
    orders=fresh;notifyNewOrders(stillNew);
-   if($('newOrdersPanel')){const count=$('newOrdersCount');if(count)count.textContent='('+newOrderAlerts.length+')';}
+   if($('newOrdersPanel'))page('Inicio');
   }
   lastOrderWatchError='';
   const status=$('newOrdersWatchStatus');if(status)status.textContent='Última comprobación: '+new Date().toLocaleTimeString('es-PY');
