@@ -133,7 +133,42 @@ body:has(#dispatchMotoristsCard) .dispatch-layout>.dispatch-side,
 body:has(#dispatchMotoristsCard) .dispatch-layout>#dispatchMotoristsCard{height:clamp(500px,calc(100vh - 270px),900px);min-height:500px;max-height:none}
 }
 @media(max-width:1149px){body:has(#dispatchMotoristsCard) .dy-dispatch-tools #routeActionPanel{gap:7px}}
-</style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></head><body>
+</style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style id="dyMovil">
+@media(max-width:700px){
+ #app nav{display:grid!important;grid-template-columns:repeat(4,1fr);gap:5px;overflow:visible!important;padding:6px!important}
+ #app nav button{font-size:12px!important;padding:9px 2px!important;white-space:normal!important;line-height:1.15;text-align:center}
+ #content .card.scroll{overflow:visible;padding:8px!important;background:transparent;border:0;box-shadow:none}
+ #content table.dy-cards,#content table.dy-cards tbody,#content table.dy-cards tr,#content table.dy-cards td{display:block;width:100%}
+ #content table.dy-cards thead{display:none}
+ #content table.dy-cards tr{background:#fff;border:1px solid #dfe7f1;border-radius:12px;padding:8px 12px;margin:0 0 10px;box-shadow:0 2px 6px rgba(10,30,60,.05)}
+ #content table.dy-cards td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0!important;border-bottom:1px solid #eef2f7!important;padding:7px 0!important;font-size:14px!important;text-align:right;word-break:normal;white-space:normal}
+ #content table.dy-cards td:last-child{border-bottom:0!important}
+ #content table.dy-cards td::before{content:attr(data-label);color:#60728b;font-size:12.5px;font-weight:600;text-align:left;flex:none;max-width:45%}
+ #content table.dy-cards td[data-label=""]::before{display:none}
+ #content table.dy-cards td:first-child{font-weight:700;font-size:15px!important}
+ #content table.dy-cards td button,#content table.dy-cards td a{white-space:nowrap}
+ .dispatch-layout>.card:has(#routeMap){order:1!important}
+ .dispatch-layout>#dispatchMotoristsCard{order:2!important}
+ .dispatch-layout>.dispatch-side{order:3!important;max-height:none!important}
+ .dispatch-layout .dispatch-map{min-height:330px!important}
+ #dispatchMotoristsCard .dispatch-driver{display:inline-flex;align-items:center;gap:6px;margin:0 6px 6px 0;padding:8px 10px}
+ #routeActionPanel{display:grid!important;grid-template-columns:1fr 1fr;gap:7px}
+ #routeActionPanel>*{width:100%;margin:0!important}
+ #routeActionPanel button{font-size:13px;padding:11px 8px;white-space:normal;line-height:1.2}
+ #routeActionPanel select{grid-column:1/-1;width:100%}
+ #routeActionPanel>label,#routeActionPanel>span{grid-column:1/-1;display:flex;align-items:center;gap:8px}
+ #routeActionPanel>label select{flex:1}
+ #routeActionPanel button{align-self:stretch;min-height:46px}
+ #dispatchMotoristsCard .dispatch-driver{width:auto!important;max-width:100%}
+ #content .toolbar{flex-wrap:wrap}
+ #content .grid{grid-template-columns:1fr 1fr!important}
+}
+</style>
+<script>
+(function(){function etiquetar(){document.querySelectorAll('#content table').forEach(t=>{const th=[...t.querySelectorAll('thead th')].map(x=>x.textContent.trim());if(!th.length)return;t.classList.add('dy-cards');t.querySelectorAll('tbody tr').forEach(tr=>[...tr.children].forEach((td,i)=>{if(!td.hasAttribute('data-label'))td.setAttribute('data-label',th[i]||'')}))})}
+let q=false;const run=()=>{if(q)return;q=true;requestAnimationFrame(()=>{q=false;etiquetar()})};
+document.addEventListener('DOMContentLoaded',()=>{const c=document.getElementById('content');if(c)new MutationObserver(run).observe(c,{childList:true,subtree:true});run()})})();
+</script></head><body>
 <header><strong>DeliveryYa Flota</strong><div>Central de Mando</div></header><main><section id="login"><h2>Acceso administrativo</h2><p>Solo propietario, socios y operadores autorizados.</p><input id="email" type="email" placeholder="Correo" autocomplete="username"><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password"><button id="enter">Ingresar</button> <button id="register" type="button">Crear cuenta del propietario</button><p class="muted">Primera vez: creá tu cuenta y verificá el correo electrónico antes de ingresar.</p><p id="error"></p></section>
 <section id="app" class="hidden"><nav id="nav"></nav><div id="content"></div><button id="logout">Cerrar sesión</button></section></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>window.gm_authFailure=function(){window.deliveryyaGoogleError="Google Maps rechazó la clave, dominio o facturación";if(typeof window.deliveryyaGoogleRecover==="function")window.deliveryyaGoogleRecover();};</script><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpfB3PfNovtq0dIfmXmqrH2sI2U1YSDNA&v=weekly"></script><script>
