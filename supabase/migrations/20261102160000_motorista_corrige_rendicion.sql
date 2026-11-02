@@ -16,12 +16,13 @@ begin
  if not found then raise exception 'No hay rendición de ese día'; end if;
  if c.estado='confirmada' then raise exception 'La rendición ya está cerrada'; end if;
  if c.confirmado_por is not null and c.confirmado_por<>auth.uid() then raise exception 'El jefe ya revisó esta rendición: pedile a él que la corrija'; end if;
- v_estado:=case when p_efectivo=c.a_rendir_esperado and p_transferencia=c.transferencia_registrada then 'confirmada' else 'diferencia' end;
+ -- El motorista solo declara; la conciliación definitiva corresponde a la Central.
+ v_estado:=case when p_efectivo=c.a_rendir_esperado and p_transferencia=c.transferencia_registrada then 'presentada' else 'diferencia' end;
  update public.flota_cierres_motoristas
     set efectivo_declarado=p_efectivo, transferencia_declarada=p_transferencia,
         efectivo_recibido=p_efectivo, transferencia_confirmada=p_transferencia,
         diferencia=p_efectivo-a_rendir_esperado, diferencia_transferencia=p_transferencia-transferencia_registrada,
-        estado=v_estado, confirmado_por=auth.uid(), confirmed_at=now()
+        estado=v_estado, confirmado_por=null, confirmed_at=null
   where id=c.id;
  return v_estado;
 end $function$;
