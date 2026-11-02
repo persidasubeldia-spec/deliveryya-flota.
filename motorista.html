@@ -106,28 +106,21 @@ if(map){
  for(const marker of mapPoints){if(googleMap)marker.setMap(null);else marker.remove();}
  mapPoints=[];
  const coords=[];
- const groups=new Map();
- for(const p of a){
-  if(p.lat==null||p.lng==null)continue;
+ const points=a.filter(p=>p.lat!=null&&p.lng!=null&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
+ for(const p of points){
   const lat=Number(p.lat),lng=Number(p.lng);
-  if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
-  const key=lat.toFixed(7)+','+lng.toFixed(7);
-  if(!groups.has(key))groups.set(key,[]);
-  groups.get(key).push(p);
- }
- for(const items of groups.values()){
-  const lat=Number(items[0].lat),lng=Number(items[0].lng);
   coords.push([lat,lng]);
-  const label=items.map(p=>p.numero_general??'•').join('+');
-  const desc=items.map(p=>'N.º '+(p.numero_general??'—')+' — '+p.nombre_cliente).join(' / ');
+  const near=points.filter(q=>Math.abs(Number(q.lat)-lat)<0.00065&&Math.abs(Number(q.lng)-lng)<0.00075);
+  const index=near.findIndex(q=>q.id===p.id),angle=2*Math.PI*index/near.length,radius=0.00028+(near.length>8?0.00012:0);
+  const shown=near.length<2?{lat,lng}:{lat:lat+radius*Math.cos(angle),lng:lng+radius*Math.sin(angle)/Math.max(.2,Math.cos(lat*Math.PI/180))};
+  const label=String(p.numero_general??a.findIndex(v=>v.id===p.id)+1),desc='N.º '+label+' — '+p.nombre_cliente+' · ID '+p.id.slice(0,8);
   if(googleMap){
-    const m=new google.maps.Marker({map,position:{lat,lng},title:desc,label:{text:label,color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:19,fillColor:'#1765ba',fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
+    const m=new google.maps.Marker({map,position:shown,title:desc,label:{text:label,color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:19,fillColor:'#1765ba',fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
     const info=new google.maps.InfoWindow({content:'<strong>'+safe(desc)+'</strong>'});
-    m.addListener('click',()=>info.open({map,anchor:m}));
-    mapPoints.push(m);
+    m.addListener('click',()=>info.open({map,anchor:m}));mapPoints.push(m);
   }else{
     const icon=L.divIcon({className:'',html:'<div class="moto-marker">'+safe(label)+'</div>',iconSize:[32,32],iconAnchor:[16,16]});
-    mapPoints.push(L.marker([lat,lng],{icon}).bindPopup(safe(desc)).addTo(map));
+    mapPoints.push(L.marker([shown.lat,shown.lng],{icon}).bindPopup(safe(desc)).addTo(map));
   }
  }
  const signature=coords.map(v=>v.join(',')).join(';');
