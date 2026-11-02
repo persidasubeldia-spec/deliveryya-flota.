@@ -12,6 +12,21 @@ function setTheme(night){
 }
 $('themeToggle').onclick=()=>setTheme(!document.body.classList.contains('dark'));
 try{setTheme(localStorage.getItem('deliveryya_moto_theme')==='dark')}catch{setTheme(false)}
+function recoverMotoristaMap(){
+ if(!googleMap||!$('map'))return;
+ try{for(const m of mapPoints)m.setMap(null);}catch{}
+ mapPoints=[];map=null;googleMap=false;window.deliveryyaGoogleError=true;
+ const old=$('map');old.replaceWith(old.cloneNode(false));
+ if(!window.L){$('mapSource').textContent='Google Maps no está disponible y no se cargó el mapa alternativo.';return;}
+ try{
+   map=L.map('map').setView([-25.33,-57.55],10);
+   osmTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+   $('mapSource').textContent='Mapa alternativo activo · Google Maps no respondió';
+   lastMapSignature='';
+   if(moto)load();
+ }catch(e){$('mapSource').textContent='No se pudo recuperar el mapa: '+e.message;}
+}
+window.addEventListener('deliveryya-google-failed',recoverMotoristaMap);
 async function open(){const {data:{session}}=await sb.auth.getSession();if(!session)return;const token=new URLSearchParams(location.search).get('invite');if(token){const {error}=await sb.rpc('motorista_aceptar_invitacion',{p_token:token});if(error){$('msg').textContent=error.message;return}history.replaceState(null,'',location.pathname)}const {data,error}=await sb.from('motoristas').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(error||!data?.length){$('msg').textContent='Cuenta sin acceso de motorista autorizado. Abrí tu enlace de invitación.';return}moto=data[0];$('access').classList.add('hidden');$('app').classList.remove('hidden');$('name').textContent=moto.nombre;await load()}
 async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos').select('id,nombre_cliente,telefono_cliente,direccion_cliente,lat,lng,numero_general,precio_mercaderia,precio_delivery,modalidad_pago,estado,motivo_incidencia,referencias,observaciones,version_edicion').eq('motorista_id',moto.id).order('numero_general',{ascending:true});if(error){$('orders').textContent=error.message;return}let a=data||[];
 const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',today);
@@ -78,6 +93,8 @@ const estado=prompt('Incidencia: no_responde, no_recibio o pasa_manana','no_resp
 if(!map){
  if(window.google?.maps&&!window.deliveryyaGoogleError){
    googleMap=true;map=new google.maps.Map($('map'),{center:{lat:-25.33,lng:-57.55},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:true,styles:document.body.classList.contains('dark')?nightMapStyle:[]});
+   google.maps.event.addListenerOnce(map,'tilesloaded',()=>{map._deliveryyaTilesReady=true;});
+   setTimeout(()=>{if(googleMap&&map&&!map._deliveryyaTilesReady)recoverMotoristaMap();},6500);
    $('mapSource').textContent='Google Maps · mismo proveedor que la Central';
  }else if(window.L){
    googleMap=false;map=L.map('map').setView([-25.33,-57.55],10);
