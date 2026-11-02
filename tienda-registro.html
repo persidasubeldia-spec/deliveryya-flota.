@@ -12,7 +12,7 @@ $('register').onclick=async()=>{
  const b=$('register');b.disabled=true;
  try{
  const email=$('email').value.trim(),password=$('password').value;
- if(!/^\\S+@\\S+\\.\\S+$/.test(email)||password.length<8){report('Ingresá un correo válido y una contraseña de al menos 8 caracteres.');return;}
+ if(!/^\S+@\S+\.\S+$/.test(email)||password.length<8){report('Ingresá un correo válido y una contraseña de al menos 8 caracteres.');return;}
  const {data,error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+'/tienda-registro.html'}});
  if(error){report('No se pudo registrar: '+error.message);return;}
  if(data.session)await sendRequest();
