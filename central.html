@@ -246,7 +246,33 @@ body.dark #dyDesp,body.dark #dyDesp .chip,body.dark #dyDesp .lhead{background:#1
 #dyEdit .acc .ok{background:#0e8a52;color:#fff;border-color:#0e8a52}#dyEdit .wa{display:block;margin-top:10px;text-align:center;background:#25d366;color:#fff;border-radius:11px;padding:12px;font-weight:900;text-decoration:none}
 body.dark #dyEdit .box{background:#172235;color:#e6edf9}body.dark #dyEdit input,body.dark #dyEdit textarea,body.dark #dyEdit .seg button{background:#0f1a2b;color:#e6edf9;border-color:#32425a}
 </style>
-</head><body>
+
+<style id="dyCentralDashboardCompact">
+#content:has(#newOrdersPanel){display:flex;flex-direction:column;gap:10px}
+#content:has(#newOrdersPanel)> .toolbar{order:0;margin:0}
+#content:has(#newOrdersPanel)> #filtroFin{order:1}
+#content:has(#newOrdersPanel)> .grid:has([data-kpi]){order:2;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+#content:has(#newOrdersPanel)>details.dy-fold{order:3;margin:0;padding:0}
+#content:has(#newOrdersPanel)> #dyPorTienda{order:4;margin:0}
+#content:has(#newOrdersPanel)> .grid:not(:has([data-kpi])){order:5;gap:10px}
+#content:has(#newOrdersPanel)> #newOrdersPanel{order:6;margin:0;padding:11px}
+#content:has(#newOrdersPanel)> .card:has([data-home]){order:7;margin:0;padding:11px}
+#content:has(#newOrdersPanel)> .card:has([data-home]) h3{margin:0 0 5px}
+#content:has(#newOrdersPanel)> .grid:has([data-kpi]) .metric{padding:12px}
+#content:has(#newOrdersPanel)> .grid:has([data-kpi]) .metric strong{font-size:24px}
+#content:has(#newOrdersPanel)> details.dy-fold>summary{padding:10px 14px}
+#filtroFin>.card{margin:0;padding:15px}
+#filtroFin #valFin>.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#filtroFin #valFin>.card.scroll{margin:9px 0}
+#filtroFin #valFin>.muted{margin:8px 0;font-size:12px}
+#filtroFin .dy-card-open{min-height:115px}
+#dyPorTienda .tot{display:none}
+#dyPorTienda>summary{padding:10px 14px}
+.dy-shop-open{border:0;background:transparent;color:#1765ba;cursor:pointer;font-weight:700;text-align:left}
+.dy-shop-open:hover{text-decoration:underline}
+@media(max-width:1100px){#content:has(#newOrdersPanel)>.grid:has([data-kpi]){grid-template-columns:repeat(3,minmax(0,1fr))}#filtroFin #valFin>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#content:has(#newOrdersPanel)>.grid:has([data-kpi]){grid-template-columns:repeat(2,minmax(0,1fr))}#filtroFin #valFin>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}#filtroFin .dy-card-open .number{font-size:21px}}
+</style></head><body>
 <header><strong>DeliveryYa Flota</strong><div>Central de Mando</div></header><main><section id="login"><h2>Acceso administrativo</h2><p>Entrá con tu correo. Si sos tienda o motorista, te llevamos solo a tu panel.</p><input id="email" type="email" placeholder="Correo" autocomplete="username"><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password"><button id="enter">Ingresar</button> <button id="register" type="button" style="display:none">Crear cuenta del propietario</button><p class="muted">¿Tienda nueva? <a href="/app.html">Creá tu cuenta acá</a> solo con correo y contraseña.</p><p id="error"></p></section>
 <section id="app" class="hidden"><nav id="nav"></nav><div id="content"></div><button id="logout">Cerrar sesión</button></section></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>window.gm_authFailure=function(){window.deliveryyaGoogleError="Google Maps rechazó la clave, dominio o facturación";if(typeof window.deliveryyaGoogleRecover==="function")window.deliveryyaGoogleRecover();};</script><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpfB3PfNovtq0dIfmXmqrH2sI2U1YSDNA&v=weekly"></script><script>
@@ -256,7 +282,7 @@ async function cargarTodosLosPedidos(empresaId){const resultado=[];const tamano=
 let filtroDia=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}),filtroVersion=0;
 const diaPY=t=>new Date(t).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
 function cambioDia(n){const d=new Date(filtroDia+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);filtroDia=d.toISOString().slice(0,10);actualizarDia()}
-function actualizarDia(){rdEstado.fecha=filtroDia;if(document.getElementById('filtroFin')){if(document.getElementById('newOrdersPanel'))page('Inicio');else mostrarDia()}else if(document.getElementById('rendRoot'))dyRendiciones()}
+function actualizarDia(){window.dispatchEvent(new Event('dy-fecha-cambio'));rdEstado.fecha=filtroDia;if(document.getElementById('filtroFin')){if(document.getElementById('newOrdersPanel'))page('Inicio');else mostrarDia()}else if(document.getElementById('rendRoot'))dyRendiciones()}
 async function mostrarDia(){
 const h=document.getElementById('filtroFin');if(!h||!account)return;
 const v=++filtroVersion,d=filtroDia,hoy=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
@@ -272,7 +298,7 @@ const pagar=t.reduce((n,a)=>n+Math.max(0,a.neto),0),cobrar=t.reduce((n,a)=>n+Mat
 const k=[['Ganancia empresa · comisión registrada',total('comision_empresa'),'empresa'],['Ganancia de motoristas',total('comision_motorista'),'motos'],['A rendir a tiendas · calculado',pagar,'pagar'],['A cobrar de tiendas · calculado',cobrar,'cobrar']];
 const btnCard=([nombre,importe,clave])=>'<button type="button" class="card dy-card-open" data-fin-det="'+clave+'" aria-label="Abrir detalle: '+escapeHtml(nombre)+'"><span class="muted">'+escapeHtml(nombre)+'</span><strong class="number">'+money(importe)+'</strong><small>Ver detalle →</small></button>';
 const lineaTienda=(a,i)=>'<tr><td><button type="button" class="dy-shop-open" data-fin-tienda="'+i+'">'+escapeHtml(a.tienda.codigo)+' · '+escapeHtml(a.tienda.nombre_comercial)+' →</button></td><td>'+a.ent+'</td><td>'+a.rej+'</td><td>'+money(Math.max(0,a.neto))+'</td><td>'+money(Math.max(0,-a.neto))+'</td></tr>';
-document.getElementById('valFin').innerHTML='<style>.dy-card-open{text-align:left;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;font:inherit;color:inherit}.dy-card-open:hover,.dy-shop-open:hover{border-color:#1765ba;background:#f1f7ff}.dy-card-open .number{font-size:30px;color:#153b68}.dy-card-open small{color:#1765ba;font-weight:700}.dy-shop-open{background:none;border:1px solid transparent;text-align:left;color:#1765ba;font-weight:700;cursor:pointer;padding:6px;border-radius:7px}.dy-modal-cover{position:fixed;inset:0;background:#0b1730b5;z-index:6000;display:flex;align-items:center;justify-content:center;padding:15px}.dy-modal-fin{width:min(940px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1b2c42;border-radius:16px;padding:20px;box-shadow:0 15px 50px #0004}.dy-modal-fin h3{margin:0}.dy-modal-fin .toolbar{justify-content:space-between}.dy-modal-fin .scroll{overflow-x:auto}.dy-modal-fin button{min-height:38px}@media(max-width:650px){.dy-modal-fin{padding:12px}.dy-modal-fin td,.dy-modal-fin th{font-size:12px;padding:7px}}</style><div class="grid">'+k.map(btnCard).join('')+'</div><p class="muted">Saldo calculado por movimientos del día; no confirma una liquidación realizada. Tocá cada tarjeta o tienda para ver el detalle.</p>'+table(['Tienda','Entregados','Rechazados','A pagar','A cobrar'],t.map(lineaTienda))+'<button id="verRendDia" class="btn-primary">Ver rendiciones de esta fecha</button>';
+document.getElementById('valFin').innerHTML='<style>.dy-card-open{text-align:left;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;font:inherit;color:inherit}.dy-card-open:hover,.dy-shop-open:hover{border-color:#1765ba;background:#f1f7ff}.dy-card-open .number{font-size:30px;color:#153b68}.dy-card-open small{color:#1765ba;font-weight:700}.dy-shop-open{background:none;border:1px solid transparent;text-align:left;color:#1765ba;font-weight:700;cursor:pointer;padding:6px;border-radius:7px}.dy-modal-cover{position:fixed;inset:0;background:#0b1730b5;z-index:6000;display:flex;align-items:center;justify-content:center;padding:15px}.dy-modal-fin{width:min(940px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1b2c42;border-radius:16px;padding:20px;box-shadow:0 15px 50px #0004}.dy-modal-fin h3{margin:0}.dy-modal-fin .toolbar{justify-content:space-between}.dy-modal-fin .scroll{overflow-x:auto}.dy-modal-fin button{min-height:38px}@media(max-width:650px){.dy-modal-fin{padding:12px}.dy-modal-fin td,.dy-modal-fin th{font-size:12px;padding:7px}}</style><div class="grid">'+k.map(btnCard).join('')+'</div><p class="muted">Saldo calculado por movimientos del día; no confirma una liquidación realizada. Tocá cada tarjeta o tienda para ver el detalle.</p>'+table(['Tienda','Entregados','Rechazados','A pagar','A cobrar'],t.map((a,i)=>['<button class="dy-shop-open" data-fin-tienda="'+i+'">'+escapeHtml(a.tienda.codigo)+' · '+escapeHtml(a.tienda.nombre_comercial)+' →</button>',a.ent,a.rej,money(Math.max(0,a.neto)),money(Math.max(0,-a.neto))]))+'<button id="verRendDia" class="btn-primary">Ver rendiciones de esta fecha</button>';
 const resumenM=(mov,p)=>({
  nombre:p?.nombre_cliente||'Pedido',codigo:t.find(z=>z.tienda.id===p?.tienda_id)?.tienda.codigo||stores.find(z=>z.id===p?.tienda_id)?.codigo||'—',
  motorista:drivers.find(z=>z.id===mov.motorista_id)?.nombre||'—',estado:p?.estado||'—',
@@ -302,6 +328,12 @@ function abrirDetalleFin(tipo,indice){
   ]));
   pie='Saldo neto '+(tipo==='tienda'?'de la tienda: '+money(grupos[0]?.neto||0):tipo==='pagar'?'a pagar: '+money(pagar):'a cobrar: '+money(cobrar))+' · Estos importes son calculados y pueden requerir conciliación.';
  }
+
+ if(tipo==='pagar'||tipo==='cobrar'||tipo==='tienda'){
+   const grupos=tipo==='tienda'?[t[indice]].filter(Boolean):t.filter(g=>tipo==='pagar'?g.neto>0:g.neto<0);
+   window.dyGruposRendicion=grupos;
+   contenido=grupos.map((g,i)=>'<section class="card" style="margin:10px 0;padding:12px"><strong>'+escapeHtml(g.tienda.codigo)+' · '+escapeHtml(g.tienda.nombre_comercial)+'</strong><p>'+g.ent+' entregados · '+g.rej+' rechazados · Mercadería '+money(g.merc)+' · Envíos a cargo tienda '+money(g.debe)+'</p><p><b>'+(g.neto>=0?'A rendir a tienda: ':'A cobrar de tienda: ')+money(Math.abs(g.neto))+'</b> · <small>Saldo calculado; pago no confirmado</small></p><div class="toolbar"><button type="button" data-gver="'+i+'">Ver detalle</button><button type="button" data-gpdf="'+i+'">Descargar PDF</button><button type="button" data-gwa="'+i+'">Enviar por WhatsApp</button></div><div id="gDetalle'+i+'" hidden></div></section>').join('')||'<p>No hay tiendas con ese saldo para esta fecha.</p>';
+ }else window.dyGruposRendicion=[];
  const prev=document.getElementById('dyFinModal');if(prev)prev.remove();
  const cover=document.createElement('div');cover.id='dyFinModal';cover.className='dy-modal-cover';
  cover.innerHTML='<section class="dy-modal-fin" role="dialog" aria-modal="true" aria-labelledby="dyFinTitulo"><div class="toolbar"><h3 id="dyFinTitulo">'+escapeHtml(titulo)+' · '+d.split('-').reverse().join('/')+'</h3><button type="button" id="dyCerrarFin">Cerrar ✕</button></div><p class="muted">'+escapeHtml(pie)+'</p>'+contenido+'</section>';
@@ -311,6 +343,42 @@ function abrirDetalleFin(tipo,indice){
  cover.onclick=ev=>{if(ev.target===cover)close()};
  cover.onkeydown=ev=>{if(ev.key==='Escape')close()};
  document.getElementById('dyCerrarFin').focus();
+
+ const grupos=window.dyGruposRendicion||[];
+ cover.querySelectorAll('[data-gver]').forEach(b=>b.onclick=()=>{
+   const i=Number(b.dataset.gver),g=grupos[i],out=cover.querySelector('#gDetalle'+i);
+   if(!g||!out)return;out.hidden=!out.hidden;
+   if(!out.hidden)out.innerHTML=table(['N.º','Cliente','Producto','Estado','Pago','Mercadería','Envío','Saldo','Motivo'],g.filas.map(({p,m,l})=>[
+     escapeHtml(p.numero_general??'—'),escapeHtml(p.nombre_cliente),escapeHtml(p.producto||'—'),
+     escapeHtml(p.estado),escapeHtml(p.modalidad_pago),money(l.merc),money(m.monto_delivery),
+     money(l.merc-l.debeTienda),escapeHtml(l.nota||p.motivo_incidencia||'—')
+   ]));
+ });
+ cover.querySelectorAll('[data-gpdf]').forEach(b=>b.onclick=async()=>{
+   const g=grupos[Number(b.dataset.gpdf)];if(!g)return;b.disabled=true;
+   try{const pdf=await rdPdf(g,d),url=URL.createObjectURL(pdf),a=document.createElement('a');
+     a.href=url;a.download=pdf.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   }catch(e){alert('No se pudo generar el PDF: '+e.message)}finally{b.disabled=false}
+ });
+ cover.querySelectorAll('[data-gwa]').forEach(b=>b.onclick=async()=>{
+   const g=grupos[Number(b.dataset.gwa)];if(!g)return;b.disabled=true;
+   try{
+     const pdf=await rdPdf(g,d);
+     const msg='DeliveryYa Flota · Rendición '+(g.tienda.codigo||'')+' · '+g.tienda.nombre_comercial+
+       '\nFecha: '+d.split('-').reverse().join('/')+'\n'+(g.neto>=0?'Saldo calculado a rendir: ':'Saldo calculado a cobrar: ')+money(Math.abs(g.neto))+
+       '\n'+g.ent+' entregados · '+g.rej+' rechazados.\nEl comprobante no confirma un pago realizado.';
+     if(navigator.canShare&&navigator.canShare({files:[pdf]})){
+       await navigator.share({files:[pdf],title:pdf.name,text:msg});
+     }else{
+       const url=URL.createObjectURL(pdf),a=document.createElement('a');a.href=url;a.download=pdf.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+       const tel=String(g.tienda.telefono||'').replace(/\D/g,''),phone=tel?(tel.startsWith('595')?tel:'595'+tel.replace(/^0/,'')):'';
+       const wa='https://api.whatsapp.com/send?'+(phone?'phone='+phone+'&':'')+'text='+encodeURIComponent(msg+'\nAdjuntá manualmente el PDF descargado.');
+       const w=window.open(wa,'_blank','noopener');
+       if(!w)alert('El PDF fue descargado; abrí WhatsApp y adjuntalo manualmente.');
+     }
+   }catch(e){if(e.name!=='AbortError')alert('No se pudo preparar el comprobante: '+e.message)}finally{b.disabled=false}
+ });
+
 }
 document.querySelectorAll('[data-fin-det]').forEach(b=>b.onclick=()=>abrirDetalleFin(b.dataset.finDet));
 document.querySelectorAll('[data-fin-tienda]').forEach(b=>b.onclick=()=>abrirDetalleFin('tienda',Number(b.dataset.finTienda)));
@@ -325,7 +393,7 @@ function page(n){let html='<h2>'+n+'</h2>';if(n==='Rendiciones')html+='<div id="
  const open=todays.filter(o=>o.estado==='pendiente'&&!o.motorista_id);
  const assigned=todays.filter(o=>o.motorista_id&&['pendiente','no_responde','pasa_manana','no_recibio'].includes(o.estado));
  const issues=todays.filter(o=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(o.estado));
- const kpis=[['Pedidos del día',todays.length,'todos'],['Por preparar',open.length,'pendiente'],['En reparto',assigned.length,'asignados'],['Entregados',todays.filter(o=>o.estado==='entregado').length,'entregado'],['Motoristas activos',drivers.filter(d=>d.activo).length,'motos'],['Incidencias',issues.length,'incidencias']];
+ const kpis=[['Pedidos del día',todays.length,'todos'],['Por preparar',open.length,'pendiente'],['En reparto',assigned.length,'asignados'],['Entregados',todays.filter(o=>o.estado==='entregado').length,'entregado'],['Incidencias',issues.length,'incidencias']];
  html='<div id="filtroFin"></div><div class="toolbar"><div style="flex:1"><h2 style="margin:0">Central de operaciones</h2><small class="muted">'+escapeHtml(new Date().toLocaleDateString('es-PY',{timeZone:'America/Asuncion',dateStyle:'full'}))+'</small></div><button id="homeReload">↻ Actualizar</button>'+(account&&(account.rol==='propietario'||account.puede_finanzas)?'<button id="openRend" style="background:#16803c;color:#fff;border-color:#16803c;font-weight:700">💰 Rendiciones</button>':'')+(account?.rol==='propietario'?'<button id="openUsers">Usuarios y socios</button>':'')+'</div>';
  const recentShops=[...stores].filter(t=>t.usuario_id&&Date.now()-Date.parse(t.created_at)<7*86400000).sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at));
  if(recentShops.length)html+='<details class="card dy-fold" style="border-left:5px solid #1765ba"><summary>🏪 Tiendas nuevas <span class="dy-badge">'+recentShops.length+'</span></summary>'+recentShops.slice(0,12).map(t=>'<div class="dy-row"><strong>'+escapeHtml(t.codigo)+' · '+escapeHtml(t.nombre_comercial)+'</strong><span class="muted">'+escapeHtml(t.email||'')+' · '+escapeHtml(new Date(t.created_at).toLocaleDateString('es-PY'))+'</span></div>').join('')+'<p class="muted" style="margin:10px 0 0">Se activaron solas. Sus datos y continuidad se revisan en Tiendas.</p></details>';
@@ -333,7 +401,7 @@ function page(n){let html='<h2>'+n+'</h2>';if(n==='Rendiciones')html+='<div id="
  html+='<div class="card" style="border-left:5px solid #1765ba" id="newOrdersPanel"><div class="toolbar"><strong>🔔 Pedidos nuevos <span id="newOrdersCount">('+newOrderAlerts.length+')</span></strong><button id="enableOrderSound" type="button">'+(notificationSoundEnabled?'🔊 Sonido activado':'🔕 Activar sonido')+'</button><button id="checkNewOrders" type="button">↻ Revisar ahora</button><button id="reviewNewOrders" type="button">Ver pedidos</button></div><p id="newOrdersDetail">'+(newOrderAlerts.length?newOrderAlerts.slice(0,5).map(o=>escapeHtml(o.nombre_cliente||'Pedido')+' · '+escapeHtml(stores.find(t=>t.id===o.tienda_id)?.codigo||'Tienda')).join(' | '):'Monitoreo activo: recibirás avisos de nuevos pedidos mientras esta Central esté abierta.')+'</p><p class="muted" id="newOrdersWatchStatus">'+escapeHtml(lastOrderWatchError||'Actualización automática y comprobación al volver a la pestaña.')+'</p></div>';
  html+='<div class="grid">'+kpis.map(([label,val,key])=>'<button class="card metric" data-kpi="'+key+'" style="text-align:left"><small>'+label+'</small><strong>'+val+'</strong><small>Consultar →</small></button>').join('')+'</div>';
  html+='<div class="card"><h3>Acciones rápidas</h3><div class="toolbar"><button class="btn-primary" data-home="Rutas">Preparar ruta</button><button data-home="Rutas">Ver repartos</button><button data-home="Pedidos">Revisar pedidos</button><button data-home="Finanzas" '+(!(account.rol==='propietario'||account.puede_finanzas)?'disabled':'')+'>Cerrar operaciones</button></div></div>';
- html+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"><div class="card"><h3>Atención necesaria</h3><p>'+todays.filter(o=>o.estado==='pendiente'&&(o.lat==null||o.lng==null)).length+' pedidos sin GPS</p><p>'+open.length+' sin motorista</p><p>'+closures.filter(c=>c.fecha===today&&c.estado!=='confirmada').length+' rendiciones con diferencia</p></div><div class="card"><h3>Actividad reciente</h3>'+[...orders].sort((a,b)=>String(b.updated_at||b.created_at).localeCompare(String(a.updated_at||a.created_at))).slice(0,6).map(o=>'<p><strong>'+escapeHtml(o.nombre_cliente)+'</strong> · <span class="badge-state" data-state="'+escapeHtml(o.estado)+'">'+escapeHtml(o.estado)+'</span></p>').join('')+'</div></div>';
+ html+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"><div class="card"><h3>Atención necesaria</h3><p>'+todays.filter(o=>o.estado==='pendiente'&&(o.lat==null||o.lng==null)).length+' pedidos sin GPS</p><p>'+open.length+' sin motorista</p><p>'+closures.filter(c=>c.fecha===today&&c.estado!=='confirmada').length+' rendiciones con diferencia</p></div><div class="card"><h3>Actividad reciente</h3>'+[...todays].sort((a,b)=>String(b.updated_at||b.created_at).localeCompare(String(a.updated_at||a.created_at))).slice(0,5).map(o=>'<p><strong>'+escapeHtml(o.nombre_cliente)+'</strong> · <span class="badge-state" data-state="'+escapeHtml(o.estado)+'">'+escapeHtml(o.estado)+'</span></p>').join('')+'</div></div>';
 }
 if(n==='Pedidos'){
  html+='<div class="toolbar"><input id="orderSearch" placeholder="Buscar cliente, teléfono o tienda" aria-label="Buscar pedidos"><select id="orderState"><option value="todos">Todos los estados</option>'+['pendiente','entregado','rechazado','no_responde','no_recibio','pasa_manana','cancelado'].map(v=>'<option value="'+v+'">'+v.replaceAll('_',' ')+'</option>').join('')+'</select><select id="orderShop"><option value="">Todas las tiendas</option>'+stores.map(t=>'<option value="'+escapeHtml(t.id)+'">'+escapeHtml(t.codigo)+' · '+escapeHtml(t.nombre_comercial)+'</option>').join('')+'</select><select id="orderDriver"><option value="">Todos los motoristas</option>'+drivers.map(d=>'<option value="'+escapeHtml(d.id)+'">'+escapeHtml(d.nombre)+'</option>').join('')+'</select><button id="orderReset">Limpiar filtros</button></div><p class="muted" id="orderCount"></p><div class="card scroll"><table><thead><tr><th>N.º</th><th>Tienda</th><th>Cliente</th><th>Destino</th><th>Mercadería</th><th>Envío</th><th>Motorista</th><th>Estado</th><th></th></tr></thead><tbody id="orderResults"></tbody></table></div><div id="orderDetailBackdrop" hidden></div><aside id="orderDetail" hidden></aside>';
@@ -364,6 +432,7 @@ if(n==='Pedidos'){
  $('orderDetail').innerHTML='<div class="toolbar"><h3 style="flex:1">Detalle del pedido</h3><button id="closeOrder">Cerrar ✕</button></div>'+entries.map(([k,v])=>'<div class="detail-row"><span class="muted">'+k+'</span><strong>'+escapeHtml(v??'—')+'</strong></div>').join('')+'<div class="toolbar">'+(o.lat!=null&&o.lng!=null?'<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng)+'">Ver mapa</a>':'<span class="muted">Sin GPS</span>')+'<a href="tel:'+encodeURIComponent(o.telefono_cliente||'')+'">Llamar</a><a target="_blank" rel="noopener" href="https://wa.me/'+(phone.startsWith('595')?phone:'595'+phone.replace(/^0/,''))+'">WhatsApp</a>'+(o.estado==='pendiente'?'<button data-dyedit="'+escapeHtml(o.id)+'">✏️ Editar pedido</button>':'')+'</div>';
  $('orderDetail').hidden=false;$('orderDetailBackdrop').hidden=false;
  const close=()=>{$('orderDetail').hidden=true;$('orderDetailBackdrop').hidden=true};$('closeOrder').onclick=close;$('orderDetailBackdrop').onclick=close;};
+ if(window.dyPedidoTiendaFiltro){$('orderShop').value=window.dyPedidoTiendaFiltro;window.dyPedidoTiendaFiltro=null;}
  const render=()=>{const q=$('orderSearch').value.toLocaleLowerCase('es'),state=$('orderState').value,shop=$('orderShop').value,driver=$('orderDriver').value;
  const filtered=orders.filter(o=>(state==='todos'||o.estado===state)&&(!shop||o.tienda_id===shop)&&(!driver||o.motorista_id===driver)&&[o.nombre_cliente,o.telefono_cliente,o.direccion_cliente,o.observaciones,o.producto,shopName(o.tienda_id),drivers.find(d=>d.id===o.motorista_id)?.nombre].some(v=>String(v||'').toLocaleLowerCase('es').includes(q)));
  $('orderCount').textContent=filtered.length+' pedidos encontrados · mostrando hasta 100';
@@ -795,6 +864,7 @@ async function rdCargar(fecha){
   client.from('flota_rechazos_detalle').select('*').eq('empresa_id',E).limit(10000)]);
  const err=mv.error||ci.error||re.error;if(err)throw err;
  try{orders=await cargarTodosLosPedidos(E)}catch(_){}
+ if((mv.data||[]).length>=10000)throw Error('Movimientos del día exceden el límite de consulta; evitar cifras incompletas.');
  const movs=mv.data||[],porPedido=new Map(orders.map(o=>[o.id,o])),rech=new Map((re.data||[]).map(r=>[r.pedido_id,r]));
  return {fecha,movs,cierres:ci.data||[],porPedido,rech};
 }
@@ -1047,7 +1117,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   const det=document.createElement('details');det.id='dyAvz';det.className='card';det.innerHTML='<summary>⚙️ Herramientas avanzadas (vista anterior: ruta manual, avance, cambiar turnos)</summary>';box.after(det);
   let n=det.nextSibling;while(n){const x=n.nextSibling;det.append(n);n=x}
   pintar()}
- const orig=window.page;if(typeof orig==='function'){window.page=function(n){const r=orig.apply(this,arguments);if(n==='Rutas')setTimeout(montar,0);return r}}
+ const orig=window.page;if(typeof orig==='function'){window.page=function(n){const r=orig.apply(this,arguments);if(n==='Rutas')window.addEventListener('dy-fecha-cambio',()=>{const b=document.getElementById('dyPorTienda');if(b)pintar(b)});
+  setTimeout(montar,0);return r}}
  const cont=$$('content');if(cont)new MutationObserver(()=>{if($$('routeActionPanel')&&!$$('dyDesp'))montar()}).observe(cont,{childList:true});
  setInterval(()=>{if($$('dyDesp')&&firma()!==st.firma)refrescar()},2500);
  let canal=null,tRec=null;setInterval(()=>{try{if(canal||typeof account==='undefined'||!account||!account.empresa_id)return;
@@ -1181,16 +1252,16 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
 (function(){let per='hoy';
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const dia=d=>new Date(d).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
- function filas(){const hoy=dia(Date.now()),desde=Date.now()-7*864e5;const INC=['no_responde','no_recibio','pasa_manana'];
-  const sel=(typeof orders!=='undefined'?orders:[]).filter(o=>o.estado!=='cancelado'&&(per==='hoy'?(dia(o.created_at)===hoy||(o.estado==='pendiente'||INC.includes(o.estado))):Date.parse(o.created_at)>=desde));
+ function filas(){const hoy=typeof filtroDia!=='undefined'?filtroDia:dia(Date.now()),desde=Date.parse(hoy+'T12:00:00Z')-6*864e5;const INC=['no_responde','no_recibio','pasa_manana'];
+  const sel=(typeof orders!=='undefined'?orders:[]).filter(o=>o.estado!=='cancelado'&&(per==='hoy'?(dia(o.created_at)===hoy):Date.parse(o.created_at)>=desde&&dia(o.created_at)<=hoy));
   const m=new Map();sel.forEach(o=>{let r=m.get(o.tienda_id);if(!r){r={env:0,asig:0,cam:0,ent:0,rec:0,inc:0};m.set(o.tienda_id,r)}r.env++;
    if(o.estado==='pendiente'&&!o.motorista_id)r.asig++;else if(o.estado==='pendiente')r.cam++;else if(o.estado==='entregado')r.ent++;else if(o.estado==='rechazado')r.rec++;else if(INC.includes(o.estado))r.inc++});
-  return [...m.entries()].map(([id,r])=>{const t=(typeof stores!=='undefined'?stores:[]).find(x=>x.id===id);return {n:t?(t.codigo||'')+' · '+(t.nombre_comercial||''):'Tienda',...r}}).sort((a,b)=>b.env-a.env)}
+  return [...m.entries()].map(([id,r])=>{const t=(typeof stores!=='undefined'?stores:[]).find(x=>x.id===id);return {id,n:t?(t.codigo||'')+' · '+(t.nombre_comercial||''):'Tienda',...r}}).sort((a,b)=>b.env-a.env)}
  function pintar(box){const fs=filas();const T=fs.reduce((a,r)=>{for(const k of ['env','asig','cam','ent','rec','inc'])a[k]+=r[k];return a},{env:0,asig:0,cam:0,ent:0,rec:0,inc:0});
   box.innerHTML='<summary>🏪 Pedidos por tienda <span class="muted" style="font-weight:600;font-size:14px">('+fs.length+')</span></summary><div class="per"><button type="button" data-p="hoy" class="'+(per==='hoy'?'on':'')+'">Hoy y activos</button><button type="button" data-p="7" class="'+(per==='7'?'on':'')+'">Últimos 7 días</button></div>'
   +'<div class="tot"><span>📤 <b>'+T.env+'</b> enviados</span><span>⏳ <b>'+T.asig+'</b> por asignar</span><span>🏍️ <b>'+T.cam+'</b> en camino</span><span>✅ <b>'+T.ent+'</b> entregados</span><span>❌ <b>'+T.rec+'</b></span><span>⚠️ <b>'+T.inc+'</b></span></div>'
-  +(fs.length?'<div class="scroll"><table><thead><tr><th>Tienda</th><th>Enviados</th><th>Por asignar</th><th>En camino</th><th>Entregados</th><th>Rechazados</th><th>Incidencias</th></tr></thead><tbody>'+fs.map(r=>'<tr><td>'+esc(r.n)+'</td><td><b>'+r.env+'</b></td><td>'+r.asig+'</td><td>'+r.cam+'</td><td>'+r.ent+'</td><td>'+r.rec+'</td><td>'+r.inc+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted" style="padding:0 16px 14px">Todavía no hay pedidos en este período.</p>');
-  box.querySelectorAll('[data-p]').forEach(b=>b.onclick=e=>{e.preventDefault();per=b.dataset.p;pintar(box)})}
+  +(fs.length?'<div class="scroll"><table><thead><tr><th>Tienda</th><th>Enviados</th><th>Por asignar</th><th>En camino</th><th>Entregados</th><th>Rechazados</th><th>Incidencias</th></tr></thead><tbody>'+fs.map(r=>'<tr><td><button type="button" class="dy-shop-open" data-dytienda="'+esc(r.id)+'">'+esc(r.n)+' →</button></td><td><b>'+r.env+'</b></td><td>'+r.asig+'</td><td>'+r.cam+'</td><td>'+r.ent+'</td><td>'+r.rec+'</td><td>'+r.inc+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted" style="padding:0 16px 14px">Todavía no hay pedidos en este período.</p>');
+  box.querySelectorAll('[data-p]').forEach(b=>b.onclick=e=>{e.preventDefault();per=b.dataset.p;pintar(box)});box.querySelectorAll('[data-dytienda]').forEach(b=>b.onclick=()=>{window.dyPedidoTiendaFiltro=b.dataset.dytienda;page('Pedidos')})}
  function montar(){const c=document.getElementById('content');if(!c)return;const h=c.querySelector('h2');if(!h||!/operaciones/i.test(h.textContent)){return}
   let box=document.getElementById('dyPorTienda');if(!box){box=document.createElement('details');box.id='dyPorTienda';box.open=true;const ult=[...c.querySelectorAll('details.dy-fold')].pop();if(ult)ult.after(box);else{const hd=h.closest('div')||h;hd.after(box)}}pintar(box)}
  const c=document.getElementById('content');if(c)new MutationObserver(()=>{if(!document.getElementById('dyPorTienda'))montar()}).observe(c,{childList:true});
