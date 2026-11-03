@@ -52,7 +52,7 @@ window.supabase={createClient:(u,k,o)=>{const user={id:'u1',email:'t@x.com'};
  // ---- Tienda: panel y novedades ----
  [ctx,p]=await abrir('http://localhost:8765/index.html',fakeT);
  const kp=()=>p.evaluate(()=>[...document.querySelectorAll('#dyKpis .dy-kpi')].map(k=>k.querySelector('span').textContent+'='+k.querySelector('b').textContent));
- let k=await kp();chk('T1 panel: 3 enviados, 1 por asignar, 2 en camino',k.includes('📤 Enviados=3')&&k.includes('⏳ Por asignar=1')&&k.includes('🏍️ En camino=2'),k);
+ let k=await kp();chk('T1 panel: 3 enviados, 1 por asignar, 2 en camino',k.includes('Enviados=3')&&k.includes('Por asignar=1')&&k.includes('En camino=2'),k);
  chk('T2 la primera vez no hay avisos',await p.locator('#dyAvisosBox .dy-av').count()===0);
  await p.evaluate(()=>{const P=window.__TP;P[0].motorista_id='m1';P[1].estado='entregado';P[2].estado='no_responde';P[2].motivo_incidencia='No atiende'});
  await p.evaluate(()=>window.__dyReload());await p.waitForTimeout(700);
@@ -61,7 +61,7 @@ window.supabase={createClient:(u,k,o)=>{const user={id:'u1',email:'t@x.com'};
  chk('T4 aviso "✅ Entregado · Vale"',/Entregado · Vale/.test(av));
  chk('T5 aviso de incidencia con motivo',/No responde · Nota \(No atiende\)/.test(av));
  chk('T6 aparece el aviso flotante arriba',await p.locator('#dyToastT').isVisible());
- k=await kp();chk('T7 panel actualizado: 1 entregado, 1 incidencia, 1 en camino',k.includes('✅ Entregados=1')&&k.includes('⚠️ Incidencias=1')&&k.includes('🏍️ En camino=1'),k);
+ k=await kp();chk('T7 panel actualizado: 1 entregado, 1 incidencia, 1 en camino',k.includes('Entregados=1')&&k.includes('Incidencias=1')&&k.includes('En camino=1'),k);
  await p.screenshot({path:SHOT+'av_tienda.png'});
  await p.reload();await p.waitForTimeout(2000);chk('T8 al volver a abrir no repite avisos viejos',await p.locator('#dyAvisosBox .dy-av').count()===0);
  await p.click('#dyKpis .dy-kpi[data-f="entregado"]');await p.waitForTimeout(200);
