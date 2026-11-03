@@ -201,7 +201,7 @@ function tariff(city){const row=locations.find(x=>x[0]===city);return row?row[2]
 // Identificar la tienda autenticada, nunca por un dato editable del pedido.
 function manualDeliveryStore(){
  const name=String(activeStore?.nombre_comercial||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
- return name==='boom'||name==='tienda boom'||name==='persa boutique'||name==='tienda persa boutique';
+ return name==='boom'||name==='boom store'||name==='tienda boom'||name==='persa boutique'||name==='tienda persa boutique';
 }
 let lastManualDeliveryMode=null;
 function syncShippingMode(){
@@ -468,7 +468,24 @@ async function importSharedLocation(){
 
 importSharedLocation();
 if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{})}
-$('city').innerHTML=locations.map(([code,name,cost])=>`<option value="${escapeHTML(code)}">${escapeHTML(name)}${code&&cost!=null?' — '+money(cost):cost===null&&code?' — consultar':''}</option>`).join('');document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));$('orderForm').addEventListener('submit',e=>{e.preventDefault();saveOrder(false)});$('draftBtn').addEventListener('click',()=>saveOrder(true));$('orderForm').addEventListener('input',updateForm);$('orderForm').addEventListener('change',updateForm);$('orderForm').addEventListener('reset',()=>setTimeout(updateForm,0));$('goods').addEventListener('input',()=>{const el=$('goods');const raw=el.value.replace(/\D/g,'').slice(0,10);const digitsBefore=el.value.slice(0,el.selectionStart??el.value.length).replace(/\D/g,'').length;const formatted=raw?new Intl.NumberFormat('es-PY').format(Number(raw)):'';el.value=formatted;let pos=0,count=0;while(pos<formatted.length&&count<digitsBefore){if(/\d/.test(formatted[pos]))count++;pos++}el.setSelectionRange(pos,pos)});$('goods').addEventListener('blur',()=>{const raw=$('goods').value.trim();if(raw){const n=parseGs(raw);if(Number.isSafeInteger(n))$('goods').value=new Intl.NumberFormat('es-PY').format(n)}updateForm()});$('searchOrders').addEventListener('input',render);$('filterOrders').addEventListener('change',render);$('searchClients').addEventListener('input',render);$('mapLink').addEventListener('blur',resolveMapLink);$('phone').addEventListener('blur',updateForm);let selectedStoreGps=null;
+$('city').innerHTML=locations.map(([code,name,cost])=>`<option value="${escapeHTML(code)}">${escapeHTML(name)}${code&&cost!=null?' — '+money(cost):cost===null&&code?' — consultar':''}</option>`).join('');document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));$('orderForm').addEventListener('submit',e=>{e.preventDefault();saveOrder(false)});$('draftBtn').addEventListener('click',()=>saveOrder(true));$('orderForm').addEventListener('input',updateForm);$('orderForm').addEventListener('change',updateForm);$('orderForm').addEventListener('reset',()=>setTimeout(updateForm,0));$('shipping').addEventListener('input',()=>{
+ if(!manualDeliveryStore())return;
+ const el=$('shipping'),before=el.selectionStart??el.value.length;
+ const raw=el.value.replace(/\D/g,'').slice(0,10);
+ const digitsBefore=el.value.slice(0,before).replace(/\D/g,'').length;
+ const formatted=raw?new Intl.NumberFormat('es-PY').format(Number(raw)):'';
+ el.value=formatted;
+ let pos=0,count=0;
+ while(pos<formatted.length&&count<digitsBefore){if(/\d/.test(formatted[pos]))count++;pos++}
+ el.setSelectionRange(pos,pos);
+});
+$('shipping').addEventListener('blur',()=>{
+ if(!manualDeliveryStore())return;
+ const n=parseGs($('shipping').value.trim());
+ if(Number.isSafeInteger(n)&&n>=0)$('shipping').value=new Intl.NumberFormat('es-PY').format(n);
+ updateForm();
+});
+$('goods').addEventListener('input',()=>{const el=$('goods');const raw=el.value.replace(/\D/g,'').slice(0,10);const digitsBefore=el.value.slice(0,el.selectionStart??el.value.length).replace(/\D/g,'').length;const formatted=raw?new Intl.NumberFormat('es-PY').format(Number(raw)):'';el.value=formatted;let pos=0,count=0;while(pos<formatted.length&&count<digitsBefore){if(/\d/.test(formatted[pos]))count++;pos++}el.setSelectionRange(pos,pos)});$('goods').addEventListener('blur',()=>{const raw=$('goods').value.trim();if(raw){const n=parseGs(raw);if(Number.isSafeInteger(n))$('goods').value=new Intl.NumberFormat('es-PY').format(n)}updateForm()});$('searchOrders').addEventListener('input',render);$('filterOrders').addEventListener('change',render);$('searchClients').addEventListener('input',render);$('mapLink').addEventListener('blur',resolveMapLink);$('phone').addEventListener('blur',updateForm);let selectedStoreGps=null;
 function showStoreGps(){
  const lat=selectedStoreGps?.lat??activeStore?.lat,lng=selectedStoreGps?.lng??activeStore?.lng;
  const good=lat!=null&&lng!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng));
