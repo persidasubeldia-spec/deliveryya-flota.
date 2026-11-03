@@ -22,7 +22,7 @@ test('Central conserva asignación segura, fecha operativa y filtros sincronizad
   "admin_confirmar_ruta_optimizada",
   "fechaOperativa(o)",
   "function visiblesTurno()",
-  "barra(ps);dibujar(vistos);st.firma=firma()",
+  "barra(ps);dibujar(ps);st.firma=firma()",
   "st.sel.clear();st.fit=false;refrescar()",
   "https://deliveryya-flota.pages.dev/motorista.html"
  ])assert.ok(central.includes(token),'Falta '+token);
@@ -52,4 +52,16 @@ test('Proxy Cloudflare conserva páginas Android y resolución segura de Maps',(
   assert.ok(cloudflare.includes(token),'Falta '+token);
  }
  assert.doesNotThrow(()=>new Function(cloudflare.replace('export default','const worker =')));
+});
+
+test('Cerrar jornada del motorista solo sin pendientes y con recibo automático explícito',()=>{
+ for(const token of [
+  "b.disabled=!r.cierre&&abiertos>0",
+  "if(!r.cierre&&pend){msg.textContent=",
+  "Central registra automáticamente el dinero",
+  "Cerrar tu jornada y dar el dinero declarado por recibido",
+  "No se permite cerrar hasta terminarlos o reprogramarlos",
+  "Jornada cerrada · dinero declarado recibido",
+  "dyHojaEnvio(pdf,dyTextoRendicion(a,r,cierre),cierre)"
+ ]) assert.ok(motorista.includes(token),'Protección de cierre ausente: '+token);
 });
