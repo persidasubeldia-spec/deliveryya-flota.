@@ -15,6 +15,7 @@
  */
 package py.deliveryya.flota;
 
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
@@ -47,8 +48,25 @@ public class LauncherActivity
         // Get the original launch Url.
         Uri uri = super.getLaunchingUrl();
 
-        
-
+        // Ubicación compartida (WhatsApp, Maps): abrir la Tienda en "Nuevo pedido" con ese destino.
+        String mapa = null;
+        Intent intent = getIntent();
+        if (intent != null) {
+            Uri data = intent.getData();
+            if (Intent.ACTION_SEND.equals(intent.getAction())) {
+                CharSequence t = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+                if (t != null) mapa = t.toString();
+            } else if (data != null) {
+                String host = data.getHost();
+                boolean propio = host != null && host.equalsIgnoreCase(getString(R.string.hostName));
+                if (!propio) mapa = data.toString();
+            }
+        }
+        if (mapa != null && !mapa.trim().isEmpty()) {
+            if (mapa.length() > 2000) mapa = mapa.substring(0, 2000);
+            return Uri.parse("https://" + getString(R.string.hostName) + "/")
+                    .buildUpon().appendQueryParameter("nuevo_pedido_mapa", mapa.trim()).build();
+        }
         return uri;
     }
 }
