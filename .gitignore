@@ -6,3 +6,9 @@ android-twa/app/build/
 android-twa/.gradle/
 *.jks
 *.keystore
+
+# Salida de compilación Android
+android-twa/build/
+android-twa/app/build/
+android-twa/.gradle/
+android-twa/local.properties
