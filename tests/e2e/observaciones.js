@@ -7,13 +7,13 @@ const fakeT=fs.readFileSync(__dirname+'/nuevo-pedido-rapido.js','utf8').match(/c
  // Central
  let ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,serviceWorkers:'block',geolocation:{latitude:-25.335,longitude:-57.54},permissions:['geolocation']});let p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
  await p.route(/maps\.googleapis|maps\.gstatic/,r=>r.abort());await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fake}));
- await p.addInitScript(()=>{localStorage.setItem('dyf-auth',JSON.stringify({access_token:'a',refresh_token:'r'}));window.__abiertos=[];window.open=u=>{window.__abiertos.push(String(u));return null}});
+ await p.addInitScript(()=>{localStorage.setItem('dyf-auth',JSON.stringify({access_token:'a',refresh_token:'r'}));window.__abiertos=[];window.open=u=>{window.__abiertos.push(String(u));return {closed:false,location:{set href(v){window.__abiertos.push(String(v))}},close(){}}}});
  await p.goto('http://localhost:8765/central.html');await p.waitForTimeout(1600);await p.evaluate(()=>page('Rutas'));await p.waitForTimeout(700);
  chk('O1 Central › Rutas: la lista muestra 📝 Hasta las 19:00',await p.locator('#routeRows .dy-obs:has-text("Hasta las 19:00")').count()===1);
  chk('O2 Central › Rutas: muestra el producto',await p.locator('#routeRows .dy-prod:has-text("Camisa negra")').count()===1);
  await p.click('#dyDGo');await p.waitForTimeout(1200);
- chk('O3 Despacho rápido: la nota aparece en el reparto',await p.locator('#dyDPlan .dy-obs:has-text("Hasta las 19")').count()===1);
- await p.click('#dyDAsig');await p.waitForTimeout(900);for(const wbtn of await p.locator('[data-wa]').all())await wbtn.click();
+ chk('O3 Despacho: la nota aparece en la lista ordenada',await p.locator('#dyDList .dy-obs:has-text("Hasta las 19")').count()===1);
+ await p.click('#dyDTodos');await p.click('#dyBarra [data-moto="m2"]');await p.click('#dyDAsigW');await p.waitForTimeout(900);
  const txt=decodeURIComponent((await p.evaluate(()=>window.__abiertos.join(' ')))||'');chk('O4 WhatsApp al motorista incluye la observación',txt.includes('📝 Hasta las 19:00'));
  await p.locator('#routeRows .dy-obs').first().scrollIntoViewIfNeeded();await p.screenshot({path:SHOT+'obs_central.png'});
  await p.evaluate(()=>page('Pedidos'));await p.waitForTimeout(400);
