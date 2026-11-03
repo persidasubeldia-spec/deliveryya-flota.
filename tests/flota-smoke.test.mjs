@@ -70,3 +70,11 @@ test('Motorista no modifica montos ya recibidos por Central',()=>{
  assert.ok(motorista.includes("&&!r.cierre.confirmed_at&&"),'No bloquear ajuste confirmado');
  assert.ok(motorista.includes("if(r.cierre?.confirmed_at)"),'No comprobar cierre previo a corrección');
 });
+
+test('Android valida sesión y permisos antes de abrir el panel de la tienda',()=>{
+ assert.ok(acceso.includes("const {data,error}=await db.auth.getUser()"),'Falta comprobar credenciales vigentes');
+ assert.ok(acceso.includes("if(!error&&data?.user)"),'Falta validar usuario');
+ assert.ok(acceso.includes("if(permisosError)throw Error("),'Falta informar error al consultar permisos');
+ assert.ok(acceso.includes("La sesión anterior venció"),'Falta recuperación de token caducado');
+ assert.ok(!acceso.includes("if(s&&s.refresh_token)location.replace("),'No debe redirigir solo por token en localStorage');
+});
