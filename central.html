@@ -911,7 +911,9 @@ function rdTiendas(d){
  // Visibilidad operativa: pedidos creados en la fecha, aun sin movimientos.
  // Este campo NO modifica saldos, comisiones ni cierres.
  for(const p of d.porPedido.values()){
-  if(!p.tienda_id||!p.created_at||diaPY(p.created_at)!==d.fecha)continue;
+  if(!p.tienda_id)continue;
+  const fechaCarga=p.created_at?diaPY(p.created_at):'',fechaRuta=routes.find(r=>r.id===p.ruta_general_id)?.fecha||'';
+  if(fechaCarga!==d.fecha&&fechaRuta!==d.fecha)continue;
   const t=asegurar(p.tienda_id);t.pedidos.push(p);
  }
  for(const t of out.values()){
