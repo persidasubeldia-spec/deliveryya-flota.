@@ -354,4 +354,44 @@ function dyInfoPedido(p){const t=dyTiendas.get(p.tienda_id);return '<div class="
 async function dyCargarTiendas(){try{const {data}=await sb.rpc('motorista_mis_tiendas');(data||[]).forEach(t=>dyTiendas.set(t.id,t))}catch(_){}}
 (function(){const css=document.createElement('style');css.textContent='.dy-info{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:14px;color:#334155}.dy-info i{color:#94a3b8}.dy-chipe{font-size:12px;font-weight:800;padding:4px 8px;border-radius:999px;white-space:nowrap}.dy-chipe.ok{background:#dcfce7;color:#14532d}.dy-chipe.no{background:#fee2e2;color:#7f1d1d}.dy-chipe.pe{background:#fef3c7;color:#78350f}.dy-ver{padding:12px;border:1px solid #e2e8f0;border-radius:12px;margin:8px 0}.dy-ver-top{align-items:center}.dy-ver-g{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:8px;font-size:14px}.dy-ver-g span{color:#64748b}.dy-ver-g b{text-align:right}.dy-ver-g .dy-cob{color:#15803d}'
 +'body.dark .dy-sh{background:#16212f;color:#e9eff8}body.dark .dy-sh .dy-sub,body.dark .dy-ver-g span,body.dark .dy-info{color:#a9b8cc}body.dark .dy-ver{border-color:#334155}body.dark .dy-ver-pend{background:#3a2a10}body.dark .dy-ver-tot div{background:#1f2d40}body.dark .dy-ver-tot .dy-ver-main{background:#1e3a5f}body.dark .dy-ver-tot small{color:#a9b8cc}body.dark .dy-okmsg{background:#123a25;color:#d1fadf}body.dark .dy-aviso{background:#3a2a10;color:#fde7c2}body.dark .dy-ver-g .dy-cob{color:#86efac}body.dark .dy-cancel{background:#1f2d40;color:#e9eff8;border-color:#334155}body.dark .dy-chip{background:#1f2d40;color:#e9eff8;border-color:#334155}body.dark .dy-chip[aria-pressed=true]{background:#1e3a5f;border-color:#8fc1ff}body.dark .dy-in{background:#1f2d40;color:#e9eff8;border-color:#334155}body.dark .dy-err{color:#ff9b9b}';document.head.append(css)})();
-</script></body></html>
+</script><script id="dyAtrasJs">
+window.__dyAtrasCfg={inicio:'entregas',
+ ir:s=>{const b=document.querySelector('.dy-nav [data-tab="'+s+'"]');if(b)b.click()},
+ observar:cb=>{const ini=()=>{if(!document.querySelector('.dy-nav'))return false;const app=[...document.querySelectorAll('[data-tab]')].find(e=>e.tagName!=='BUTTON');if(!app)return false;
+   new MutationObserver(()=>cb(app.dataset.tab)).observe(app,{attributes:true,attributeFilter:['data-tab']});cb(app.dataset.tab);return true};
+   if(!ini()){const t=setInterval(()=>{if(ini())clearInterval(t)},500)}}};
+// Botón ◁ Atrás del teléfono: cierra la ventana abierta, vuelve a la pantalla anterior
+// y en la principal pide tocar otra vez para salir. Usa el historial del navegador.
+(function(){
+ const C=window.__dyAtrasCfg;if(!C)return;
+ let cur=null,restaurando=false,listo=false,salirHasta=0,tGuard=null;
+ const est=(s,extra)=>Object.assign({dy:1,s},extra||{});
+ function aviso(t){let e=document.getElementById('dyAtrasAviso');if(!e){e=document.createElement('div');e.id='dyAtrasAviso';e.style.cssText='position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:#111827ee;color:#fff;padding:11px 18px;border-radius:999px;font:600 15px system-ui,sans-serif;z-index:2147483000;box-shadow:0 6px 18px #0005;pointer-events:none;max-width:90vw;text-align:center';document.body.append(e)}e.textContent=t;e.style.opacity='1';clearTimeout(e._t);e._t=setTimeout(()=>{e.style.opacity='0'},2300)}
+ // Ventana encima: la de más arriba que cubre la pantalla.
+ function ventana(){let best=null,bz=-Infinity;const vw=innerWidth,vh=innerHeight;
+  for(const el of document.querySelectorAll('body *')){if(el.id==='dyAtrasAviso')continue;const cs=getComputedStyle(el);if(cs.position!=='fixed'||cs.display==='none'||cs.visibility==='hidden'||el.hidden)continue;
+   const r=el.getBoundingClientRect();if(r.width<vw*.9||r.height<vh*.9)continue;if((C.ignorar||[]).some(sel=>el.matches(sel)))continue;
+   const z=parseInt(cs.zIndex)||0;if(z>=bz){bz=z;best=el}}return best}
+ function cerrarVentana(){const v=ventana();if(!v)return false;
+  const b=v.querySelector('[data-cancel],#eX,#dyMCancel,#closeOrder,.dy-x,[aria-label="Cerrar"],#dyAvisoOk');
+  if(b&&b.id!=='dyAvisoOk'){b.click()}else{v.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))}
+  const sigue=v.isConnected&&!v.hidden&&getComputedStyle(v).display!=='none';
+  if(sigue&&C.cerrarExtra)return C.cerrarExtra(v);
+  return !sigue}
+ function marcar(s){if(!s)return;if(!listo){listo=true;cur=s;history.replaceState(est(C.inicio,{root:1}),'');history.pushState(est(s,{g:1}),'');guardar(s);return}
+  if(restaurando||s===cur){cur=s;return}history.pushState(est(s),'');cur=s;guardar(s)}
+ function guardar(s){if(C.claveUltima){try{localStorage.setItem(C.claveUltima,s)}catch(_){}}}
+ function ir(s){restaurando=true;try{C.ir(s)}catch(_){}cur=s;restaurando=false}
+ addEventListener('popstate',e=>{if(!listo)return;const st=e.state;
+  if(cerrarVentana()){history.pushState(est(cur),'');return}
+  if(st&&st.dy&&!st.root){clearTimeout(tGuard);if(st.s!==cur)ir(st.s);return}
+  // llegó a la base: primero a la pantalla principal, después pedir confirmación para salir
+  if(cur!==C.inicio){ir(C.inicio);history.pushState(est(C.inicio,{g:1}),'');return}
+  if(Date.now()<salirHasta){history.back();return}
+  salirHasta=Date.now()+2500;aviso('Tocá ◁ Atrás otra vez para salir');
+  clearTimeout(tGuard);tGuard=setTimeout(()=>{if(history.state&&history.state.root)history.pushState(est(C.inicio,{g:1}),'')},2600)});
+ window.dyAtrasMarcar=marcar;window.dyAtrasEstado=()=>({cur,listo});
+ C.observar(s=>marcar(s));
+})();
+</script>
+</body></html>

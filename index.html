@@ -509,5 +509,44 @@ document.addEventListener('submit',e=>{if(e.target&&e.target.id==='storeForm')se
  pintarLoc();syncTurno();barra();
 })();
 </script>
+<script id="dyAtrasJs">
+window.__dyAtrasCfg={inicio:'inicio',ignorar:['.auth-overlay'],
+ ir:s=>{if(window.dyGo)window.dyGo(s)},
+ observar:cb=>{const act=()=>{const v=[...document.querySelectorAll('section.screen')].find(x=>!x.classList.contains('hide'));return v&&v.id};let last=null;
+   const mo=new MutationObserver(()=>{const a=act();if(a&&a!==last){last=a;cb(a)}});document.querySelectorAll('section.screen').forEach(x=>mo.observe(x,{attributes:true,attributeFilter:['class']}));const a=act();if(a){last=a;cb(a)}}};
+// Botón ◁ Atrás del teléfono: cierra la ventana abierta, vuelve a la pantalla anterior
+// y en la principal pide tocar otra vez para salir. Usa el historial del navegador.
+(function(){
+ const C=window.__dyAtrasCfg;if(!C)return;
+ let cur=null,restaurando=false,listo=false,salirHasta=0,tGuard=null;
+ const est=(s,extra)=>Object.assign({dy:1,s},extra||{});
+ function aviso(t){let e=document.getElementById('dyAtrasAviso');if(!e){e=document.createElement('div');e.id='dyAtrasAviso';e.style.cssText='position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:#111827ee;color:#fff;padding:11px 18px;border-radius:999px;font:600 15px system-ui,sans-serif;z-index:2147483000;box-shadow:0 6px 18px #0005;pointer-events:none;max-width:90vw;text-align:center';document.body.append(e)}e.textContent=t;e.style.opacity='1';clearTimeout(e._t);e._t=setTimeout(()=>{e.style.opacity='0'},2300)}
+ // Ventana encima: la de más arriba que cubre la pantalla.
+ function ventana(){let best=null,bz=-Infinity;const vw=innerWidth,vh=innerHeight;
+  for(const el of document.querySelectorAll('body *')){if(el.id==='dyAtrasAviso')continue;const cs=getComputedStyle(el);if(cs.position!=='fixed'||cs.display==='none'||cs.visibility==='hidden'||el.hidden)continue;
+   const r=el.getBoundingClientRect();if(r.width<vw*.9||r.height<vh*.9)continue;if((C.ignorar||[]).some(sel=>el.matches(sel)))continue;
+   const z=parseInt(cs.zIndex)||0;if(z>=bz){bz=z;best=el}}return best}
+ function cerrarVentana(){const v=ventana();if(!v)return false;
+  const b=v.querySelector('[data-cancel],#eX,#dyMCancel,#closeOrder,.dy-x,[aria-label="Cerrar"],#dyAvisoOk');
+  if(b&&b.id!=='dyAvisoOk'){b.click()}else{v.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))}
+  const sigue=v.isConnected&&!v.hidden&&getComputedStyle(v).display!=='none';
+  if(sigue&&C.cerrarExtra)return C.cerrarExtra(v);
+  return !sigue}
+ function marcar(s){if(!s)return;if(!listo){listo=true;cur=s;history.replaceState(est(C.inicio,{root:1}),'');history.pushState(est(s,{g:1}),'');guardar(s);return}
+  if(restaurando||s===cur){cur=s;return}history.pushState(est(s),'');cur=s;guardar(s)}
+ function guardar(s){if(C.claveUltima){try{localStorage.setItem(C.claveUltima,s)}catch(_){}}}
+ function ir(s){restaurando=true;try{C.ir(s)}catch(_){}cur=s;restaurando=false}
+ addEventListener('popstate',e=>{if(!listo)return;const st=e.state;
+  if(cerrarVentana()){history.pushState(est(cur),'');return}
+  if(st&&st.dy&&!st.root){clearTimeout(tGuard);if(st.s!==cur)ir(st.s);return}
+  // llegó a la base: primero a la pantalla principal, después pedir confirmación para salir
+  if(cur!==C.inicio){ir(C.inicio);history.pushState(est(C.inicio,{g:1}),'');return}
+  if(Date.now()<salirHasta){history.back();return}
+  salirHasta=Date.now()+2500;aviso('Tocá ◁ Atrás otra vez para salir');
+  clearTimeout(tGuard);tGuard=setTimeout(()=>{if(history.state&&history.state.root)history.pushState(est(C.inicio,{g:1}),'')},2600)});
+ window.dyAtrasMarcar=marcar;window.dyAtrasEstado=()=>({cur,listo});
+ C.observar(s=>marcar(s));
+})();
+</script>
 </body>
 </html>
