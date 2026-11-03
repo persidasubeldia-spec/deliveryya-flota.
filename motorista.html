@@ -110,7 +110,7 @@ window.dyIrAlRol=async function(db,claveActual,actual,{nuevaVaTienda=false}={}){
  document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;inset:0;background:#0b2a5ee6;color:#fff;display:flex;align-items:center;justify-content:center;font:600 18px system-ui;z-index:99999">Abriendo tu panel…</div>');
  location.replace(D[dest][1]);return true}catch(e){console.warn('dyIrAlRol',e);return false}};
 </script><script>window.deliveryyaGoogleError=false;window.gm_authFailure=()=>{window.deliveryyaGoogleError=true;window.dispatchEvent(new Event("deliveryya-google-failed"));};</script><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpfB3PfNovtq0dIfmXmqrH2sI2U1YSDNA&v=weekly"></script><script>
-const sb=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv',{auth:{storageKey:'dyf-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),$=x=>document.getElementById(x),safe=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),money=n=>'₲ '+Number(n||0).toLocaleString('es-PY');let moto=null,map=null,markers=null,gpsWatch=null,lastGpsSent=0,googleMap=false,mapPoints=[],lastMapSignature="",mapRoute=null,osmTiles=null,ultimaRutaVisible=[];
+const sb=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv',{auth:{storageKey:'dyf-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),$=x=>document.getElementById(x),safe=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),money=n=>'₲ '+Number(n||0).toLocaleString('es-PY');let moto=null,map=null,markers=null,gpsWatch=null,lastGpsSent=0,googleMap=false,mapPoints=[],lastMapSignature="",mapRoute=null,osmTiles=null,ultimaRutaVisible=[],motoGeoRuta=null,motoInicioRuta=null,motoOrdenRuta=[];
 const nightMapStyle=[{elementType:'geometry',stylers:[{color:'#192737'}]},{elementType:'labels.text.fill',stylers:[{color:'#c5d0e0'}]},{elementType:'labels.text.stroke',stylers:[{color:'#17212d'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#324b64'}]},{featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#23374b'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#102d46'}]},{featureType:'poi.park',elementType:'geometry',stylers:[{color:'#1d4238'}]}];
 function setTheme(night){
  document.body.classList.toggle('dark',night);
@@ -143,10 +143,18 @@ function encuadrarRutaMotorista(){
    map.fitBounds(coords,{padding:[35,35],maxZoom:13,animate:false});
  }
 }
+function dibujarRutaMoto(){
+ if(mapRoute){try{if(googleMap)mapRoute.setMap(null);else mapRoute.remove()}catch(_){}mapRoute=null}
+ if(!map||!Array.isArray(motoGeoRuta)||motoGeoRuta.length<2)return;
+ const camino=motoGeoRuta.map(c=>({lat:Number(c[1]),lng:Number(c[0])})).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+ if(camino.length<2)return;
+ if(googleMap)mapRoute=new google.maps.Polyline({map,path:camino,strokeColor:'#087fc1',strokeOpacity:.9,strokeWeight:5});
+ else mapRoute=L.polyline(camino.map(p=>[p.lat,p.lng]),{color:'#087fc1',weight:5,opacity:.9}).addTo(map);
+}
 function recoverMotoristaMap(){
  if(!googleMap||!$('map'))return;
  try{for(const m of mapPoints)m.setMap(null);}catch{}
- mapPoints=[];map=null;googleMap=false;window.deliveryyaGoogleError=true;lastMapSignature='';
+ mapPoints=[];map=null;mapRoute=null;googleMap=false;window.deliveryyaGoogleError=true;lastMapSignature='';
  const old=$('map');old.replaceWith(old.cloneNode(false));
  if(!window.L){$('mapSource').textContent='Google Maps no está disponible y no se cargó el mapa alternativo.';return;}
  try{
@@ -183,7 +191,16 @@ async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos'
  avisoAnterior.hidden=!activosAnteriores.length;
  if(activosAnteriores.length)avisoAnterior.textContent='⚠ '+activosAnteriores.length+' pedido(s) pendientes de otras fechas. Pedí a la Central que los reprograme para trabajar hoy; no se agregaron automáticamente a tu ruta.';
  const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',today);
-if(!orderResult.error&&orderResult.data?.length){const indexes=new Map(orderResult.data.map(x=>[x.pedido_id,x.posicion]));a.sort((x,y)=>(indexes.get(x.id)??9999)-(indexes.get(y.id)??9999)||(x.numero_general??9999)-(y.numero_general??9999))}
+if(!orderResult.error&&orderResult.data?.length){
+ const indexes=new Map(orderResult.data.map(x=>[x.pedido_id,x.posicion]));
+ a.sort((x,y)=>{const xa=DY_ACT.includes(x.estado),ya=DY_ACT.includes(y.estado);
+ if(xa!==ya)return xa?-1:1;
+ return (indexes.get(x.id)??9999)-(indexes.get(y.id)??9999)||(x.numero_general??9999)-(y.numero_general??9999)});
+}
+const ordenActivos=a.filter(p=>DY_ACT.includes(p.estado));
+const idsActivos=new Set(ordenActivos.map(p=>p.id));
+if(motoOrdenRuta.length&&motoOrdenRuta.some(id=>!idsActivos.has(id))){motoGeoRuta=null;motoInicioRuta=null;motoOrdenRuta=[]}
+window.dyMotoOrdenLocal=new Map(ordenActivos.map((p,i)=>[p.id,i+1]));
 $('optimizeMine').onclick=async()=>{
 const btn=$('optimizeMine'),msg=$('optimizeMessage');
 if(btn.disabled)return;
@@ -202,16 +219,20 @@ try{
  msg.textContent='Buscando el recorrido desde tu ubicación…';
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),20000);
  let json;
- try{const response=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords+'?roundtrip=false&source=first&destination=any&steps=false&overview=false',{signal:controller.signal});if(!response.ok)throw Error('Servicio de rutas no disponible');json=await response.json();}
+ try{const response=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords+'?roundtrip=false&source=first&destination=any&steps=false&overview=full&geometries=geojson',{signal:controller.signal});if(!response.ok)throw Error('Servicio de rutas no disponible');json=await response.json();}
  finally{clearTimeout(timeout)}
  if(json.code!=='Ok'||!json.trips?.length||json.waypoints?.length!==pending.length+1)throw Error('No se pudo calcular el recorrido vial.');
- const ids=pending.map((p,i)=>({id:p.id,order:json.waypoints[i+1]?.waypoint_index})).sort((x,y)=>x.order-y.order).map(p=>p.id);
+ const candidatos=pending.map((p,i)=>({id:p.id,order:json.waypoints[i+1]?.waypoint_index}));
+ if(candidatos.some(x=>!Number.isInteger(x.order)||x.order<1||x.order>pending.length))throw Error('El optimizador devolvió posiciones inválidas');
+ const ids=candidatos.sort((x,y)=>x.order-y.order).map(p=>p.id);
  if(ids.some(id=>!id)||new Set(ids).size!==pending.length)throw Error('Orden incompleto: no se guardó ningún cambio.');
  const preview=ids.map((id,i)=>(i+1)+'. N.º '+(a.find(p=>p.id===id)?.numero_general??'—')+' — '+(a.find(p=>p.id===id)?.nombre_cliente??'')).join('\\n');
  if(!confirm('Recorrido desde tu ubicación actual ('+Math.round(pos.coords.accuracy)+' m de precisión).\\n'+preview+(missing.length?'\\n'+missing.length+' pedido(s) sin GPS quedan fuera de la optimización.':'')+'\\nLos números originales no cambian. ¿Guardar este orden?')){msg.textContent='Orden anterior conservado.';return}
  msg.textContent='Guardando orden individual…';
  const {error}=await sb.rpc('motorista_guardar_orden',{p_pedidos:ids});
  if(error)throw Error('No se guardó: '+error.message);
+ motoGeoRuta=json.trips[0]?.geometry?.coordinates||null;
+ motoInicioRuta=[startLat,startLng];motoOrdenRuta=ids.slice();lastMapSignature='';
  await load();
  msg.textContent='Recorrido actualizado desde tu ubicación. Podés optimizar nuevamente cuando quieras.';
 }catch(e){msg.textContent=(e.name==='AbortError'?'El cálculo tardó demasiado. Intentá de nuevo.':e.code===1?'Activá permiso de ubicación del navegador.':e.message||'No se pudo optimizar.');}
@@ -220,7 +241,7 @@ finally{btn.disabled=false;}
 const [movRes,closeRes,rechRes]=await Promise.all([sb.from('movimientos_financieros').select('*').eq('motorista_id',moto.id),sb.from('flota_cierres_motoristas').select('*').eq('motorista_id',moto.id).order('created_at',{ascending:false}).limit(12),sb.from('flota_rechazos_detalle').select('*').eq('motorista_id',moto.id)]);
 dyDatos.mov=movRes.data||[];dyDatos.cierres=closeRes.data||[];dyDatos.rech=rechRes.data||[];if(movRes.error){$('cashSummary').textContent=movRes.error.message}else dyPintarCaja(a);setTimeout(dyMisRutas,0);
 
-{const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:14px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.hidden=pend.length<2;box.after(ow)}}
+{const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<p class="muted" style="margin:8px 0 4px">🧭 Navegación secundaria en Google Maps</p><div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:14px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.hidden=pend.length<2;const mainMap=$('map').closest('.card');mainMap.before(ow);mainMap.after(box)}}
 $('orders').innerHTML=dyTarjetas(a);$('orders').querySelectorAll('[data-edit-operativo]').forEach(b=>b.onclick=async()=>{const p=a.find(x=>x.id===b.dataset.editOperativo);if(!p)return;const cambios={};for(const key of ['telefono_cliente','referencias','observaciones']){const original=String(p[key]??'');const n=prompt('Corregir '+key.replaceAll('_',' '),original);if(n===null)return;if(n.trim()!==original.trim())cambios[key]=n.trim();}if(!Object.keys(cambios).length)return;const {error}=await sb.rpc('editar_pedido_seguro',{p_pedido_id:p.id,p_version:p.version_edicion,p_cambios:cambios});if(error){alert('No guardado: '+error.message);return}try{window.dyVisto&&window.dyVisto(p.id,(p.version_edicion||0)+1)}catch(_){}await load();});
 $('orders').querySelectorAll('[data-complete]').forEach(b=>b.onclick=()=>{const p=a.find(x=>x.id===b.dataset.complete);if(p)panelEntregado(p)});
 $('orders').querySelectorAll('[data-reject]').forEach(b=>b.onclick=()=>{const p=a.find(x=>x.id===b.dataset.reject);if(p)panelRechazo(p)});
@@ -251,7 +272,7 @@ if(map){
   const near=points.filter(q=>Math.abs(Number(q.lat)-lat)<0.00065&&Math.abs(Number(q.lng)-lng)<0.00075);
   const index=near.findIndex(q=>q.id===p.id),angle=2*Math.PI*index/near.length,radius=0.00028+(near.length>8?0.00012:0);
   const shown=near.length<2?{lat,lng}:{lat:lat+radius*Math.cos(angle),lng:lng+radius*Math.sin(angle)/Math.max(.2,Math.cos(lat*Math.PI/180))};
-  const label=String(p.numero_general??a.findIndex(v=>v.id===p.id)+1),estadoTxt={entregado:'✅ Entregado',rechazado:'❌ Rechazado',no_responde:'⚠️ No responde',no_recibio:'⚠️ No recibió',pasa_manana:'📅 Pasa mañana',pendiente:'Pendiente'}[p.estado]||p.estado,desc='N.º '+label+' — '+p.nombre_cliente+' · '+estadoTxt,colorEstado=p.estado==='entregado'?'#16a34a':p.estado==='rechazado'?'#dc2626':['no_responde','no_recibio'].includes(p.estado)?'#f59e0b':p.estado==='pasa_manana'?'#7c3aed':'#1765ba';
+  const label=String(window.dyMotoOrdenLocal?.get(p.id)??points.findIndex(v=>v.id===p.id)+1),estadoTxt={entregado:'✅ Entregado',rechazado:'❌ Rechazado',no_responde:'⚠️ No responde',no_recibio:'⚠️ No recibió',pasa_manana:'📅 Pasa mañana',pendiente:'Pendiente'}[p.estado]||p.estado,desc='Parada '+label+' · Central N.º '+(p.numero_general??'—')+' — '+p.nombre_cliente+' · '+estadoTxt,colorEstado=p.estado==='entregado'?'#16a34a':p.estado==='rechazado'?'#dc2626':['no_responde','no_recibio'].includes(p.estado)?'#f59e0b':p.estado==='pasa_manana'?'#7c3aed':'#1765ba';
   if(googleMap){
     const m=new google.maps.Marker({map,position:shown,title:desc,label:{text:p.estado==='entregado'?'✓':label,color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:19,fillColor:colorEstado,fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
     const info=new google.maps.InfoWindow({content:'<strong>'+safe(desc)+'</strong>'});
@@ -262,7 +283,8 @@ if(map){
   }
  }
  const signature=points.map(p=>p.id+':'+p.estado+':'+p.lat+','+p.lng).join(';');
- ultimaRutaVisible=coords;
+ ultimaRutaVisible=motoInicioRuta&&motoGeoRuta?[motoInicioRuta,...coords]:coords;
+ dibujarRutaMoto();
  if(signature!==lastMapSignature){
    lastMapSignature=signature;
    requestAnimationFrame(()=>{encuadrarRutaMotorista();setTimeout(encuadrarRutaMotorista,250)});
@@ -302,8 +324,8 @@ function dyTarjetas(a){
  const act=a.filter(p=>DY_ACT.includes(p.estado)),hechos=a.filter(p=>!DY_ACT.includes(p.estado));
  const total=a.length,ok=hechos.length,pct=total?Math.round(ok*100/total):0;
  $('metrics').innerHTML='<div class="card dy-prog"><div><strong>'+ok+' de '+total+'</strong> terminadas'+(act.length?' · faltan '+act.length:' · ¡ruta completa!')+'</div><div class="dy-bar"><span style="width:'+pct+'%"></span></div></div>';
- const tarjeta=(p,i)=>{const c=dyCobro(p),num=safe(p.numero_general??'—'),nav=p.lat!=null&&p.lng!=null?'<a class="dy-i" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(p.lat+','+p.lng)+'">🧭 Ir</a>':'';
-  const ed=window.__dyEditados&&window.__dyEditados.has(p.id);return '<div class="card dy-ped'+(i===0?' dy-next':'')+(ed?' dy-edit':'')+'">'+(ed?'<div class="dy-tag" style="background:#f5a000;color:#1d1300">✏️ MODIFICADO POR LA CENTRAL · revisá cobro y datos</div>':'')+''+(i===0?'<div class="dy-tag">PRÓXIMA ENTREGA</div>':'')+'<div class="dy-top"><span class="dy-num">'+num+'</span><div class="dy-main"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">'+safe(p.direccion_cliente)+(p.referencias?' · '+safe(p.referencias):'')+'</div>'+dyInfoPedido(p)+(p.estado!=='pendiente'?'<div class="dy-inc">'+(dyEst[p.estado]||safe(p.estado))+(p.motivo_incidencia?' · '+safe(p.motivo_incidencia):'')+'</div>':'')+'</div></div><div class="dy-cobro'+(c?'':' dy-pagado')+'">'+(c?'💵 Cobrar <b>'+money(c)+'</b> <small>('+dyModal[p.modalidad_pago]+')</small>':'✔ Ya pagado · no cobrar')+'</div><div class="dy-ic">'+nav+'<a class="dy-i" href="tel:'+encodeURIComponent(p.telefono_cliente)+'">📞 Llamar</a><a class="dy-i" target="_blank" rel="noopener" href="https://wa.me/'+waPY(p.telefono_cliente)+'">💬 Chat</a>'+(p.estado==='pendiente'?'<button class="dy-i" data-edit-operativo="'+safe(p.id)+'">✏️</button>':'')+'</div><button type="button" class="dy-avisar" data-avisar="'+safe(p.id)+'">📢 Avisar a la tienda</button><div class="dy-acc"><button class="dy-ok" data-complete="'+safe(p.id)+'">✅ Entregado</button><button class="dy-no" data-reject="'+safe(p.id)+'" aria-label="Rechazado">❌</button><button class="dy-warn" data-incident="'+safe(p.id)+'" aria-label="Incidencia">⚠️</button></div></div>'};
+ const tarjeta=(p,i)=>{const c=dyCobro(p),num=safe(window.dyMotoOrdenLocal?.get(p.id)??i+1),nav=p.lat!=null&&p.lng!=null?'<a class="dy-i" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(p.lat+','+p.lng)+'">🧭 Ir</a>':'';
+  const ed=window.__dyEditados&&window.__dyEditados.has(p.id);return '<div class="card dy-ped'+(i===0?' dy-next':'')+(ed?' dy-edit':'')+'">'+(ed?'<div class="dy-tag" style="background:#f5a000;color:#1d1300">✏️ MODIFICADO POR LA CENTRAL · revisá cobro y datos</div>':'')+''+(i===0?'<div class="dy-tag">PRÓXIMA ENTREGA</div>':'')+'<div class="dy-top"><span class="dy-num" title="Orden personal">'+num+'</span><div class="dy-main"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">Parada '+num+' · pedido Central N.º '+safe(p.numero_general??'—')+'</div><div class="muted">'+safe(p.direccion_cliente)+(p.referencias?' · '+safe(p.referencias):'')+'</div>'+dyInfoPedido(p)+(p.estado!=='pendiente'?'<div class="dy-inc">'+(dyEst[p.estado]||safe(p.estado))+(p.motivo_incidencia?' · '+safe(p.motivo_incidencia):'')+'</div>':'')+'</div></div><div class="dy-cobro'+(c?'':' dy-pagado')+'">'+(c?'💵 Cobrar <b>'+money(c)+'</b> <small>('+dyModal[p.modalidad_pago]+')</small>':'✔ Ya pagado · no cobrar')+'</div><div class="dy-ic">'+nav+'<a class="dy-i" href="tel:'+encodeURIComponent(p.telefono_cliente)+'">📞 Llamar</a><a class="dy-i" target="_blank" rel="noopener" href="https://wa.me/'+waPY(p.telefono_cliente)+'">💬 Chat</a>'+(p.estado==='pendiente'?'<button class="dy-i" data-edit-operativo="'+safe(p.id)+'">✏️</button>':'')+'</div><button type="button" class="dy-avisar" data-avisar="'+safe(p.id)+'">📢 Avisar a la tienda</button><div class="dy-acc"><button class="dy-ok" data-complete="'+safe(p.id)+'">✅ Entregado</button><button class="dy-no" data-reject="'+safe(p.id)+'" aria-label="Rechazado">❌</button><button class="dy-warn" data-incident="'+safe(p.id)+'" aria-label="Incidencia">⚠️</button></div></div>'};
  const linea=p=>{const m=dyDatos.mov.find(x=>x.pedido_id===p.id),cob=m?Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0):0;return '<div class="dy-done"><span>'+(p.estado==='entregado'?'✅':'❌')+' N.º '+safe(p.numero_general??'—')+' · '+safe(p.nombre_cliente)+'</span><b>'+(cob?money(cob):p.estado==='entregado'?'pagado':'—')+'</b></div>'};
  return (act.length?'<h3 class="dy-h">📦 Entregas pendientes ('+act.length+')</h3>'+act.map(tarjeta).join(''):(total?'<div class="card dy-fin">✅ No tenés entregas pendientes para esta fecha. Revisá Caja cuando termines tu turno.</div>':'<p class="muted">No hay pedidos asignados para hoy.</p>'))+
  (hechos.length?'<details class="card dy-terminados"><summary>✅ Finalizadas hoy ('+hechos.length+') · Ver detalle</summary>'+hechos.map(linea).join('')+'</details>':'');
@@ -409,7 +431,7 @@ let dyPestanasListas=false;
 function dyPestanas(){
  if(dyPestanasListas)return;dyPestanasListas=true;
  const app=$('app'),mapCard=$('map').closest('.card'),cajaCard=$('cashSummary').closest('.card');
- [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('name').after(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';mapCard.after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi recorrido de hoy';cajaCard.classList.add('t-caja');
+ [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('name').after(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';mapCard.after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi recorrido de hoy · orden personal';cajaCard.classList.add('t-caja');
  document.querySelectorAll('#app > .notice').forEach(n=>n.remove());
  cajaCard.querySelector('h3').textContent='💰 Mi caja de hoy';{const vb=document.createElement('button');vb.type='button';vb.id='dyVerificarBtn';vb.textContent='🔍 Verificar mis entregas';$('submitClose').parentElement.before(vb)}cajaCard.querySelector('p.muted').textContent='Al terminar, tocá el botón verde: se cierra tu caja y se le envía al jefe el detalle de cada cliente por WhatsApp.';
  $('cashDeclared').closest('label').firstChild.textContent='Efectivo que entregás: ';$('transferDeclared').closest('label').firstChild.textContent='Transferencias recibidas: ';
@@ -417,7 +439,7 @@ function dyPestanas(){
  const fila=(t,...els)=>{const d=document.createElement('div');d.className='dy-fila';const s=document.createElement('div');s.innerHTML='<b>'+t+'</b>';d.append(s);els.forEach(e=>e&&d.append(e));box.append(d);return d};
  fila('🌙 Modo noche',$('themeToggle'));
  const gp=$('gpsStart').parentElement;fila('📍 Compartir mi ubicación con la central',$('gpsStart'),$('gpsStop'),$('gpsStatus'));$('gpsStop').classList.add('dy-sec');gp.remove();
- const op=$('optimizeMine').parentElement;const ow=document.createElement('div');ow.id='dyOptWrap';$('optimizeMine').textContent='🔀 Optimizar mi recorrido desde donde estoy';ow.append($('optimizeMine'),$('optimizeMessage'));op.remove();ow.className='t-entregas';$('orders').before(ow);
+ const op=$('optimizeMine').parentElement;const ow=document.createElement('div');ow.id='dyOptWrap';$('optimizeMine').textContent='🔀 Optimizar mi recorrido desde donde estoy';ow.append($('optimizeMine'),$('optimizeMessage'));op.remove();ow.className='t-entregas';mapCard.before(ow);
  const jin=document.createElement('input');jin.type='tel';jin.placeholder='WhatsApp del jefe (ej. 0981 123456)';jin.value=dyJefeTel();jin.onchange=()=>{try{localStorage.setItem('dyf-jefe-wa',jin.value.trim())}catch(_){}};fila('📲 WhatsApp del jefe para la rendición',jin);
  const rp=$('refresh').parentElement;fila('🔄 Cuenta',$('refresh'),$('logout'));$('refresh').textContent='🔄 Actualizar datos';$('logout').textContent='🚪 Cerrar sesión';$('logout').classList.add('dy-salir');rp.remove();
  const nav=document.createElement('nav');nav.className='dy-nav';nav.innerHTML='<button data-tab="entregas" aria-pressed="true">🚚<span>Entregas</span></button><button data-tab="caja">💰<span>Caja</span></button><button data-tab="ajustes">⚙️<span>Ajustes</span></button>';document.body.append(nav);
