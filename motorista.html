@@ -294,7 +294,7 @@ if(map){
   }
  }
  const signature=points.map(p=>p.id+':'+p.estado+':'+p.lat+','+p.lng).join(';');
- ultimaRutaVisible=motoInicioRuta&&motoGeoRuta?[motoInicioRuta,...coords]:coords.length?coords:points.map(p=>[Number(p.lat),Number(p.lng)]);
+ ultimaRutaVisible=[...(motoInicioRuta&&motoGeoRuta?[motoInicioRuta]:[]),...points.map(p=>[Number(p.lat),Number(p.lng)])];
  dibujarRutaMoto();
  if(signature!==lastMapSignature){
    lastMapSignature=signature;
