@@ -353,7 +353,7 @@ function dyResumenCaja(a){
 function dyPintarCaja(a){
  const r=dyResumenCaja(a);
  $('cashSummary').innerHTML=[['💵 Efectivo cobrado',r.ef],['🏦 Transferencias',r.tr],['🏍️ Mi ganancia',r.comM],['🤝 Entrego al jefe',r.rendir]].map(([n,v],i)=>'<div class="dy-kpi'+(i===3?' dy-kpi-main':'')+'"><small>'+n+'</small><div class="number">'+money(v)+'</div></div>').join('');
- const corregible=!!r.cierre&&r.cierre.estado!=='confirmada'&&(!r.cierre.confirmado_por||r.cierre.confirmado_por===moto.usuario_id);
+ const corregible=!!r.cierre&&r.cierre.estado!=='confirmada'&&!r.cierre.confirmed_at&&(!r.cierre.confirmado_por||r.cierre.confirmado_por===moto.usuario_id);
  if(!r.cierre||corregible){if(!$('cashDeclared').dataset.tocado){$('cashDeclared').value=r.rendir;$('transferDeclared').value=r.tr}}
  ['cashDeclared','transferDeclared'].forEach(id=>{$(id).oninput=()=>{$(id).dataset.tocado='1'}});
  const b=$('submitClose');const abiertos=a.filter(p=>DY_ACT.includes(p.estado)).length;
@@ -437,6 +437,7 @@ function dyHojaEnvio(pdf,texto,cierre){
 }
 async function dyCorregirRendicion(a){
  const r=dyResumenCaja(a),ef=Number($('cashDeclared').value),tr=Number($('transferDeclared').value),msg=$('closeMsg');
+ if(r.cierre?.confirmed_at){msg.textContent='Esta jornada ya fue recibida por Central. Los ajustes deben gestionarse desde administración.';return}
  if(!Number.isInteger(ef)||ef<0||!Number.isInteger(tr)||tr<0){msg.textContent='Revisá los importes: solo números enteros.';return}
  if(!confirm('¿Corregir tu rendición?\nEfectivo que entregás: '+money(ef)+(ef!==r.rendir?' (esperado '+money(r.rendir)+')':' ✔')+'\nTransferencias: '+money(tr)))return;
  const fx=document.getElementById('dyCorregir');if(fx)fx.disabled=true;dyPrecargarPdf();

@@ -65,3 +65,8 @@ test('Cerrar jornada del motorista solo sin pendientes y con recibo automático 
   "dyHojaEnvio(pdf,dyTextoRendicion(a,r,cierre),cierre)"
  ]) assert.ok(motorista.includes(token),'Protección de cierre ausente: '+token);
 });
+
+test('Motorista no modifica montos ya recibidos por Central',()=>{
+ assert.ok(motorista.includes("&&!r.cierre.confirmed_at&&"),'No bloquear ajuste confirmado');
+ assert.ok(motorista.includes("if(r.cierre?.confirmed_at)"),'No comprobar cierre previo a corrección');
+});
