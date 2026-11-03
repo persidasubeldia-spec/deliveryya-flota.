@@ -408,7 +408,7 @@ let dyPestanasListas=false;
 function dyPestanas(){
  if(dyPestanasListas)return;dyPestanasListas=true;
  const app=$('app'),mapCard=$('map').closest('.card'),cajaCard=$('cashSummary').closest('.card');
- [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('orders').before(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';mapCard.after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi recorrido de hoy';cajaCard.classList.add('t-caja');
+ [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('metrics').before(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';mapCard.after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi recorrido de hoy';cajaCard.classList.add('t-caja');
  document.querySelectorAll('#app > .notice').forEach(n=>n.remove());
  cajaCard.querySelector('h3').textContent='💰 Mi caja de hoy';{const vb=document.createElement('button');vb.type='button';vb.id='dyVerificarBtn';vb.textContent='🔍 Verificar mis entregas';$('submitClose').parentElement.before(vb)}cajaCard.querySelector('p.muted').textContent='Al terminar, tocá el botón verde: se cierra tu caja y se le envía al jefe el detalle de cada cliente por WhatsApp.';
  $('cashDeclared').closest('label').firstChild.textContent='Efectivo que entregás: ';$('transferDeclared').closest('label').firstChild.textContent='Transferencias recibidas: ';
