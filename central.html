@@ -870,7 +870,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!libre(orders.find(o=>o.id===id)))st.sel.delete(id)});
   const sinNum=ps.filter(o=>o.numero_general==null&&o.estado==='pendiente'&&!o.motorista_id),sinGps=ps.filter(o=>!gps(o));
-  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso">🔢 '+sinNum.filter(gps).length+' pedido(s) sin número: tocá <b>Optimizar ruta</b> para ordenarlos'+(ps.some(o=>o.motorista_id)?' (se suman al final de la ruta)':'')+'.</div>':'')+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
+  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso">🔢 '+sinNum.filter(gps).length+' pedido(s) sin número: tocá <b>Optimizar ruta</b> para ordenarlos'+(ps.some(o=>o.motorista_id)?' (se suman al final de la ruta)':'')+'.</div>':'')+otrosHtml()+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
+  $$('dyDAv').querySelectorAll('[data-pasar]').forEach(b=>b.onclick=()=>pasar(b.dataset.pasar));$$('dyDAv').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.ver;st.sel.clear();st.fit=false;pintar()});
   const libres=ps.filter(libre);
   $$('dyDList').innerHTML='<div class="lhead"><span>'+ps.length+' pedido(s) · '+libres.length+' libres</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
   +(ps.map(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const col=d?colorMoto(d.id):null;const ok=libre(o),sel=st.sel.has(o.id);
@@ -889,6 +890,14 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{st.moto=st.moto===b.dataset.moto?null:b.dataset.moto;st.ultimo=null;barra(paradas());dibujar(paradas())});
   const a=$$('dyDAsig'),w=$$('dyDAsigW'),r=$$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);
   if(r)r.onclick=()=>{const d=drivers.find(x=>x.id===st.moto);if(d)window.open(waUrl(d),'_blank')}}
+ const NT={manana:'🌅 Mañana',tarde:'🌇 Tarde',sin_definir:'Sin turno'};
+ function otrosHtml(){const ot=orders.filter(o=>tur(o)!==st.turno&&o.estado==='pendiente'&&!o.motorista_id);if(!ot.length)return '';const pod=['manana','tarde'].includes(st.turno);
+  const porT={};ot.forEach(o=>(porT[tur(o)]=porT[tur(o)]||[]).push(o));
+  return Object.entries(porT).map(([t,arr])=>'<div class="aviso">📋 '+arr.length+' pedido(s) en <b>'+NT[t]+'</b> (no están en esta lista): '+arr.slice(0,6).map(o=>{const r=routes.find(x=>x.id===o.ruta_general_id);const mov=pod&&(!r||r.estado==='abierta');return '<span style="white-space:nowrap"><b>'+esc(o.nombre_cliente)+'</b>'+(mov?' <button type="button" class="link" data-pasar="'+esc(o.id)+'">→ Pasar a '+NT[st.turno]+'</button>':'')+'</span>'}).join(' · ')+(arr.length>6?' …':'')+' · <button type="button" class="link" data-ver="'+t+'">Ver '+NT[t]+'</button></div>').join('')}
+ async function pasar(id){const o=orders.find(x=>x.id===id);if(!o)return;if(!confirm('¿Pasar el pedido de '+o.nombre_cliente+' al turno '+NT[st.turno].replace(/^\S+ /,'')+'?'))return;
+  const {error}=await client.rpc('flota_cambiar_turno_pedido',{p_pedido:o.id,p_turno:st.turno,p_version:o.version_edicion});
+  if(error){msg('No se pudo cambiar el turno: '+error.message,'err');return}
+  await $$('routeReload').onclick();refrescar();msg('✅ '+o.nombre_cliente+' pasó a '+NT[st.turno]+'. Tocá «Optimizar ruta» para ordenarlo con los demás.','ok')}
  // ---------- mapa ----------
  function iniciarMapa(){const el=$$('dyMap');if(!el)return;try{
   if(window.google&&google.maps&&!window.deliveryyaGoogleError){st.g=true;st.map=new google.maps.Map(el,{center:{lat:-25.33,lng:-57.55},zoom:11,mapTypeControl:false,streetViewControl:false,gestureHandling:'greedy'})}
@@ -899,16 +908,17 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function punto(p,txt,color,sel,id,titulo){if(st.g){const m=new google.maps.Marker({position:p,map:st.map,title:titulo,zIndex:sel?1000:100,label:{text:String(txt),color:'#fff',fontWeight:'bold',fontSize:'12px'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:sel?17:14,fillColor:color,fillOpacity:1,strokeColor:sel?'#111':'#fff',strokeWeight:sel?3:2}});if(id)m.addListener('click',()=>tocar(id));st.objs.push(m)}
   else{const m=L.marker([p.lat,p.lng],{title:titulo,icon:L.divIcon({className:'',html:'<div style="width:'+(sel?34:28)+'px;height:'+(sel?34:28)+'px;border-radius:50%;background:'+color+';border:'+(sel?3:2)+'px solid '+(sel?'#111':'#fff')+';color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px #0006">'+esc(txt)+'</div>',iconSize:[30,30],iconAnchor:[15,15]})});if(id)m.on('click',()=>tocar(id));st.layer.addLayer(m)}}
  function tocar(id){const o=orders.find(x=>x.id===id);if(!libre(o)){msg(o&&o.motorista_id?'Ese pedido ya está asignado a '+(drivers.find(d=>d.id===o.motorista_id)?.nombre||'una moto')+'.':'Primero tocá «Optimizar ruta» para numerarlo.','err');return}st.sel.has(id)?st.sel.delete(id):st.sel.add(id);refrescar()}
- function dibujar(ps){if(!st.map)return;limpiar();const geo=ps.filter(gps).filter(o=>o.numero_general!=null);const sinN=ps.filter(gps).filter(o=>o.numero_general==null);
+ function separar(lista){const g={};lista.forEach(o=>{const k=Number(o.lat).toFixed(5)+','+Number(o.lng).toFixed(5);(g[k]=g[k]||[]).push(o)});const pos={};Object.values(g).forEach(arr=>arr.forEach((o,i)=>{const b=P(o);if(arr.length<2){pos[o.id]=b;return}const a=2*Math.PI*i/arr.length,r=0.00028;pos[o.id]={lat:b.lat+r*Math.sin(a),lng:b.lng+r*Math.cos(a)/Math.cos(b.lat*Math.PI/180)}}));return pos}
+ function dibujar(ps){if(!st.map)return;limpiar();const SP=separar(ps.filter(gps));const PP=o=>SP[o.id]||P(o);const geo=ps.filter(gps).filter(o=>o.numero_general!=null);const sinN=ps.filter(gps).filter(o=>o.numero_general==null);
   // recorrido completo en gris
-  const full=(st.origen?[st.origen]:[]).concat(geo.map(P));linea(full,'#64748b',3,.55);
+  const full=(st.origen?[st.origen]:[]).concat(geo.map(PP));linea(full,'#64748b',3,.55);
   // tramos de cada moto en su color
-  drivers.forEach(d=>{const m=geo.filter(o=>o.motorista_id===d.id);if(m.length)linea(m.map(P),colorMoto(d.id),6,.95)});
+  drivers.forEach(d=>{const m=geo.filter(o=>o.motorista_id===d.id);if(m.length)linea(m.map(PP),colorMoto(d.id),6,.95)});
   // selección en amarillo
-  const s=geo.filter(o=>st.sel.has(o.id));if(s.length)linea(s.map(P),'#f5a000',8,.9);
+  const s=geo.filter(o=>st.sel.has(o.id));if(s.length)linea(s.map(PP),'#f5a000',8,.9);
   if(st.origen)punto(st.origen,'🏁','#111827',false,null,'Salida');
-  geo.forEach(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const sel=st.sel.has(o.id);punto(P(o),o.numero_general,sel?'#f5a000':d?colorMoto(d.id):(o.estado==='pendiente'?'#1f3a63':'#94a3b8'),sel,o.id,'N.º '+o.numero_general+' · '+o.nombre_cliente+(o.observaciones?' · 📝 '+o.observaciones:''))});
-  sinN.forEach(o=>punto(P(o),'?','#94a3b8',false,o.id,o.nombre_cliente+' (sin número)'));
+  geo.forEach(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const sel=st.sel.has(o.id);punto(PP(o),o.numero_general,sel?'#f5a000':d?colorMoto(d.id):(o.estado==='pendiente'?'#1f3a63':'#94a3b8'),sel,o.id,'N.º '+o.numero_general+' · '+o.nombre_cliente+(o.observaciones?' · 📝 '+o.observaciones:''))});
+  sinN.forEach(o=>punto(PP(o),'?','#94a3b8',false,o.id,o.nombre_cliente+' (sin número)'));
   if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40)}else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[30,30],maxZoom:14})}}}
  // ---------- acciones ----------
  function ubic(){return new Promise((ok,no)=>{if(!navigator.geolocation)return no(Error('Este navegador no da la ubicación.'));navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),e=>no(Error(e.code===1?'Permití la ubicación en el navegador (candado de la barra de direcciones) o usá «Salir desde otro punto».':'No se pudo obtener tu ubicación: '+e.message)),{enableHighAccuracy:true,timeout:15000,maximumAge:60000})})}

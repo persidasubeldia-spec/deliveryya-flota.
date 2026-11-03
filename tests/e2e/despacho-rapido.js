@@ -1,11 +1,11 @@
 // Central › Rutas › Despacho: Optimizar numera 1..N (sin asignar), el jefe marca, elige moto, asigna y manda WhatsApp.
 const {chromium}=require('playwright');const SHOT='/tmp/claude-0/-home-claude/17f6e967-50a2-5a83-8608-c130999d8c94/scratchpad/';
 const fake=`(function(){window.__rpc=[];
-const pts=[[-25.33,-57.52],[-25.34,-57.50],[-25.32,-57.51],[-25.26,-57.60],[-25.25,-57.62],[-25.27,-57.61],[-25.40,-57.55],[-25.41,-57.57],[-25.39,-57.56]];
+const pts=[[-25.33,-57.52],[-25.33,-57.52],[-25.32,-57.51],[-25.26,-57.60],[-25.25,-57.62],[-25.27,-57.61],[-25.40,-57.55],[-25.41,-57.57],[-25.39,-57.56]];
 const DB={flota_usuarios:[{rol:'propietario',empresa_id:'e1',usuario_id:'u1',activo:true,puede_motoristas:true}],
  motoristas:[{id:'m1',empresa_id:'e1',nombre:'Edgar Daniel',telefono:'0986260417',activo:true,usuario_id:'x1',color_identificador:'#1765ba'},{id:'m2',empresa_id:'e1',nombre:'Freddy',telefono:'0972798907',activo:true,usuario_id:'x2',color_identificador:'#e8590c'},{id:'m3',empresa_id:'e1',nombre:'Repartidor Principal',telefono:'0982123456',activo:true,usuario_id:null}],
  tiendas:[{id:'t1',empresa_id:'e1',codigo:'T3',nombre_comercial:'Persa'}],rutas_generales:[],
- pedidos:pts.map((p,i)=>({id:'p'+i,empresa_id:'e1',tienda_id:'t1',nombre_cliente:'Cliente '+(i+1),telefono_cliente:'0981',direccion_cliente:'Dir '+i,lat:p[0],lng:p[1],estado:'pendiente',turno:'manana',motorista_id:null,ruta_general_id:null,numero_general:null,precio_mercaderia:100000,precio_delivery:25000,modalidad_pago:'pendiente',created_at:'2026-11-02T10:0'+i+':00Z'})).concat([{id:'px',empresa_id:'e1',tienda_id:'t1',nombre_cliente:'Sin GPS',lat:null,lng:null,estado:'pendiente',turno:'manana',motorista_id:null,ruta_general_id:null,numero_general:null,precio_mercaderia:0,precio_delivery:0,modalidad_pago:'pendiente',created_at:'2026-11-02T10:00:00Z'}])};
+ pedidos:pts.map((p,i)=>({id:'p'+i,empresa_id:'e1',tienda_id:'t1',nombre_cliente:'Cliente '+(i+1),telefono_cliente:'0981',direccion_cliente:'Dir '+i,lat:p[0],lng:p[1],estado:'pendiente',turno:'manana',motorista_id:null,ruta_general_id:null,numero_general:null,precio_mercaderia:100000,precio_delivery:25000,modalidad_pago:'pendiente',created_at:'2026-11-02T10:0'+i+':00Z'})).concat([{id:'pt',empresa_id:'e1',tienda_id:'t1',nombre_cliente:'Cqroli',lat:-25.31,lng:-57.53,estado:'pendiente',turno:'tarde',motorista_id:null,ruta_general_id:null,numero_general:null,version_edicion:1,precio_mercaderia:0,precio_delivery:0,modalidad_pago:'pendiente',created_at:'2026-11-02T10:00:00Z'},{id:'px',empresa_id:'e1',tienda_id:'t1',nombre_cliente:'Sin GPS',lat:null,lng:null,estado:'pendiente',turno:'manana',motorista_id:null,ruta_general_id:null,numero_general:null,precio_mercaderia:0,precio_delivery:0,modalidad_pago:'pendiente',created_at:'2026-11-02T10:00:00Z'}])};
 window.__DB=DB;
 window.supabase={createClient:()=>{const user={id:'u1',email:'jefe@x.com'};
  const q=t=>{const c={then:(a,b)=>Promise.resolve({data:(DB[t]||[]).map(x=>({...x})),error:null,count:(DB[t]||[]).length}).then(a,b)};['select','eq','limit','order','in','gte','lte','neq','is','not','range','ilike','or','filter','match','gt','lt','contains'].forEach(m=>c[m]=()=>c);c.single=()=>Promise.resolve({data:(DB[t]||[])[0]||null,error:null});c.maybeSingle=c.single;c.insert=()=>c;c.update=()=>c;return c};
@@ -14,6 +14,7 @@ window.supabase={createClient:()=>{const user={id:'u1',email:'jefe@x.com'};
    if(n==='flota_crear_ruta_turno'){let r=DB.rutas_generales.find(r=>r.turno===a.p_turno);if(!r){r={id:'r1',empresa_id:'e1',fecha:a.p_fecha,turno:a.p_turno,estado:'abierta'};DB.rutas_generales.push(r)}return {data:r.id,error:null}}
    if(n==='admin_confirmar_ruta_optimizada'){a.p_orden_ids.forEach((id,i)=>{const o=DB.pedidos.find(x=>x.id===id);o.numero_general=i+1;o.ruta_general_id=a.p_ruta_general_id});DB.rutas_generales[0].estado='optimizada';return {data:null,error:null}}
    if(n==='flota_asignar_lote'){a.p_pedidos.forEach(id=>{DB.pedidos.find(x=>x.id===id).motorista_id=a.p_motorista});return {data:a.p_pedidos.length,error:null}}
+   if(n==='flota_cambiar_turno_pedido'){const o=DB.pedidos.find(x=>x.id===a.p_pedido);o.turno=a.p_turno;return {data:null,error:null}}
    if(n==='flota_leer_comision_general')return {data:25,error:null};
    return {data:[],error:null}},
   channel:()=>{const ch={on:()=>ch,subscribe:()=>ch};return ch},removeChannel:()=>{}}}}})();`;
@@ -27,6 +28,16 @@ window.supabase={createClient:()=>{const user={id:'u1',email:'jefe@x.com'};
  await p.evaluate(()=>page('Rutas'));await p.waitForTimeout(900);
  chk(w+' C1 panel de despacho arriba y vista vieja plegada',await p.locator('#dyDesp').isVisible()&&await p.locator('#dyAvz').count()===1&&!(await p.locator('#dyAvz').getAttribute('open')));
  chk(w+' C2 antes de optimizar: casilleros bloqueados y aviso de optimizar',await p.locator('#dyDList [data-ck]:not([disabled])').count()===0&&/Optimizar ruta/.test(await p.locator('#dyDAv').innerText()));
+
+ const av=await p.locator('#dyDAv').innerText();chk(w+' C18 avisa el pedido del turno Tarde con su nombre',/Cqroli/.test(av)&&/Tarde/.test(av),av.slice(0,120));
+ await p.click('[data-pasar="pt"]');await p.waitForTimeout(700);
+ chk(w+' C19 "Pasar a Mañana" lo suma a la lista',await p.locator('#dyDList .stop:has-text("Cqroli")').count()===1);
+ await p.click('#dyDGo');await p.waitForTimeout(1200);
+ const nums=await p.evaluate(()=>window.__DB.pedidos.filter(o=>o.numero_general!=null).map(o=>o.numero_general).sort((a,b)=>a-b).join());
+ chk(w+' C20 al optimizar entran los 10 (1..10)',nums==='1,2,3,4,5,6,7,8,9,10',nums);
+ const dup=await p.evaluate(()=>{const ic=[...document.querySelectorAll('#dyMap .leaflet-marker-icon')].map(e=>e.style.transform);return {n:ic.length,u:new Set(ic).size}});
+ chk(w+' C21 los dos pedidos del mismo punto se ven separados',dup.n===dup.u&&dup.n>=11,dup);
+ await p.evaluate(()=>{const db=window.__DB;db.pedidos.forEach(o=>{o.numero_general=null;o.ruta_general_id=null;if(o.id==='pt')o.turno='tarde'});db.rutas_generales.length=0});await p.evaluate(()=>document.getElementById('routeReload').onclick());await p.waitForTimeout(500);
  await p.click('#dyDGo');await p.waitForTimeout(1300);
  const m=await p.locator('#dyDMsg').innerText();chk(w+' C3 "Ruta ordenada: N.º 1 al 9"',/N\.º 1 al 9/.test(m),m);
  const db=await p.evaluate(()=>window.__DB.pedidos.filter(o=>o.numero_general!=null).sort((a,b)=>a.numero_general-b.numero_general));
