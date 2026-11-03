@@ -59,7 +59,7 @@ test('Cerrar jornada del motorista solo sin pendientes y con recibo automático 
   "b.disabled=!r.cierre&&abiertos>0",
   "if(!r.cierre&&pend){msg.textContent=",
   "Central registra automáticamente el dinero",
-  "confirmar el cierre",
+  "Cerrar tu jornada y dar el dinero declarado por recibido",
   "No se permite cerrar hasta terminarlos o reprogramarlos",
   "Jornada cerrada · dinero declarado recibido",
   "dyHojaEnvio(pdf,dyTextoRendicion(a,r,cierre),cierre)"
