@@ -267,6 +267,12 @@ body.dark #dyDesp,body.dark #dyDesp .chip,body.dark #dyDesp .lhead{background:#1
 #dyDesp #dyBarra{padding:10px 12px}#dyDesp #dyBarra .motos{gap:5px}#dyDesp #dyBarra .moto{padding:7px 9px;font-size:12px}
 #dyDesp #dyBarra.dy-bar-empty .motos,#dyDesp #dyBarra.dy-bar-empty .acc{display:none}
 #dyDesp #dyBarra.dy-bar-empty{background:#edf4ff;color:#1e416b}#dyDesp #dyBarra.dy-bar-empty .cnt{font-size:13px}
+#dyDesp .dy-quickfilters{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;margin-bottom:4px}
+#dyDesp .dy-quickfilters button{border:1px solid #d1ddeb;background:#fff;color:#315370;padding:6px 9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
+#dyDesp .dy-quickfilters button.on{background:#1765ba;color:#fff;border-color:#1765ba}
+#dyDesp #dyMotoristasResumen:not([hidden]){display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+#dyDesp #dyMotoristasResumen button{border:1px solid #d1ddeb;background:#f8fafc;border-radius:8px;display:flex;gap:6px;align-items:center;padding:8px;cursor:pointer}
+#dyDesp #dyMotoristasResumen strong{font-size:12px}#dyDesp #dyMotoristasResumen small{font-size:11px;color:#526b83}
 </style>
 <style id="dyEditCss">
 #dyEdit{position:fixed;inset:0;background:#0b1730b0;display:flex;align-items:flex-start;justify-content:center;z-index:5000;padding:16px;overflow:auto}
@@ -1277,6 +1283,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   +(st.manual?'<div class="orig"><input id="dyDOrig" placeholder="Coordenadas: -25.30,-57.60 o enlace de Maps con coordenadas" value="'+(st.origen?st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6):'')+'"></div>':'')
   +'<div id="dyDAv"></div><div class="msg" id="dyDMsg"></div>'
   +'<div class="dy-list-tools"><input id="dyBuscar" type="search" placeholder="Buscar cliente, teléfono, N.º o tienda" aria-label="Buscar pedidos"><select id="dyFiltro" aria-label="Estado del pedido"><option value="todos">Todos los de esta etapa</option><option value="sin_asignar">Sin asignar</option><option value="asignados">Asignados</option><option value="entregados">Entregados</option><option value="incidencias">Incidencias</option><option value="sin_ubicacion">Sin GPS</option></select><select id="dySegMoto" aria-label="Motorista" '+(st.modo==='seguimiento'?'':'hidden')+'><option value="todos">Todos los motoristas</option>'+drivers.filter(d=>d.activo).map(d=>'<option value="'+esc(d.id)+'">'+esc(d.nombre)+'</option>').join('')+'</select></div>'
+  +'<div class="dy-quickfilters" role="group" aria-label="Filtro rápido">'+[['todos','Todos'],['sin_asignar','Sin asignar'],['asignados','Asignados'],['entregados','Entregados'],['incidencias','Incidencias']].map(([v,n])=>'<button type="button" data-quick="'+v+'" class="'+(st.filtro===v?'on':'')+'">'+n+'</button>').join('')+'</div>'
+  +'<div id="dyMotoristasResumen" hidden></div>'
   +'<div id="dyRange" class="dy-rango" '+(st.modo==='repartir'&&editable()?'':'hidden')+'><strong>Asignar por números</strong><label>Desde <input id="dyDesde" type="number" min="1" placeholder="1"></label><label>Hasta <input id="dyHasta" type="number" min="1" placeholder="15"></label><button id="dyRangoSelect" type="button">Marcar intervalo</button></div>'
   +'<div id="dyPedidoFoco" class="dy-focus" hidden></div>'
   +'<div class="dy-map-toolbar"><strong>Mapa de reparto</strong><div class="dy-vistas">'+[['ambos','Ambos'],['mapa','Mapa'],['lista','Lista']].map(([v,n])=>'<button type="button" class="'+(st.vista===v?'on':'')+'" data-vista="'+v+'">'+n+'</button>').join('')+'</div><span id="dyMapProvider" role="status">Verificando Google Maps…</span><button type="button" id="dyMapFocus">Centrar en pedidos</button><span class="dy-map-hint">Verde: entregado · Rojo: rechazado · Azul: pendiente</span></div><div class="zona"><div class="lista" id="dyDList"></div><div id="dyMap"></div></div>'
@@ -1289,6 +1297,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $('dyFiltro').onchange=e=>{st.filtro=e.target.value;st.fit=false;refrescar()};
   $('dySegMoto').onchange=e=>{st.seguimientoMoto=e.target.value;st.fit=false;refrescar()};
   $('dyRangoSelect').onclick=seleccionarRango;
+  box.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{st.filtro=b.dataset.quick;$('dyFiltro').value=st.filtro;st.fit=false;refrescar()});
   box.querySelector('.zona').dataset.vista=st.vista;
   $$('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$$('dyDGo').onclick=optimizar;
   if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}st.map=null;st.objs=[];iniciarMapa();refrescar()}
@@ -1304,6 +1313,18 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
 function refrescar(){const ps=paradas(),filtrados=visibles();
   const kpis=[['Pedidos del turno',ps.length],['Sin asignar',ps.filter(o=>o.estado==='pendiente'&&!o.motorista_id).length],['Asignados',ps.filter(o=>!!o.motorista_id&&o.estado==='pendiente').length],['Entregados',ps.filter(o=>o.estado==='entregado').length],['Incidencias',ps.filter(o=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(o.estado)).length]];
   const resumen=$('dyResumen');if(resumen)resumen.innerHTML=kpis.map(([label,val])=>'<div><strong>'+val+'</strong><small>'+label+'</small></div>').join('');
+  document.querySelectorAll('#dyDesp [data-quick]').forEach(b=>b.classList.toggle('on',b.dataset.quick===st.filtro));
+  const motosResumen=$('dyMotoristasResumen');
+  if(motosResumen){
+   motosResumen.hidden=st.modo!=='seguimiento';
+   if(!motosResumen.hidden){
+    motosResumen.innerHTML=drivers.filter(d=>d.activo).map(d=>{
+      const x=ps.filter(o=>o.motorista_id===d.id),ent=x.filter(o=>o.estado==='entregado').length,pend=x.filter(o=>o.estado==='pendiente').length;
+      return '<button type="button" data-follow="'+esc(d.id)+'"><span class="dy-driver-dot" style="background:'+colorMoto(d.id)+'"></span><strong>'+esc(d.nombre)+'</strong><small>'+x.length+' pedidos · '+ent+' entregados · '+pend+' pendientes</small></button>';
+    }).join('')||'<span>No hay motoristas activos</span>';
+    motosResumen.querySelectorAll('[data-follow]').forEach(b=>b.onclick=()=>{st.seguimientoMoto=b.dataset.follow;$('dySegMoto').value=st.seguimientoMoto;st.fit=false;refrescar()});
+   }
+  }
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!libre(orders.find(o=>o.id===id)))st.sel.delete(id)});
   const sinNum=ps.filter(o=>o.numero_general==null&&o.estado==='pendiente'&&!o.motorista_id),sinGps=ps.filter(o=>!gps(o));
