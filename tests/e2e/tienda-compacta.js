@@ -1,0 +1,31 @@
+// Tienda ordenada con 200 pedidos: Inicio compacto, filas desplegables, de a 30.
+const {chromium}=require('playwright');const SHOT='/tmp/claude-0/-home-claude/17f6e967-50a2-5a83-8608-c130999d8c94/scratchpad/';
+const fakeT=`(function(){window.__ins=[];const base={empresa_id:'e1',tienda_id:'t1',telefono_cliente:'0981',direccion_cliente:'x',lat:-25.3,lng:-57.5,precio_mercaderia:100000,precio_delivery:25000,modalidad_pago:'pendiente',turno:'manana',creado_por:'u1',version_edicion:1};window.__TP=Array.from({length:200},(_,i)=>({...base,id:'z'+i,nombre_cliente:'Cliente '+(i+1),producto:'Blusa '+i,estado:['pendiente','entregado','rechazado','no_responde'][i%4],motorista_id:i%3?'m1':null,ruta_general_id:i%3?'r1':null,observaciones:i===0?'Hasta las 19':'',created_at:new Date(Date.now()-i*60000).toISOString()})).concat([{...base,id:'a1',nombre_cliente:'Odilda',estado:'pendiente',motorista_id:null,created_at:new Date().toISOString()},{...base,id:'a2',nombre_cliente:'Vale',estado:'pendiente',motorista_id:'m2',ruta_general_id:'r1',created_at:new Date().toISOString()},{...base,id:'a3',nombre_cliente:'Nota',estado:'pendiente',motorista_id:'m2',ruta_general_id:'r1',created_at:new Date().toISOString()}]);
+window.supabase={createClient:(u,k,o)=>{const user={id:'u1',email:'t@x.com'};
+ const rows=t=>t==='pedidos'?(window.__TP||[]).map(x=>({...x})):t==='tienda_miembros'?[{tienda_id:'t1',rol:'propietario'}]:t==='tiendas'?[{id:'t1',empresa_id:'e1',codigo:'T3',nombre_comercial:'Persa Boutique',telefono:'0981',direccion:'x',lat:-25,lng:-57}]:[];
+ const q=t=>{let ins=null;const c={then:(a,b)=>Promise.resolve({data:rows(t),error:null}).then(a,b)};['select','eq','limit','order','in','gte','lte','neq','is','not','range','ilike','or'].forEach(m=>c[m]=()=>c);
+  c.insert=p=>{ins=p;window.__ins.push([t,p]);return c};c.single=()=>Promise.resolve(ins?{data:{id:'p'+window.__ins.length,created_at:new Date().toISOString()},error:null}:{data:rows(t)[0]||null,error:null});c.maybeSingle=c.single;return c};
+ return {from:q,auth:{getSession:async()=>({data:{session:{user,access_token:'a',refresh_token:'r'}}}),getUser:async()=>({data:{user}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({})},
+  rpc:async()=>({data:[],error:null}),channel:()=>{const ch={on:()=>ch,subscribe:()=>ch};return ch},removeChannel:()=>{}}}}})();`;
+(async()=>{const b=await chromium.launch();let ok=0,n=0;const chk=(t,c,d)=>{n++;if(c)ok++;console.log(c?'OK   ':'FALLA',t,d!==undefined?JSON.stringify(d).slice(0,200):'')};const errs=[];
+ const ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,serviceWorkers:'block'});const p=await ctx.newPage();p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.dismiss());
+ await p.route(/maps\.googleapis|unpkg\.com\/leaflet/,r=>r.abort());await p.route(/supabase-js|supabase\.min\.js/,r=>r.fulfill({contentType:'application/javascript',body:fakeT}));
+ await p.addInitScript(()=>localStorage.setItem('dyf-auth',JSON.stringify({access_token:'a',refresh_token:'r'})));await p.goto('http://localhost:8765/index.html');await p.waitForTimeout(2200);
+ await p.screenshot({path:SHOT+'tc_inicio.png'});
+ const btn=await p.locator('.dy-nuevo').boundingBox();chk('I1 "+ Nuevo pedido" visible en la primera pantalla',btn&&btn.y+btn.height<844,btn);
+ chk('I2 últimos pedidos: 5 filas + "Ver todos (N)"',await p.locator('#recent details.dy-row').count()===5&&/Ver todos \(\d{2,}\)/.test(await p.locator('#recent').innerText()));
+ const h=await p.evaluate(()=>document.querySelector('#recent details.dy-row').getBoundingClientRect().height);chk('I3 cada fila es corta (< 70 px)',h<70,h);
+ await p.click('#recent .dy-mas');await p.waitForTimeout(200);chk('I4 "Ver todos" abre Mis pedidos',await p.evaluate(()=>!document.getElementById('pedidos').classList.contains('hide')));
+ await p.click('#dyPer [data-per="todos"]');await p.waitForTimeout(200);chk('P1 con "Todo el historial": muestra 30 de 203',await p.locator('#orderList details.dy-row').count()===30&&/203 pedido/.test(await p.locator('#orderList .dy-cnt').innerText()),await p.locator('#orderList .dy-cnt').innerText());
+ await p.screenshot({path:SHOT+'tc_lista.png'});
+ chk('P1b el botón "Todo" queda marcado',await p.locator('#dyPer [data-per="todos"].on').count()===1);
+ await p.click('#dyPer [data-per="dia"]');await p.waitForTimeout(150);chk('P1c "Hoy" vuelve a filtrar el día',/^\d+ pedido/.test(await p.locator('#orderList .dy-cnt').innerText())&&!(/203/.test(await p.locator('#orderList .dy-cnt').innerText())));await p.click('#dyPer [data-per="todos"]');await p.waitForTimeout(150);
+ await p.click('#orderList [data-mas]');await p.waitForTimeout(200);chk('P2 "Mostrar más" suma 30',await p.locator('#orderList details.dy-row').count()===60);
+ await p.fill('#searchOrders','Cliente 1');await p.waitForTimeout(200);chk('P3 buscar vuelve a mostrar de a 30',await p.locator('#orderList details.dy-row').count()<=30);
+ await p.fill('#searchOrders','');await p.waitForTimeout(150);
+ await p.locator('#orderList details.dy-row summary').first().click();await p.waitForTimeout(150);
+ chk('P4 tocar la fila despliega el detalle con botones',await p.locator('#orderList details.dy-row[open] [data-copy]').count()===1);
+ chk('P5 la observación se ve en la fila cerrada (📝)',await p.locator('#orderList details.dy-row summary:has-text("📝")').count()>=1);
+ await p.screenshot({path:SHOT+'tc_abierto.png'});
+ const ed=p.locator('#orderList details.dy-row[open] [data-edit]');if(await ed.count()){await ed.click();await p.waitForTimeout(300);chk('P6 "Editar" sigue funcionando',await p.locator('#dyEditOverlay').count()===1)}else chk('P6 (pedido no editable, se omite)',true);
+ chk('X sin errores JS',!errs.length,errs);console.log(ok+'/'+n);await b.close()})();
