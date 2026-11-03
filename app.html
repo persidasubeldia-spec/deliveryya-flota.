@@ -72,20 +72,26 @@ footer a{color:var(--muted)}
   </section>
   <footer><a href="/privacidad.html">Privacidad</a> · <a href="/eliminar-cuenta.html">Eliminar cuenta</a></footer>
 </main>
+<script id="dySesion">/* Una sola sesión para todas las apps (antes había una copia por app y Supabase las cortaba al renovarse). */
+(function(){try{var K='dyf-auth',V=['dyf-auth-app','dyf-auth-central','dyf-auth-tienda','dyf-auth-motorista'];
+if(!localStorage.getItem(K)){var best=-1,bk=null,ult=localStorage.getItem('dyf-ultimo-rol');
+V.forEach(function(k){var v=localStorage.getItem(k);if(!v)return;try{var s=JSON.parse(v);if(!s||!s.refresh_token)return;var e=Number(s.expires_at)||0;if(k==='dyf-auth-'+ult)e+=1;if(e>best){best=e;bk=k}}catch(x){}});
+if(bk){localStorage.setItem(K,localStorage.getItem(bk));var r=bk.slice(9);if(!ult&&r!=='app')localStorage.setItem('dyf-ultimo-rol',r)}}
+V.forEach(function(k){localStorage.removeItem(k);localStorage.removeItem(k+'-code-verifier')})}catch(e){}})();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const URL_SB='https://sxhuvjvbqkovivcbisrn.supabase.co',KEY_SB='sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv';
-const KEY_APP='dyf-auth-app';
+const KEY_APP='dyf-auth';
 const DEST={central:{key:'dyf-auth-central',url:'/central',icon:'🧭',name:'Central de la flota',desc:'Pedidos, rutas, motoristas y rendiciones'},
  motorista:{key:'dyf-auth-motorista',url:'/motorista',icon:'🛵',name:'Mi ruta de motorista',desc:'Entregas, cobros y rendición'},
  tienda:{key:'dyf-auth-tienda',url:'/',icon:'🏪',name:'Mi tienda',desc:'Cargar y seguir pedidos'}};
-const db=supabase.createClient(URL_SB,KEY_SB,{auth:{storageKey:KEY_APP,persistSession:true,autoRefreshToken:false,detectSessionInUrl:false}});
+const db=supabase.createClient(URL_SB,KEY_SB,{auth:{storageKey:KEY_APP,persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
 const $=id=>document.getElementById(id);
 let mode='login';
 const say=(t,k='err')=>{$('msg').textContent=t;$('msg').className=k};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch{return false}}};
 function setMode(m){mode=m;const reg=m==='register';$('title').textContent=reg?'Crear cuenta de tienda':'Ingresar';$('subtitle').textContent=reg?'Solo correo y contraseña. Tu tienda queda activa al instante y después completás sus datos.':'Entrá con tu correo. La app abre tu panel según tu cuenta.';$('submit').textContent=reg?'Crear mi tienda':'Ingresar';$('switchMode').textContent=reg?'Ya tengo cuenta — Ingresar':'¿Tenés una tienda? Crear cuenta nueva';$('password').autocomplete=reg?'new-password':'current-password';say('')}
-function abrir(rol){const d=DEST[rol];const s=ls.get(KEY_APP);if(!s||!ls.set(d.key,s)){say('Tu navegador no permite guardar la sesión. Revisá que no esté en modo privado.');return}ls.set('dyf-ultimo-rol',rol);try{localStorage.removeItem(KEY_APP)}catch(e){}location.replace(d.url)}
+function abrir(rol){const d=DEST[rol];if(!ls.get(KEY_APP)){say('Tu navegador no permite guardar la sesión. Revisá que no esté en modo privado.');return}ls.set('dyf-ultimo-rol',rol);location.replace(d.url)}
 async function roles(uid){const [c,m,t]=await Promise.all([
  db.from('flota_usuarios').select('rol').eq('usuario_id',uid).eq('activo',true).limit(1),
  db.from('motoristas').select('id').eq('usuario_id',uid).eq('activo',true).limit(1),
@@ -111,7 +117,7 @@ $('forgot').onclick=async()=>{const email=$('email').value.trim();if(!/^\S+@\S+\
 $('otherAccount').onclick=async()=>{await db.auth.signOut().catch(()=>{});$('rolesCard').classList.add('hide');$('loginCard').classList.remove('hide');say('')};
 // Si ya hay una sesión abierta en algún panel, entrar directo.
 (function(){const ult=ls.get('dyf-ultimo-rol');const orden=ult&&DEST[ult]?[ult,...Object.keys(DEST).filter(k=>k!==ult)]:Object.keys(DEST);
- for(const k of orden){const raw=ls.get(DEST[k].key);if(!raw)continue;try{const s=JSON.parse(raw);if(s&&(s.refresh_token||s.access_token)){location.replace(DEST[k].url);return}}catch{}}})();
+ const raw=ls.get(KEY_APP);if(!raw)return;try{const s=JSON.parse(raw);if(s&&s.refresh_token)location.replace(DEST[orden[0]].url)}catch{}})();
 </script>
 </body>
 </html>
