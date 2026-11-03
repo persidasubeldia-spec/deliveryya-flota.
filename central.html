@@ -269,8 +269,51 @@ try{
 const x=await rdCargar(d),m=x.movs,t=rdTiendas(x),total=k=>m.reduce((n,a)=>n+Number(a[k]||0),0);
 if(v!==filtroVersion||!document.getElementById('valFin'))return;
 const pagar=t.reduce((n,a)=>n+Math.max(0,a.neto),0),cobrar=t.reduce((n,a)=>n+Math.max(0,-a.neto),0);
-const k=[['Ganancia empresa · comisión registrada',total('comision_empresa')],['Ganancia de motoristas',total('comision_motorista')],['A rendir a tiendas · calculado',pagar],['A cobrar de tiendas · calculado',cobrar]];
-document.getElementById('valFin').innerHTML='<div class="grid">'+k.map(([a,b])=>summary(a,money(b))).join('')+'</div><p class="muted">Saldo calculado por movimientos del día; no confirma una liquidación realizada.</p>'+table(['Tienda','Entregados','Rechazados','A pagar','A cobrar'],t.map(a=>[escapeHtml(a.tienda.codigo)+' · '+escapeHtml(a.tienda.nombre_comercial),a.ent,a.rej,money(Math.max(0,a.neto)),money(Math.max(0,-a.neto))]))+'<button id="verRendDia" class="btn-primary">Ver rendiciones de esta fecha</button>';
+const k=[['Ganancia empresa · comisión registrada',total('comision_empresa'),'empresa'],['Ganancia de motoristas',total('comision_motorista'),'motos'],['A rendir a tiendas · calculado',pagar,'pagar'],['A cobrar de tiendas · calculado',cobrar,'cobrar']];
+const btnCard=([nombre,importe,clave])=>'<button type="button" class="card dy-card-open" data-fin-det="'+clave+'" aria-label="Abrir detalle: '+escapeHtml(nombre)+'"><span class="muted">'+escapeHtml(nombre)+'</span><strong class="number">'+money(importe)+'</strong><small>Ver detalle →</small></button>';
+const lineaTienda=(a,i)=>'<tr><td><button type="button" class="dy-shop-open" data-fin-tienda="'+i+'">'+escapeHtml(a.tienda.codigo)+' · '+escapeHtml(a.tienda.nombre_comercial)+' →</button></td><td>'+a.ent+'</td><td>'+a.rej+'</td><td>'+money(Math.max(0,a.neto))+'</td><td>'+money(Math.max(0,-a.neto))+'</td></tr>';
+document.getElementById('valFin').innerHTML='<style>.dy-card-open{text-align:left;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;font:inherit;color:inherit}.dy-card-open:hover,.dy-shop-open:hover{border-color:#1765ba;background:#f1f7ff}.dy-card-open .number{font-size:30px;color:#153b68}.dy-card-open small{color:#1765ba;font-weight:700}.dy-shop-open{background:none;border:1px solid transparent;text-align:left;color:#1765ba;font-weight:700;cursor:pointer;padding:6px;border-radius:7px}.dy-modal-cover{position:fixed;inset:0;background:#0b1730b5;z-index:6000;display:flex;align-items:center;justify-content:center;padding:15px}.dy-modal-fin{width:min(940px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1b2c42;border-radius:16px;padding:20px;box-shadow:0 15px 50px #0004}.dy-modal-fin h3{margin:0}.dy-modal-fin .toolbar{justify-content:space-between}.dy-modal-fin .scroll{overflow-x:auto}.dy-modal-fin button{min-height:38px}@media(max-width:650px){.dy-modal-fin{padding:12px}.dy-modal-fin td,.dy-modal-fin th{font-size:12px;padding:7px}}</style><div class="grid">'+k.map(btnCard).join('')+'</div><p class="muted">Saldo calculado por movimientos del día; no confirma una liquidación realizada. Tocá cada tarjeta o tienda para ver el detalle.</p>'+table(['Tienda','Entregados','Rechazados','A pagar','A cobrar'],t.map(lineaTienda))+'<button id="verRendDia" class="btn-primary">Ver rendiciones de esta fecha</button>';
+const resumenM=(mov,p)=>({
+ nombre:p?.nombre_cliente||'Pedido',codigo:t.find(z=>z.tienda.id===p?.tienda_id)?.tienda.codigo||stores.find(z=>z.id===p?.tienda_id)?.codigo||'—',
+ motorista:drivers.find(z=>z.id===mov.motorista_id)?.nombre||'—',estado:p?.estado||'—',
+ merc:Number(mov.monto_mercaderia||0),env:Number(mov.monto_delivery||0),
+ co:Number(mov.comision_empresa||0),cm:Number(mov.comision_motorista||0)
+});
+const detalleMovimiento=(lista,modo)=>table(modo==='motos'?['Motorista','Cliente','Estado','Su comisión','Envío']:['Tienda','Cliente','Estado','Comisión flota','Envío'],lista.map(mv=>{
+const p=x.porPedido.get(mv.pedido_id),a=resumenM(mv,p);
+return modo==='motos'?[escapeHtml(a.motorista),escapeHtml(a.nombre),escapeHtml(a.estado),money(a.cm),money(a.env)]:[escapeHtml(a.codigo),escapeHtml(a.nombre),escapeHtml(a.estado),money(a.co),money(a.env)];
+}));
+function abrirDetalleFin(tipo,indice){
+ if(!document.getElementById('valFin'))return;
+ let titulo='',contenido='',pie='';
+ if(tipo==='empresa'){titulo='Ganancia empresa';contenido=detalleMovimiento(m,'empresa');pie='Comisiones registradas para el día seleccionado: '+money(total('comision_empresa'))}
+ else if(tipo==='motos'){titulo='Ganancia de motoristas';contenido=detalleMovimiento(m,'motos');pie='Comisiones registradas para el día seleccionado: '+money(total('comision_motorista'))}
+ else {
+  const grupos=tipo==='tienda'?[t[indice]].filter(Boolean):t.filter(a=>tipo==='pagar'?a.neto>0:a.neto<0);
+  titulo=tipo==='tienda'?'Detalle · '+(grupos[0]?.tienda.codigo||'Tienda'):tipo==='pagar'?'A rendir a tiendas':'A cobrar de tiendas';
+  const filas=grupos.flatMap(g=>g.filas.map(({p,m:mv,l})=>({
+   tienda:g.tienda,cliente:p.nombre_cliente,estado:p.estado,
+   merc:l.merc,debe:l.debeTienda,nota:l.nota,
+   delivery:mv.monto_delivery
+  })));
+  contenido=table(['Tienda','Cliente','Estado','Mercadería para tienda','Envío a cargo de tienda','Observación'],filas.map(a=>[
+   escapeHtml(a.tienda.codigo)+' · '+escapeHtml(a.tienda.nombre_comercial),
+   escapeHtml(a.cliente),escapeHtml(a.estado),money(a.merc),money(a.debe),escapeHtml(a.nota||'—')
+  ]));
+  pie='Saldo neto '+(tipo==='tienda'?'de la tienda: '+money(grupos[0]?.neto||0):tipo==='pagar'?'a pagar: '+money(pagar):'a cobrar: '+money(cobrar))+' · Estos importes son calculados y pueden requerir conciliación.';
+ }
+ const prev=document.getElementById('dyFinModal');if(prev)prev.remove();
+ const cover=document.createElement('div');cover.id='dyFinModal';cover.className='dy-modal-cover';
+ cover.innerHTML='<section class="dy-modal-fin" role="dialog" aria-modal="true" aria-labelledby="dyFinTitulo"><div class="toolbar"><h3 id="dyFinTitulo">'+escapeHtml(titulo)+' · '+d.split('-').reverse().join('/')+'</h3><button type="button" id="dyCerrarFin">Cerrar ✕</button></div><p class="muted">'+escapeHtml(pie)+'</p>'+contenido+'</section>';
+ document.body.appendChild(cover);
+ const close=()=>cover.remove();
+ document.getElementById('dyCerrarFin').onclick=close;
+ cover.onclick=ev=>{if(ev.target===cover)close()};
+ cover.onkeydown=ev=>{if(ev.key==='Escape')close()};
+ document.getElementById('dyCerrarFin').focus();
+}
+document.querySelectorAll('[data-fin-det]').forEach(b=>b.onclick=()=>abrirDetalleFin(b.dataset.finDet));
+document.querySelectorAll('[data-fin-tienda]').forEach(b=>b.onclick=()=>abrirDetalleFin('tienda',Number(b.dataset.finTienda)));
 document.getElementById('verRendDia').onclick=()=>{rdEstado.fecha=filtroDia;page('Rendiciones')};
 }catch(e){const b=document.getElementById('valFin');if(v===filtroVersion&&b)b.textContent='No se pudieron consultar los movimientos: '+e.message}
 }
