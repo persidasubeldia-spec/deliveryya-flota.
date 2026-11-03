@@ -280,7 +280,7 @@ body.dark #dyEdit .box{background:#172235;color:#e6edf9}body.dark #dyEdit input,
 </style></head><body>
 <header><strong>DeliveryYa Flota</strong><div>Central de Mando</div></header><main><section id="login"><h2>Acceso administrativo</h2><p>Entrá con tu correo. Si sos tienda o motorista, te llevamos solo a tu panel.</p><input id="email" type="email" placeholder="Correo" autocomplete="username"><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password"><button id="enter">Ingresar</button> <button id="register" type="button" style="display:none">Crear cuenta del propietario</button><p class="muted">¿Tienda nueva? <a href="/app.html">Creá tu cuenta acá</a> solo con correo y contraseña.</p><p id="error"></p></section>
 <section id="app" class="hidden"><nav id="nav"></nav><div id="content"></div><button id="logout">Cerrar sesión</button></section></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>window.gm_authFailure=function(){window.deliveryyaGoogleError="Google Maps rechazó la clave, dominio o facturación";if(typeof window.deliveryyaGoogleRecover==="function")window.deliveryyaGoogleRecover();};</script><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpfB3PfNovtq0dIfmXmqrH2sI2U1YSDNA&v=weekly"></script><script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>window.gm_authFailure=function(){window.deliveryyaGoogleError="Google Maps rechazó la clave, dominio o facturación";window.dispatchEvent(new Event('deliveryya-google-failed'));if(typeof window.deliveryyaGoogleRecover==="function")window.deliveryyaGoogleRecover();};</script><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpfB3PfNovtq0dIfmXmqrH2sI2U1YSDNA&v=weekly"></script><script>
 const client=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv',{auth:{storageKey:'dyf-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});let companyPct=25,account=null,orders=[],stores=[],drivers=[],settlements=[],movements=[],closures=[],routes=[],rejections=[],routeMap=null,routeMarkers=null,googleDispatch=false,googleDispatchMarkers=[],selectedOrders=new Set(),proposedOrder=null,pendingShopRequests=[],bestRoutePreview=null,optimizationTrial=0,newOrderAlerts=[],notificationSoundEnabled=false,notificationAudio=null,orderWatcherStarted=false,lastOrderWatchError='';const $=id=>document.getElementById(id),escapeHtml=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));const money=v=>'₲ '+Math.round(v||0).toLocaleString('es-PY');
 async function cargarTodosLosPedidos(empresaId){const resultado=[];const tamano=500;for(let desde=0;desde<200000;desde+=tamano){const {data,error}=await client.from('pedidos').select('*').eq('empresa_id',empresaId).order('id',{ascending:true}).range(desde,desde+tamano-1);if(error)throw error;resultado.push(...(data||[]));if(!data||data.length<tamano)return resultado;}throw Error('La consulta alcanzó el límite de seguridad. No se mostrará una lista incompleta.');}
 
@@ -1188,7 +1188,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   +'<div id="dyBarra"></div>';
   box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.t;st.sel.clear();st.fit=false;pintar()});
   $$('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$$('dyDGo').onclick=optimizar;
-  st.map=null;st.objs=[];iniciarMapa();refrescar()}
+  if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}st.map=null;st.objs=[];iniciarMapa();refrescar()}
  function refrescar(){const ps=paradas();
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!libre(orders.find(o=>o.id===id)))st.sel.delete(id)});
@@ -1222,19 +1222,50 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   if(error){msg('No se pudo cambiar el turno: '+error.message,'err');return}
   await $$('routeReload').onclick();refrescar();msg('✅ '+o.nombre_cliente+' pasó a '+NT[st.turno]+'. Tocá «Optimizar ruta» para ordenarlo con los demás.','ok')}
  // ---------- mapa ----------
- function iniciarMapa(){const el=$('dyMap');if(!el)return;try{
- if(window.google?.maps&&!window.deliveryyaGoogleError){
-  st.g=true;st.map=new google.maps.Map(el,{center:{lat:-25.33,lng:-57.55},zoom:12,mapTypeControl:false,streetViewControl:false,gestureHandling:'greedy'});
- }else if(window.L){
-  st.g=false;st.map=L.map(el).setView([-25.33,-57.55],12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(st.map);
-  st.layer=L.layerGroup().addTo(st.map);
+ 
+ function recuperarMapaDespacho(){
+  if(!st.g||!$('dyMap'))return;
+  window.deliveryyaGoogleError=window.deliveryyaGoogleError||'Google Maps no cargo correctamente';
+  if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}
+  try{limpiar()}catch(_){}
+  const el=$('dyMap');el.replaceWith(el.cloneNode(false));
+  st.g=false;st.map=null;st.layer=null;st.objs=[];st.fit=false;
+  const status=$('dyMapProvider');
+  if(!window.L){if(status)status.textContent='Google Maps fallo y el mapa alternativo no esta disponible';return}
+  try{
+   st.map=L.map('dyMap').setView([-25.33,-57.55],12);
+   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(st.map);
+   st.layer=L.layerGroup().addTo(st.map);
+   if(status)status.textContent='⚠ OpenStreetMap alternativo: Google Maps no pudo cargar';
+   dibujar(paradas());
+   setTimeout(()=>st.map?.invalidateSize?.(),120);
+  }catch(e){if(status)status.textContent='No se pudo recuperar el mapa: '+e.message}
  }
- }catch(e){st.map=null}
- st.fit=false;
- const status=$('dyMapProvider');if(status)status.textContent=st.map?(st.g?'✓ Google Maps activo':'⚠ OpenStreetMap alternativo: Google Maps no disponible'):'⚠ No se pudo cargar el mapa';
- const focus=$('dyMapFocus');if(focus)focus.onclick=()=>{st.fit=false;dibujar(paradas());if(!st.g)st.map?.invalidateSize?.()};
-}
+ function iniciarMapa(){
+  const el=$('dyMap');if(!el)return;
+  if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}
+  try{
+   if(window.google?.maps&&!window.deliveryyaGoogleError){
+    st.g=true;st.map=new google.maps.Map(el,{center:{lat:-25.33,lng:-57.55},zoom:12,mapTypeControl:false,streetViewControl:false,gestureHandling:'greedy'});
+    const ref=st.map;ref._dyTilesReady=false;
+    google.maps.event.addListenerOnce(ref,'tilesloaded',()=>{
+     ref._dyTilesReady=true;
+     if(st.g&&st.map===ref&&!el.querySelector('.gm-err-container')){$('dyMapProvider').textContent='✓ Google Maps activo'}
+    });
+    st.mapObservador=new MutationObserver(()=>{if(st.g&&st.map===ref&&el.querySelector('.gm-err-container'))recuperarMapaDespacho()});
+    st.mapObservador.observe(el,{childList:true,subtree:true});
+    setTimeout(()=>{if(st.g&&st.map===ref&&(!ref._dyTilesReady||el.querySelector('.gm-err-container')))recuperarMapaDespacho()},9000);
+   }else if(window.L){
+    st.g=false;st.map=L.map(el).setView([-25.33,-57.55],12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(st.map);
+    st.layer=L.layerGroup().addTo(st.map);
+   }
+  }catch(e){st.map=null}
+  st.fit=false;
+  const status=$('dyMapProvider');
+  if(status)status.textContent=st.map?(st.g?'Cargando Google Maps…':'⚠ OpenStreetMap alternativo: Google Maps no disponible'):'⚠ No se pudo cargar el mapa';
+  const focus=$('dyMapFocus');if(focus)focus.onclick=()=>{st.fit=false;dibujar(paradas());if(!st.g)st.map?.invalidateSize?.()};
+ }
  function limpiar(){if(st.g)st.objs.forEach(o=>o.setMap(null));else if(st.layer)st.layer.clearLayers();st.objs=[]}
  function linea(path,color,ancho,op){if(path.length<2)return;if(st.g)st.objs.push(new google.maps.Polyline({path,strokeColor:color,strokeOpacity:op,strokeWeight:ancho,map:st.map,zIndex:ancho}));else st.layer.addLayer(L.polyline(path.map(p=>[p.lat,p.lng]),{color,weight:ancho,opacity:op}))}
  function punto(p,txt,color,sel,id,titulo){if(st.g){const m=new google.maps.Marker({position:p,map:st.map,title:titulo,zIndex:sel?1000:100,label:{text:String(txt),color:'#fff',fontWeight:'bold',fontSize:'12px'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:(sel?17:14)+(String(txt).length>2?5:0),fillColor:color,fillOpacity:1,strokeColor:sel?'#111':'#fff',strokeWeight:sel?3:2}});if(id)m.addListener('click',()=>tocar(id));st.objs.push(m)}
@@ -1298,6 +1329,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   let n=det.nextSibling;while(n){const x=n.nextSibling;det.append(n);n=x}
   det.addEventListener('toggle',()=>{if(!det.open)return;const map=$('routeMap');if(map&&window.L){try{setTimeout(()=>routeMap?.invalidateSize?.(),150)}catch(_){}}});
   pintar()}
+ window.addEventListener('deliveryya-google-failed',()=>{if(st.g)recuperarMapaDespacho()});
  const orig=window.page;if(typeof orig==='function'){window.page=function(n){
   const r=orig.apply(this,arguments);
   if(n==='Rutas'){setTimeout(montar,0);setTimeout(montar,120)}
