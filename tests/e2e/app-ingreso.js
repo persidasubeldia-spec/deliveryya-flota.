@@ -15,11 +15,11 @@ async function caso(b,roles,{pass='clave1234',registro=false,pre=null}={}){const
  if(r.roles.length){await p.locator('.role').nth(1).click();await p.waitForTimeout(800);r.tras=new URL(p.url()).pathname}
  await ctx.close();return r}
 (async()=>{const b=await chromium.launch();let ok=0,n=0;const chk=(t,c,d)=>{n++;if(c)ok++;console.log(c?'OK   ':'FALLA',t,d?JSON.stringify(d).slice(0,200):'')};
- let r=await caso(b,['central']);chk('I1 correo de la Central abre /central',r.url==='/central'&&r.keys.includes('dyf-auth-central'),r);
- r=await caso(b,['motorista']);chk('I2 correo de motorista abre /motorista',r.url==='/motorista'&&r.keys.includes('dyf-auth-motorista'),r);
- r=await caso(b,['tienda']);chk('I3 correo de tienda abre la app Tienda',r.url==='/'&&r.keys.includes('dyf-auth-tienda'),r);
+ let r=await caso(b,['central']);chk('I1 correo de la Central abre /central',r.url==='/central'&&r.keys.includes('dyf-auth'),r);
+ r=await caso(b,['motorista']);chk('I2 correo de motorista abre /motorista',r.url==='/motorista'&&r.keys.includes('dyf-auth'),r);
+ r=await caso(b,['tienda']);chk('I3 correo de tienda abre la app Tienda',r.url==='/'&&r.keys.includes('dyf-auth'),r);
  r=await caso(b,[]);chk('I4 cuenta sin rol va a Tienda (se activa sola)',r.url==='/',r);
- r=await caso(b,[],{registro:true});chk('I5 «Crear cuenta» crea tienda con correo y contraseña',r.url==='/'&&r.keys.includes('dyf-auth-tienda'),r);
+ r=await caso(b,[],{registro:true});chk('I5 «Crear cuenta» crea tienda con correo y contraseña',r.url==='/'&&r.keys.includes('dyf-auth'),r);
  r=await caso(b,['tienda','motorista']);chk('I6 dos roles: muestra elegir panel',r.roles.length===2&&r.tras==='/',r);
  r=await caso(b,['central'],{pass:'mala1234'});chk('I7 contraseña mala: mensaje claro, no sale',r.url==='/app.html'&&/incorrectos/.test(r.msg),r.msg);
  r=await caso(b,[],{pre:['dyf-auth-motorista',JSON.stringify({access_token:'a',refresh_token:'r'})]});chk('I8 con sesión abierta entra directo',r.url==='/motorista',r.url);

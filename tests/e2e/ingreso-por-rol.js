@@ -16,11 +16,11 @@ async function caso(b,pagina,roles,login){const ctx=await b.newContext({viewport
  const r={url:new URL(p.url()).pathname,title:await p.title().catch(()=>''),keys:await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('dyf-auth'))).catch(()=>[]),rpc:await p.evaluate(()=>window.__rpc||[]).catch(()=>[]),errs};await ctx.close();return r}
 (async()=>{const b=await chromium.launch();let ok=0,n=0;const chk=(t,c,d)=>{n++;if(c)ok++;console.log(c?'OK   ':'FALLA',t,d?JSON.stringify(d).slice(0,220):'')};
  const C={email:'#email',pass:'#password',btn:'#enter'},M={email:'#email',pass:'#password',btn:'#login'},T={email:'#loginEmail',pass:'#loginPassword',btn:'#loginForm button[type=submit]'};
- let r=await caso(b,'central.html',['motorista'],C);chk('R1 motorista entra por la Central → va a /motorista',r.url==='/motorista'&&r.keys.includes('dyf-auth-motorista')&&!r.keys.includes('dyf-auth-central'),r);
- r=await caso(b,'central.html',['tienda'],C);chk('R2 tienda entra por la Central → va a su tienda',r.url==='/'&&r.keys.includes('dyf-auth-tienda'),r);
- r=await caso(b,'central.html',[],C);chk('R3 cuenta nueva por la Central → va a Tienda (alta sola)',r.url==='/'&&r.keys.includes('dyf-auth-tienda'),r);
- r=await caso(b,'central.html',['central'],C);chk('R4 socio entra a la Central y se queda',r.url==='/central.html'&&r.keys.includes('dyf-auth-central'),r);
- r=await caso(b,'motorista.html',['tienda'],M);chk('R5 tienda entra por Motorista → va a su tienda',r.url==='/'&&r.keys.includes('dyf-auth-tienda'),r);
+ let r=await caso(b,'central.html',['motorista'],C);chk('R1 motorista entra por la Central → va a /motorista',r.url==='/motorista'&&r.keys.includes('dyf-auth')&&!r.keys.includes('dyf-auth-central'),r);
+ r=await caso(b,'central.html',['tienda'],C);chk('R2 tienda entra por la Central → va a su tienda',r.url==='/'&&r.keys.includes('dyf-auth'),r);
+ r=await caso(b,'central.html',[],C);chk('R3 cuenta nueva por la Central → va a Tienda (alta sola)',r.url==='/'&&r.keys.includes('dyf-auth'),r);
+ r=await caso(b,'central.html',['central'],C);chk('R4 socio entra a la Central y se queda',r.url==='/central.html'&&r.keys.includes('dyf-auth'),r);
+ r=await caso(b,'motorista.html',['tienda'],M);chk('R5 tienda entra por Motorista → va a su tienda',r.url==='/'&&r.keys.includes('dyf-auth'),r);
  r=await caso(b,'motorista.html',['central'],M);chk('R6 socio entra por Motorista → va a la Central',r.url==='/central',r);
  r=await caso(b,'index.html',['motorista'],T);chk('R7 motorista entra por Tienda → va a /motorista sin crear tienda',r.url==='/motorista'&&!r.rpc.includes('flota_solicitar_alta_tienda_simple'),r);
  r=await caso(b,'index.html',['central'],T);chk('R8 socio entra por Tienda → va a la Central',r.url==='/central',r);
