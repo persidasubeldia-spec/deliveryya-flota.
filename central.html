@@ -191,7 +191,7 @@ let q=false;const run=()=>{if(q)return;q=true;requestAnimationFrame(()=>{q=false
 document.addEventListener('DOMContentLoaded',()=>{const c=document.getElementById('content');if(c)new MutationObserver(run).observe(c,{childList:true,subtree:true});run()})})();
 </script><style id="dyFold">.dy-fold{padding:0!important}.dy-fold>summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}.dy-fold>summary::-webkit-details-marker{display:none}.dy-fold>summary::after{content:'▾';margin-left:auto;color:#60728b;transition:transform .2s}.dy-fold[open]>summary::after{transform:rotate(180deg)}.dy-fold>:not(summary){margin-left:16px;margin-right:16px}.dy-fold[open]{padding-bottom:12px!important}.dy-badge{background:#e8f1ff;color:#1765ba;border-radius:999px;padding:2px 9px;font-size:13px}.dy-badge.dy-warn{background:#fff3d3;color:#9a5a00}.dy-row{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid #eef2f7;font-size:14px}.dy-row:last-of-type{border-bottom:0}</style><style id="dyDespachoCss">
 #dyDesp{border:2px solid #1765ba;border-radius:16px;padding:14px;margin-bottom:14px;background:#fff}
-#dyDesp h3{margin:0;font-size:20px}#dyDesp .sub{color:#5d6f87;margin:2px 0 10px;font-size:14px}
+#dyDesp h3{margin:0;font-size:20px}.dy-map-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}.dy-map-toolbar strong{font-size:15px}.dy-map-toolbar [role=status]{border:1px solid #c5d5e7;background:#f1f6fb;color:#24517d;padding:6px 9px;border-radius:9px;font-size:12px}.dy-map-toolbar button{background:#1765ba;color:white;border:0;border-radius:9px;padding:8px 10px;font-weight:700;cursor:pointer}.dy-map-hint{font-size:12px;color:#57708b}#dyDesp .sub{color:#5d6f87;margin:2px 0 10px;font-size:14px}
 #dyDesp .fila{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 #dyDesp .chip{border:1.5px solid #c9d5e5;background:#fff;color:#33465f;border-radius:12px;padding:10px 14px;font-weight:800;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
 #dyDesp .chip.on{background:#1765ba;border-color:#1765ba;color:#fff}#dyDesp .chip small{font-weight:600;opacity:.85}
@@ -1184,7 +1184,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   +'<button type="button" class="link" id="dyDOtro">'+(st.manual?'Usar mi ubicación (GPS)':'Salir desde otro punto…')+'</button>'
   +(st.manual?'<div class="orig"><input id="dyDOrig" placeholder="Coordenadas: -25.30,-57.60 o enlace de Maps con coordenadas" value="'+(st.origen?st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6):'')+'"></div>':'')
   +'<div id="dyDAv"></div><div class="msg" id="dyDMsg"></div>'
-  +'<div class="zona"><div class="lista" id="dyDList"></div><div id="dyMap"></div></div>'
+  +'<div class="dy-map-toolbar"><strong>Mapa de reparto</strong><span id="dyMapProvider" role="status">Verificando Google Maps…</span><button type="button" id="dyMapFocus">Centrar en pedidos</button><span class="dy-map-hint">Verde: entregado · Rojo: rechazado · Azul: pendiente</span></div><div class="zona"><div class="lista" id="dyDList"></div><div id="dyMap"></div></div>'
   +'<div id="dyBarra"></div>';
   box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.t;st.sel.clear();st.fit=false;pintar()});
   $$('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$$('dyDGo').onclick=optimizar;
@@ -1222,10 +1222,19 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   if(error){msg('No se pudo cambiar el turno: '+error.message,'err');return}
   await $$('routeReload').onclick();refrescar();msg('✅ '+o.nombre_cliente+' pasó a '+NT[st.turno]+'. Tocá «Optimizar ruta» para ordenarlo con los demás.','ok')}
  // ---------- mapa ----------
- function iniciarMapa(){const el=$$('dyMap');if(!el)return;try{
-  if(window.google&&google.maps&&!window.deliveryyaGoogleError){st.g=true;st.map=new google.maps.Map(el,{center:{lat:-25.33,lng:-57.55},zoom:11,mapTypeControl:false,streetViewControl:false,gestureHandling:'greedy'})}
-  else if(window.L){st.g=false;st.map=L.map(el).setView([-25.33,-57.55],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(st.map);st.layer=L.layerGroup().addTo(st.map)}
- }catch(e){st.map=null}st.fit=false}
+ function iniciarMapa(){const el=$('dyMap');if(!el)return;try{
+ if(window.google?.maps&&!window.deliveryyaGoogleError){
+  st.g=true;st.map=new google.maps.Map(el,{center:{lat:-25.33,lng:-57.55},zoom:12,mapTypeControl:false,streetViewControl:false,gestureHandling:'greedy'});
+ }else if(window.L){
+  st.g=false;st.map=L.map(el).setView([-25.33,-57.55],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(st.map);
+  st.layer=L.layerGroup().addTo(st.map);
+ }
+ }catch(e){st.map=null}
+ st.fit=false;
+ const status=$('dyMapProvider');if(status)status.textContent=st.map?(st.g?'✓ Google Maps activo':'⚠ OpenStreetMap alternativo: Google Maps no disponible'):'⚠ No se pudo cargar el mapa';
+ const focus=$('dyMapFocus');if(focus)focus.onclick=()=>{st.fit=false;dibujar(paradas());if(!st.g)st.map?.invalidateSize?.()};
+}
  function limpiar(){if(st.g)st.objs.forEach(o=>o.setMap(null));else if(st.layer)st.layer.clearLayers();st.objs=[]}
  function linea(path,color,ancho,op){if(path.length<2)return;if(st.g)st.objs.push(new google.maps.Polyline({path,strokeColor:color,strokeOpacity:op,strokeWeight:ancho,map:st.map,zIndex:ancho}));else st.layer.addLayer(L.polyline(path.map(p=>[p.lat,p.lng]),{color,weight:ancho,opacity:op}))}
  function punto(p,txt,color,sel,id,titulo){if(st.g){const m=new google.maps.Marker({position:p,map:st.map,title:titulo,zIndex:sel?1000:100,label:{text:String(txt),color:'#fff',fontWeight:'bold',fontSize:'12px'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:(sel?17:14)+(String(txt).length>2?5:0),fillColor:color,fillOpacity:1,strokeColor:sel?'#111':'#fff',strokeWeight:sel?3:2}});if(id)m.addListener('click',()=>tocar(id));st.objs.push(m)}
@@ -1241,10 +1250,10 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   if(st.origen)punto(st.origen,'🏁','#111827',false,null,'Salida');
   const grupos={};geo.forEach(o=>{const k=Number(o.lat).toFixed(5)+','+Number(o.lng).toFixed(5);(grupos[k]=grupos[k]||[]).push(o)});
   Object.values(grupos).forEach(arr=>{const o=arr[0];const sel=arr.some(x=>st.sel.has(x.id));const d=drivers.find(x=>x.id===o.motorista_id);const mismo=arr.every(x=>x.motorista_id===o.motorista_id);
-   const color=sel?'#f5a000':d&&mismo?colorMoto(d.id):(arr.some(x=>x.estado==='pendiente')?'#1f3a63':'#94a3b8');
+   const color=sel?'#f5a000':arr.every(x=>x.estado==='entregado')?'#16803c':arr.every(x=>x.estado==='rechazado')?'#dc2626':arr.every(x=>x.estado==='no_responde')?'#eab308':arr.every(x=>x.estado==='no_recibio')?'#ea580c':arr.every(x=>x.estado==='pasa_manana')?'#2563eb':d&&mismo?colorMoto(d.id):(arr.some(x=>x.estado==='pendiente')?'#1f3a63':'#94a3b8');
    punto(P(o),arr.map(x=>x.numero_general).join('·'),color,sel,arr.map(x=>x.id).join(','),arr.map(x=>'N.º '+x.numero_general+' · '+x.nombre_cliente+(x.observaciones?' · 📝 '+x.observaciones:'')).join('\n')+(arr.length>1?'\n(misma ubicación)':''))});
   sinN.forEach(o=>punto(PP(o),'NUEVO','#dc2626',true,o.id,o.nombre_cliente+' · pedido nuevo: tocá Optimizar para sumarlo'));
-  if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40)}else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[30,30],maxZoom:14})}}}
+  if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40);if(all.length===1)st.map.setZoom(16)}else if(all.length===1)st.map.setView([all[0].lat,all[0].lng],16);else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[45,45],maxZoom:15})}}}
  // ---------- acciones ----------
  function ubic(){return new Promise((ok,no)=>{if(!navigator.geolocation)return no(Error('Este navegador no da la ubicación.'));navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),e=>no(Error(e.code===1?'Permití la ubicación en el navegador (candado de la barra de direcciones) o usá «Salir desde otro punto».':'No se pudo obtener tu ubicación: '+e.message)),{enableHighAccuracy:true,timeout:15000,maximumAge:60000})})}
  function leerOrigen(){const v=($$('dyDOrig')?.value||'').trim();let d=v;try{d=decodeURIComponent(v)}catch(_){}const m=d.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/)||d.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);if(!m)throw Error('Escribí coordenadas (ej. -25.30,-57.60) o pegá un enlace de Maps que las tenga.');const o={lat:Number(m[1]),lng:Number(m[2])};if(o.lat<-28||o.lat>-19||o.lng<-63||o.lng>-54)throw Error('Ese punto no está en Paraguay.');return o}
