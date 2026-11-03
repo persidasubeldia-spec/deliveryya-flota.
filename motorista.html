@@ -193,7 +193,7 @@ async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos'
  }
  const fechaPedido=p=>p.ruta_general_id?(fechas.get(p.ruta_general_id)||''):dyFechaAsu(p.created_at);
  const hoyOperativo=dyHoyAsu();
- dyTodos=(data||[]).filter(p=>DY_ACT.includes(p.estado)||Date.now()-Date.parse(p.updated_at||0)<14*864e5);
+ dyTodos=(data||[]).filter(p=>DY_ACT.includes(p.estado)||Date.now()-Date.parse(p.updated_at||0)<14*864e5).map(p=>({...p,_fecha_operativa:fechaPedido(p)}));
  const pedidosJornada=(data||[]).filter(p=>fechaPedido(p)===hoyOperativo);
  const activosAnteriores=(data||[]).filter(p=>DY_ACT.includes(p.estado)&&fechaPedido(p)!==hoyOperativo);
 {const falt=(data||[]).map(p=>p.tienda_id).filter(t=>t&&!dyTiendas.has(t)&&!dyTiendasPedidas.has(t));if(falt.length){falt.forEach(t=>dyTiendasPedidas.add(t));await dyCargarTiendas()}}let a=dyFiltrarPedidos(pedidosJornada);try{window.dyAvisoEdicion&&window.dyAvisoEdicion(data||[])}catch(_){}dyPestanas();
@@ -218,7 +218,7 @@ const btn=$('optimizeMine'),msg=$('optimizeMessage');
 if(btn.disabled)return;
 const pending=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&p.lat!=null&&p.lng!=null&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
 const missing=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&(p.lat==null||p.lng==null));
-if(pending.length<2){msg.textContent='Se necesitan al menos 2 paradas con ubicación para reorganizar.';return}
+if(pending.length<2){msg.textContent='Para optimizar necesitás 2 o más entregas pendientes con GPS. La ruta guardada no cambió.';return}
 if(pending.length>26){msg.textContent='Hay más de 26 paradas con GPS. Dividí el recorrido en sectores antes de optimizar.';return}
 if(!navigator.geolocation){msg.textContent='El dispositivo no permite obtener GPS. Activá la ubicación para optimizar desde donde estás.';return}
 btn.disabled=true;
@@ -247,7 +247,7 @@ try{
  motoInicioRuta=[startLat,startLng];motoOrdenRuta=ids.slice();lastMapSignature='';
  await load();
  msg.textContent='Recorrido actualizado desde tu ubicación. Podés optimizar nuevamente cuando quieras.';
-}catch(e){msg.textContent=(e.name==='AbortError'?'El cálculo tardó demasiado. Intentá de nuevo.':e.code===1?'Activá permiso de ubicación del navegador.':e.message||'No se pudo optimizar.');}
+}catch(e){msg.textContent='No se cambió tu ruta. '+(e.name==='AbortError'?'El servicio de calles tardó demasiado; usá Navegar en cada pedido y reintentá luego.':e.code===1?'Activá el permiso GPS del teléfono.':e.message||'No se pudo optimizar.');}
 finally{btn.disabled=false;}
 };
 const [movRes,closeRes,rechRes]=await Promise.all([sb.from('movimientos_financieros').select('*').eq('motorista_id',moto.id),sb.from('flota_cierres_motoristas').select('*').eq('motorista_id',moto.id).order('created_at',{ascending:false}).limit(12),sb.from('flota_rechazos_detalle').select('*').eq('motorista_id',moto.id)]);
@@ -469,7 +469,7 @@ const dyArchSet=v=>{try{localStorage.setItem('dyf-rutas-archivadas',JSON.stringi
 function dyMisRutas(){
  const box=document.getElementById('dyRutas');if(!box)return;
  const grupos=new Map();
- for(const p of dyTodos.filter(p=>!DY_ACT.includes(p.estado)&&dyFechaAsu(p.updated_at)!==dyHoyAsu())){const k=(p.ruta_general_id||'sin-ruta')+'|'+dyFechaAsu(p.updated_at);const g=grupos.get(k)||{k,fecha:dyFechaAsu(p.updated_at),turno:p.turno||'sin_definir',ped:[]};g.ped.push(p);grupos.set(k,g)}
+ for(const p of dyTodos.filter(p=>!DY_ACT.includes(p.estado)&&p._fecha_operativa&&p._fecha_operativa!==dyHoyAsu())){const k=(p.ruta_general_id||'sin-ruta')+'|'+p._fecha_operativa;const g=grupos.get(k)||{k,fecha:p._fecha_operativa,turno:p.turno||'sin_definir',ped:[]};g.ped.push(p);grupos.set(k,g)}
  const arch=dyArch(),lista=[...grupos.values()].sort((a,b)=>b.fecha.localeCompare(a.fecha)),vis=lista.filter(g=>!arch.includes(g.k)),ocu=lista.filter(g=>arch.includes(g.k));
  const verArch=box.dataset.verArch==='1';
  const tarjeta=g=>{const ok=g.ped.filter(p=>p.estado==='entregado').length,no=g.ped.length-ok,cob=g.ped.reduce((t,p)=>{const m=dyDatos.mov.find(x=>x.pedido_id===p.id);return t+Number(m?.efectivo_cobrado||0)+Number(m?.transferencia_cobrada||0)},0);const esArch=arch.includes(g.k);

@@ -228,7 +228,15 @@ document.addEventListener('DOMContentLoaded',()=>{const c=document.getElementByI
 #dyAvz>summary::before{content:'▸ '}#dyAvz[open]>summary::before{content:'▾ '}
 @media(max-width:900px){#dyDesp .zona{grid-template-columns:1fr}#dyDesp #dyMap{height:320px;order:-1}#dyDesp .lista{max-height:none}#dyDesp{padding:10px}#dyDesp .opt{width:100%}}
 body.dark #dyDesp,body.dark #dyDesp .chip,body.dark #dyDesp .lhead{background:#172235;color:#e6edf9;border-color:#32425a}body.dark #dyDesp .stop.sel{background:#3a2e08}body.dark #dyDesp .stop.asig{background:#121b2b}
-</style>
+#dyDesp .dy-filtro-bar{margin:10px 0 7px;padding:9px;background:#f3f7fc;border:1px solid #dde7f1;border-radius:12px}
+#dyDesp #dyBuscar{width:100%;border:1px solid #cbd8e6;border-radius:8px;padding:10px;font-size:14px;margin-bottom:7px}
+#dyDesp .dy-filtro-botones{display:flex;gap:5px;flex-wrap:wrap}
+#dyDesp .dy-filtro-botones button{border:1px solid #d0ddec;background:#fff;color:#24466b;border-radius:8px;padding:7px 9px;font-weight:700;font-size:12px;cursor:pointer}
+#dyDesp .dy-filtro-botones button.on{background:#1765ba;color:#fff;border-color:#1765ba}
+#dyDesp #dyResumenTurno{margin:7px 1px 0;color:#45617e;font-size:12px;font-weight:650}
+#dyDesp #dyBarra.dy-sin-seleccion .motos,#dyDesp #dyBarra.dy-sin-seleccion .acc{display:none}
+#dyDesp .stop{padding:7px 9px;min-height:56px}#dyDesp .stop .t b{font-size:14px}#dyDesp .stop .t small{font-size:11px}
+@media(max-width:620px){#dyDesp .dy-filtro-botones button{flex:1 1 auto}}#dyDesp .dy-otros-turnos{background:#eef4fc;border:1px solid #d5e2f2;border-radius:9px;padding:6px 10px;margin:8px 0}#dyDesp .dy-otros-turnos>summary{cursor:pointer;font-size:12px;font-weight:700;color:#24486a}#dyDesp .dy-otros-turnos .aviso{margin-top:8px}</style>
 <style id="dyEditCss">
 #dyEdit{position:fixed;inset:0;background:#0b1730b0;display:flex;align-items:flex-start;justify-content:center;z-index:5000;padding:16px;overflow:auto}
 #dyEdit .box{background:#fff;color:#18243a;border-radius:16px;max-width:520px;width:100%;padding:18px;box-shadow:0 18px 40px #0006;margin:auto 0}
@@ -748,7 +756,7 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
     const asignados=orders.filter(o=>o.motorista_id===motor&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)).sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999));
     const conGps=asignados.filter(o=>o.lat!=null&&o.lng!=null);const tramos=enlacesRuta(conGps);
     const lista=asignados.slice(0,40).map(o=>'N.º '+(o.numero_general??'S/N')+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+dyNotaTxt(o)).join('\n');
-    const texto='*DeliveryYa Flota* 🏍️\nHola '+driver.nombre+', tenés '+asignados.length+' entrega(s).\n\n*▶ Abrir la ruta en Google Maps:*\n'+tramos.map(t=>(tramos.length>1?'Paradas '+t.desde+'–'+t.hasta+': ':'')+t.url).join('\n')+'\n\n*Orden de entrega:*\n'+lista+(asignados.length>40?'\n… y '+(asignados.length-40)+' más en la app.':'')+'\n\n*Cobros y entregas:* https://deliveryya-flota-persida.vercel.app/motorista.html';
+    const texto='*DeliveryYa Flota* 🏍️\nHola '+driver.nombre+', tenés '+asignados.length+' entrega(s).\n\n*▶ Abrir la ruta en Google Maps:*\n'+tramos.map(t=>(tramos.length>1?'Paradas '+t.desde+'–'+t.hasta+': ':'')+t.url).join('\n')+'\n\n*Orden de entrega:*\n'+lista+(asignados.length>40?'\n… y '+(asignados.length-40)+' más en la app.':'')+'\n\n*Cobros y entregas:* https://deliveryya-flota.pages.dev/motorista.html';
     const url='https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto);
     if(ventana&&!ventana.closed)ventana.location.href=url;else window.open(url,'_blank');
     msgEl.innerHTML='✅ '+data+' pedido(s) asignados a '+escapeHtml(driver.nombre)+'. Se abrió WhatsApp con su ruta. <a target="_blank" rel="noopener" href="'+url+'">Abrir WhatsApp otra vez</a>';
@@ -788,7 +796,7 @@ $('saveGeneralPct').disabled=!canPct;
 $('saveGeneralPct').onclick=async()=>{const val=Number($('generalPct').value);if(!Number.isInteger(val)||val<0||val>100){$('generalPctMsg').textContent='Porcentaje inválido';return}if(!confirm('¿Aplicar '+val+'% a nuevos repartos de motoristas sin comisión particular?'))return;const {error}=await client.rpc('flota_configurar_comision_general',{p_empresa:account.empresa_id,p_porcentaje:val});if(error){$('generalPctMsg').textContent=error.message;return}companyPct=val;const {data}=await client.from('motoristas').select('*').eq('empresa_id',account.empresa_id);if(data)drivers=data;page('Motoristas')};
 document.querySelectorAll('[data-personal-pct]').forEach(b=>b.onclick=async()=>{if(!canPct)return;const d=drivers.find(x=>x.id===b.dataset.personalPct);const answer=prompt('Porcentaje empresa para '+d.nombre+' (o escribí general para usar el de flota):',String(d.porcentaje_empresa_pct));if(answer===null)return;const personalizado=answer.trim().toLowerCase()!=='general',num=personalizado?Number(answer):companyPct;if(!Number.isInteger(num)||num<0||num>100){alert('Porcentaje inválido');return}const {error}=await client.rpc('flota_configurar_comision_motorista',{p_motorista:d.id,p_porcentaje:num,p_personalizado:personalizado});if(error){alert(error.message);return}const {data}=await client.from('motoristas').select('*').eq('empresa_id',account.empresa_id);if(data)drivers=data;page('Motoristas')});
 }
-if(n==='Motoristas'){document.querySelectorAll('[data-driverinvite]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {data,error}=await client.rpc('flota_invitar_motorista',{p_motorista:b.dataset.driverinvite});b.disabled=false;if(error){alert(error.message);return}const url='https://deliveryya-flota-persida.vercel.app/motorista.html?invite='+encodeURIComponent(data);const phone=drivers.find(d=>d.id===b.dataset.driverinvite)?.telefono||'';const clean=phone.replace(/[^0-9]/g,'');const msg='Acceso personal a DeliveryYa Flota: '+url;if(clean){window.open('https://api.whatsapp.com/send?phone='+(clean.startsWith('595')?clean:'595'+clean.replace(/^0/,''))+'&text='+encodeURIComponent(msg),'_blank','noopener')}else {alert('Invitación generada. Compartí con el motorista: '+url)}});$('mcreate').onclick=async()=>{
+if(n==='Motoristas'){document.querySelectorAll('[data-driverinvite]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {data,error}=await client.rpc('flota_invitar_motorista',{p_motorista:b.dataset.driverinvite});b.disabled=false;if(error){alert(error.message);return}const url='https://deliveryya-flota.pages.dev/motorista.html?invite='+encodeURIComponent(data);const phone=drivers.find(d=>d.id===b.dataset.driverinvite)?.telefono||'';const clean=phone.replace(/[^0-9]/g,'');const msg='Acceso personal a DeliveryYa Flota: '+url;if(clean){window.open('https://api.whatsapp.com/send?phone='+(clean.startsWith('595')?clean:'595'+clean.replace(/^0/,''))+'&text='+encodeURIComponent(msg),'_blank','noopener')}else {alert('Invitación generada. Compartí con el motorista: '+url)}});$('mcreate').onclick=async()=>{
 const b=$('mcreate');b.disabled=true;$('mresult').textContent='Guardando…';
 const {error}=await client.rpc('flota_registrar_motorista',{p_empresa:account.empresa_id,p_nombre:$('mname').value,p_telefono:$('mphone').value,p_correo:$('memail').value,p_color:$('mcolor').value,p_pct:Number($('mpct').value)});
 b.disabled=false;
@@ -1147,7 +1155,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
 // el jefe marca casilleros, ve el tramo en el mapa, elige moto, asigna y manda WhatsApp.
 // Solo usa funciones existentes del servidor (crear ruta, reorganizar, confirmar/anexar, asignar lote).
 (function(){
- const st={fecha:new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}),turno:null,origen:null,manual:false,sel:new Set(),moto:null,map:null,g:false,objs:[],fit:false,ultimo:null,firma:''};
+ const st={fecha:new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}),turno:null,filtro:'pendientes',busqueda:'',origen:null,manual:false,sel:new Set(),moto:null,map:null,g:false,objs:[],fit:false,ultimo:null,firma:''};
  const PAL=['#1765ba','#e8590c','#2b8a3e','#ae3ec9','#c92a2a','#0b7285','#5c940d','#d6336c','#f08c00','#364fc7'];
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const $$=id=>document.getElementById(id);
@@ -1181,6 +1189,16 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   return 'https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto)}
  function msg(t,k){const m=$$('dyDMsg');if(m){m.className='msg '+(k||'');m.textContent=t}}
  function contar(t){return orders.filter(o=>esFecha(o)&&tur(o)===t&&o.estado==='pendiente'&&!o.motorista_id).length}
+ function visiblesTurno(){
+  let p=paradas();
+  if(st.filtro==='pendientes')p=p.filter(o=>!FIN.includes(o.estado));
+  if(st.filtro==='sin_asignar')p=p.filter(o=>o.estado==='pendiente'&&!o.motorista_id);
+  if(st.filtro==='entregados')p=p.filter(o=>o.estado==='entregado');
+  if(st.filtro==='incidencias')p=p.filter(o=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(o.estado));
+  const q=st.busqueda.trim().toLocaleLowerCase('es');
+  if(q)p=p.filter(o=>[o.numero_general,o.nombre_cliente,o.telefono_cliente,o.direccion_cliente,stores.find(t=>t.id===o.tienda_id)?.codigo].some(v=>String(v??'').toLocaleLowerCase('es').includes(q)));
+  return p;
+ }
  // ---------- pantalla ----------
  function pintar(){const box=$$('dyDesp');if(!box)return;
   const cM=contar('manana'),cT=contar('tarde'),cS=contar('sin_definir');
@@ -1191,35 +1209,44 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
   +'<button type="button" class="link" id="dyDOtro">'+(st.manual?'Usar mi ubicación (GPS)':'Salir desde otro punto…')+'</button>'
   +(st.manual?'<div class="orig"><input id="dyDOrig" placeholder="Coordenadas: -25.30,-57.60 o enlace de Maps con coordenadas" value="'+(st.origen?st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6):'')+'"></div>':'')
+  +'<div class="dy-filtro-bar"><input id="dyBuscar" type="search" placeholder="Buscar número, cliente, teléfono o tienda" aria-label="Buscar pedido en esta fecha y turno"><div class="dy-filtro-botones">'+[['pendientes','Por realizar'],['sin_asignar','Sin asignar'],['entregados','Entregados'],['incidencias','Incidencias'],['todos','Todos']].map(([v,n])=>'<button type="button" data-dy-filtro="'+v+'" class="'+(st.filtro===v?'on':'')+'">'+n+'</button>').join('')+'</div><div id="dyResumenTurno"></div></div>'
   +'<div id="dyDAv"></div><div class="msg" id="dyDMsg"></div>'
   +'<div class="dy-map-toolbar"><strong>Mapa de reparto</strong><span id="dyMapProvider" role="status">Verificando Google Maps…</span><button type="button" id="dyMapFocus">Centrar en pedidos</button><span class="dy-map-hint">Verde: entregado · Rojo: rechazado · Azul: pendiente</span></div><div class="zona"><div class="lista" id="dyDList"></div><div id="dyMap"></div></div>'
   +'<div id="dyBarra"></div>';
   $('dyDPrev').onclick=()=>moverFecha(-1);$('dyDNext').onclick=()=>moverFecha(1);$('dyDHoy').onclick=()=>escogerFecha(hoy());$('dyDFecha').onchange=e=>escogerFecha(e.target.value);
   box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.t;st.sel.clear();st.fit=false;pintar()});
-  $$('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$$('dyDGo').onclick=optimizar;
+  $('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$('dyDGo').onclick=optimizar;
+  $('dyBuscar').oninput=e=>{st.busqueda=e.target.value;st.sel.clear();st.fit=false;refrescar()};
+  box.querySelectorAll('[data-dy-filtro]').forEach(b=>b.onclick=()=>{st.filtro=b.dataset.dyFiltro;st.sel.clear();st.fit=false;refrescar()});
   if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}st.map=null;st.objs=[];iniciarMapa();refrescar()}
- function refrescar(){const ps=paradas();
+ function refrescar(){const ps=paradas(),vistos=visiblesTurno();
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!libre(orders.find(o=>o.id===id)))st.sel.delete(id)});
   const sinNum=ps.filter(o=>o.numero_general==null&&o.estado==='pendiente'&&!o.motorista_id),sinGps=ps.filter(o=>!gps(o));
-  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso" style="background:#fff1f1;border-color:#f3a3a3">🆕 '+(sinNum.filter(gps).length===1?'Pedido nuevo':sinNum.filter(gps).length+' pedidos nuevos')+': <b>'+sinNum.filter(gps).slice(0,6).map(o=>esc(o.nombre_cliente)).join(', ')+'</b>'+(sinNum.filter(gps).length>6?'…':'')+' · tocá <b>📍 Optimizar ruta</b> para '+(ps.some(o=>o.motorista_id)?'sumarlos al final de la ruta':'ordenarlos')+'.</div>':'')+otrosHtml()+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
+  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso" style="background:#fff1f1;border-color:#f3a3a3">🆕 '+(sinNum.filter(gps).length===1?'Pedido nuevo':sinNum.filter(gps).length+' pedidos nuevos')+': <b>'+sinNum.filter(gps).slice(0,6).map(o=>esc(o.nombre_cliente)).join(', ')+'</b>'+(sinNum.filter(gps).length>6?'…':'')+' · tocá <b>📍 Optimizar ruta</b> para '+(ps.some(o=>o.motorista_id)?'sumarlos al final de la ruta':'ordenarlos')+'.</div>':'')+(otrosHtml()?'<details class="dy-otros-turnos"><summary>📋 Hay pedidos de otros turnos · ver y gestionar</summary>'+otrosHtml()+'</details>':'')+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
   $$('dyDAv').querySelectorAll('[data-pasar]').forEach(b=>b.onclick=()=>pasar(b.dataset.pasar));$$('dyDAv').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.ver;st.sel.clear();st.fit=false;pintar()});
-  const libres=ps.filter(libre);
-  $$('dyDList').innerHTML='<div class="lhead"><span>'+ps.length+' pedido(s) · '+libres.length+' libres</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
-  +(ps.map(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const col=d?colorMoto(d.id):null;const ok=libre(o),sel=st.sel.has(o.id);
+  const elSum=$('dyResumenTurno');
+  if(elSum){const pendientes=ps.filter(o=>!FIN.includes(o.estado)).length,entregados=ps.filter(o=>o.estado==='entregado').length,inc=ps.filter(o=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(o.estado)).length;
+   elSum.textContent='Turno '+(st.turno==='manana'?'Mañana':st.turno==='tarde'?'Tarde':'Sin definir')+': '+ps.length+' pedidos · '+pendientes+' por realizar · '+entregados+' entregados · '+inc+' incidencias';
+  }
+  document.querySelectorAll('#dyDesp [data-dy-filtro]').forEach(b=>b.classList.toggle('on',b.dataset.dyFiltro===st.filtro));
+  const libres=vistos.filter(libre);
+  $$('dyDList').innerHTML='<div class="lhead"><span>'+vistos.length+' visible(s) · '+libres.length+' libre(s)</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
+  +(vistos.map(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const col=d?colorMoto(d.id):null;const ok=libre(o),sel=st.sel.has(o.id);
    const est=o.estado==='entregado'?'<span class="pill" style="background:#2b8a3e">✓ Entregado</span>':o.estado!=='pendiente'?'<span class="pill" style="background:#c92a2a">'+esc(o.estado.replaceAll('_',' '))+'</span>':'';
    return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':o.estado==='entregado'?'#16803c':o.estado==='rechazado'?'#dc2626':o.estado==='no_responde'?'#eab308':o.estado==='no_recibio'?'#ea580c':o.estado==='pasa_manana'?'#2563eb':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(o.numero_general??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+(editable()&&o.estado==='pendiente'?'<button type="button" class="link" data-dyedit="'+esc(o.id)+'" style="font-size:13px;padding:4px 0">✏️ Editar</button>':'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">No hay pedidos en este turno.</p>');
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $$('dyDTodos').onclick=()=>{libres.forEach(o=>st.sel.add(o.id));refrescar()};$$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
-  barra(ps);dibujar(ps);st.firma=firma()}
+  barra(ps);dibujar(vistos);st.firma=firma()}
  function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const act=drivers.filter(d=>d.activo);
   if(st.moto&&!act.some(d=>d.id===st.moto))st.moto=null;
   const nums=selOs.map(o=>o.numero_general);const k=largo(selOs.filter(gps),null);
+  el.classList.toggle('dy-sin-seleccion',!selOs.length&&!st.moto);
   el.innerHTML='<div class="r1"><div class="cnt">'+(selOs.length?'✅ '+selOs.length+' marcado(s) <small>N.º '+nums.join(', ')+(selOs.length>1?' · ≈ '+k.toFixed(1)+' km entre paradas':'')+'</small>':(editable()?'Marcá pedidos y elegí la moto para asignar':'Historial del '+st.fecha+' · consulta sin modificaciones'))+'</div></div>'
   +'<div class="motos">'+(editable()?act:[]).map(d=>{const n=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&tur(o)===st.turno&&!FIN.includes(o.estado)).length;return '<button type="button" class="moto '+(st.moto===d.id?'on':'')+'" data-moto="'+esc(d.id)+'"><span class="dot" style="background:'+colorMoto(d.id)+'"></span>'+esc(d.nombre)+' <small>'+n+'</small></button>'}).join('')+'</div>'
   +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(selOs.length&&st.moto?'':'disabled')+'>Asignar</button><button type="button" class="a2" id="dyDAsigW" '+(selOs.length&&st.moto?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&orders.some(o=>esFecha(o)&&o.motorista_id===st.moto&&o.estado==='pendiente')?'<button type="button" class="a0" id="dyDW">📲 Reenviar WhatsApp</button>':'')+'</div>'
   +(st.ultimo?'<div class="post">'+st.ultimo+'</div>':'');
-  el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{st.moto=st.moto===b.dataset.moto?null:b.dataset.moto;st.ultimo=null;barra(paradas());dibujar(paradas())});
+  el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{st.moto=st.moto===b.dataset.moto?null:b.dataset.moto;st.ultimo=null;barra(paradas());dibujar(visiblesTurno())});
   const a=$$('dyDAsig'),w=$$('dyDAsigW'),r=$$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);
   if(r)r.onclick=()=>{const d=drivers.find(x=>x.id===st.moto);if(d)window.open(waUrl(d),'_blank')}}
  const NT={manana:'🌅 Mañana',tarde:'🌇 Tarde',sin_definir:'Sin turno'};
