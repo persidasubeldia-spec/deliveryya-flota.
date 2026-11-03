@@ -229,6 +229,23 @@ document.addEventListener('DOMContentLoaded',()=>{const c=document.getElementByI
 @media(max-width:900px){#dyDesp .zona{grid-template-columns:1fr}#dyDesp #dyMap{height:320px;order:-1}#dyDesp .lista{max-height:none}#dyDesp{padding:10px}#dyDesp .opt{width:100%}}
 body.dark #dyDesp,body.dark #dyDesp .chip,body.dark #dyDesp .lhead{background:#172235;color:#e6edf9;border-color:#32425a}body.dark #dyDesp .stop.sel{background:#3a2e08}body.dark #dyDesp .stop.asig{background:#121b2b}
 </style>
+<style id="dyEditCss">
+#dyEdit{position:fixed;inset:0;background:#0b1730b0;display:flex;align-items:flex-start;justify-content:center;z-index:5000;padding:16px;overflow:auto}
+#dyEdit .box{background:#fff;color:#18243a;border-radius:16px;max-width:520px;width:100%;padding:18px;box-shadow:0 18px 40px #0006;margin:auto 0}
+#dyEdit h3{margin:0 0 2px;font-size:19px}#dyEdit .sub{color:#5d6f87;font-size:13.5px;margin:0 0 6px}
+#dyEdit .asig{background:#fff4cc;border:1px solid #f0b429;border-radius:10px;padding:8px 10px;font-size:13.5px;margin:8px 0}
+#dyEdit label{display:block;font-weight:700;font-size:13px;color:#33465f;margin:10px 0 4px}
+#dyEdit input,#dyEdit textarea{width:100%;box-sizing:border-box;padding:10px 11px;border:1.5px solid #c9d5e5;border-radius:10px;font:inherit;font-size:15px}
+#dyEdit textarea{min-height:56px}#dyEdit .row{display:flex;gap:8px}#dyEdit .row>div{flex:1;min-width:0}
+#dyEdit .seg{display:flex;gap:6px}#dyEdit .seg button{flex:1;border:1.5px solid #c9d5e5;background:#fff;border-radius:10px;padding:10px 4px;font-weight:800;cursor:pointer;color:#33465f}
+#dyEdit .seg button.on{background:#1765ba;border-color:#1765ba;color:#fff}
+#dyEdit .tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;padding:10px 12px;background:#eef4ff;border-radius:10px}
+#dyEdit .tot b{font-size:20px}#dyEdit .ubic{font-size:13px;color:#5d6f87;margin-top:4px}
+#dyEdit .msg{min-height:18px;color:#b4162a;font-weight:700;font-size:14px;margin-top:8px}
+#dyEdit .acc{display:flex;gap:8px;margin-top:12px}#dyEdit .acc button{flex:1;padding:13px;border-radius:11px;font-weight:900;font-size:15px;cursor:pointer;border:1.5px solid #c9d5e5;background:#fff}
+#dyEdit .acc .ok{background:#0e8a52;color:#fff;border-color:#0e8a52}#dyEdit .wa{display:block;margin-top:10px;text-align:center;background:#25d366;color:#fff;border-radius:11px;padding:12px;font-weight:900;text-decoration:none}
+body.dark #dyEdit .box{background:#172235;color:#e6edf9}body.dark #dyEdit input,body.dark #dyEdit textarea,body.dark #dyEdit .seg button{background:#0f1a2b;color:#e6edf9;border-color:#32425a}
+</style>
 </head><body>
 <header><strong>DeliveryYa Flota</strong><div>Central de Mando</div></header><main><section id="login"><h2>Acceso administrativo</h2><p>Entrá con tu correo. Si sos tienda o motorista, te llevamos solo a tu panel.</p><input id="email" type="email" placeholder="Correo" autocomplete="username"><input id="password" type="password" placeholder="Contraseña" autocomplete="current-password"><button id="enter">Ingresar</button> <button id="register" type="button" style="display:none">Crear cuenta del propietario</button><p class="muted">¿Tienda nueva? <a href="/app.html">Creá tu cuenta acá</a> solo con correo y contraseña.</p><p id="error"></p></section>
 <section id="app" class="hidden"><nav id="nav"></nav><div id="content"></div><button id="logout">Cerrar sesión</button></section></main>
@@ -277,7 +294,7 @@ if(n==='Pedidos'){
  const shopName=id=>{const t=stores.find(t=>t.id===id);return t?String(t.codigo||'')+' · '+String(t.nombre_comercial||''):'—'};
  const showOrder=o=>{const d=drivers.find(x=>x.id===o.motorista_id),phone=String(o.telefono_cliente||'').replace(/[^0-9]/g,'');
  const entries=[['Tienda',shopName(o.tienda_id)],['Cliente',o.nombre_cliente],['Teléfono',o.telefono_cliente],['Dirección',o.direccion_cliente],['Referencias',o.referencias],['Producto',o.producto],['Observaciones',o.observaciones],['Mercadería',money(o.precio_mercaderia)],['Envío',money(o.precio_delivery)],['Modalidad',o.modalidad_pago],['Motorista',d?.nombre||'Sin asignar'],['N.º general',o.numero_general??'Sin número'],['Estado',o.estado],['Incidencia',o.motivo_incidencia]];
- $('orderDetail').innerHTML='<div class="toolbar"><h3 style="flex:1">Detalle del pedido</h3><button id="closeOrder">Cerrar ✕</button></div>'+entries.map(([k,v])=>'<div class="detail-row"><span class="muted">'+k+'</span><strong>'+escapeHtml(v??'—')+'</strong></div>').join('')+'<div class="toolbar">'+(o.lat!=null&&o.lng!=null?'<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng)+'">Ver mapa</a>':'<span class="muted">Sin GPS</span>')+'<a href="tel:'+encodeURIComponent(o.telefono_cliente||'')+'">Llamar</a><a target="_blank" rel="noopener" href="https://wa.me/'+(phone.startsWith('595')?phone:'595'+phone.replace(/^0/,''))+'">WhatsApp</a></div>';
+ $('orderDetail').innerHTML='<div class="toolbar"><h3 style="flex:1">Detalle del pedido</h3><button id="closeOrder">Cerrar ✕</button></div>'+entries.map(([k,v])=>'<div class="detail-row"><span class="muted">'+k+'</span><strong>'+escapeHtml(v??'—')+'</strong></div>').join('')+'<div class="toolbar">'+(o.lat!=null&&o.lng!=null?'<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng)+'">Ver mapa</a>':'<span class="muted">Sin GPS</span>')+'<a href="tel:'+encodeURIComponent(o.telefono_cliente||'')+'">Llamar</a><a target="_blank" rel="noopener" href="https://wa.me/'+(phone.startsWith('595')?phone:'595'+phone.replace(/^0/,''))+'">WhatsApp</a>'+(o.estado==='pendiente'?'<button data-dyedit="'+escapeHtml(o.id)+'">✏️ Editar pedido</button>':'')+'</div>';
  $('orderDetail').hidden=false;$('orderDetailBackdrop').hidden=false;
  const close=()=>{$('orderDetail').hidden=true;$('orderDetailBackdrop').hidden=true};$('closeOrder').onclick=close;$('orderDetailBackdrop').onclick=close;};
  const render=()=>{const q=$('orderSearch').value.toLocaleLowerCase('es'),state=$('orderState').value,shop=$('orderShop').value,driver=$('orderDriver').value;
@@ -341,7 +358,7 @@ rows.forEach(o=>{
   marker.on('click',clickPoint);routeMarkers.addLayer(marker);
  }
 });if(routeMode==='avance')drivers.filter(m=>m.gps_lat!=null&&m.gps_lng!=null&&m.gps_actualizado_en).forEach(m=>{const age=Date.now()-Date.parse(m.gps_actualizado_en);if(age>=0&&age<600000){const pos=[m.gps_lat,m.gps_lng];googleDispatch?routeMarkers.addLayer(new google.maps.Marker({position:{lat:Number(pos[0]),lng:Number(pos[1])},map:routeMap,title:'Motorista: '+m.nombre,icon:{path:google.maps.SymbolPath.CIRCLE,scale:17,fillColor:m.color_identificador||'#1765ba',fillOpacity:1,strokeColor:'#192e50',strokeWeight:4}})):L.circleMarker(pos,{radius:15,color:'#192e50',weight:4,fillColor:/^#[0-9a-f]{6}$/i.test(m.color_identificador||'')?m.color_identificador:'#1765ba',fillOpacity:1}).bindPopup('Motorista: '+escapeHtml(m.nombre)+' · GPS '+Math.round(age/60000)+' min atrás').addTo(routeMarkers)}});if(locs.length&&!mapFitted){mapFitted=true;fitDispatchBounds(locs)}if(geoRows.length!==locs.length){$('routeMsg').textContent='Atención: hay pedidos con coordenadas inválidas.'}else{$('routeMsg').textContent=rows.length+' pedidos en lista · '+locs.length+' marcadores creados · '+(rows.length-locs.length)+' sin GPS';}}}
- const editarPedidoCentral=async o=>{
+ const editarPedidoCentral=async o=>{if(window.dyEditarPedido){window.dyEditarPedido(o);return}
  if(o.estado==='pendiente'&&!o.motorista_id){
   const choice=prompt('Turno de entrega para '+o.nombre_cliente+': escribí M para Mañana o T para Tarde. Dejá vacío para no modificarlo.','');
   if(choice===null)return;
@@ -876,7 +893,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $$('dyDList').innerHTML='<div class="lhead"><span>'+ps.length+' pedido(s) · '+libres.length+' libres</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
   +(ps.map(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const col=d?colorMoto(d.id):null;const ok=libre(o),sel=st.sel.has(o.id);
    const est=o.estado==='entregado'?'<span class="pill" style="background:#2b8a3e">✓ Entregado</span>':o.estado!=='pendiente'?'<span class="pill" style="background:#c92a2a">'+esc(o.estado.replaceAll('_',' '))+'</span>':'';
-   return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(o.numero_general??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">No hay pedidos en este turno.</p>');
+   return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(o.numero_general??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+(o.estado==='pendiente'?'<button type="button" class="link" data-dyedit="'+esc(o.id)+'" style="font-size:13px;padding:4px 0">✏️ Editar</button>':'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">No hay pedidos en este turno.</p>');
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $$('dyDTodos').onclick=()=>{libres.forEach(o=>st.sel.add(o.id));refrescar()};$$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
   barra(ps);dibujar(ps);st.firma=firma()}
@@ -967,6 +984,73 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  const cont=$$('content');if(cont)new MutationObserver(()=>{if($$('routeActionPanel')&&!$$('dyDesp'))montar()}).observe(cont,{childList:true});
  setInterval(()=>{if($$('dyDesp')&&firma()!==st.firma)refrescar()},2500);
  window.dyDespacho={st,refrescar,mejorar,cercania};
+})();
+</script>
+<script id="dyEditJs">
+// Editar pedido desde la Central (también asignado): mismos datos que guarda la tienda.
+// El servidor (editar_pedido_seguro) valida permisos, versión y deja auditoría.
+(function(){
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const gs=n=>'₲ '+Math.round(Number(n)||0).toLocaleString('es-PY');
+ const num=v=>{const d=String(v??'').replace(/\D/g,'');return d===''?null:Number(d)};
+ // Misma regla que usan Tienda y Motorista para "a cobrar al entregar".
+ const aCobrar=(m,e,mod)=>mod==='todo_pagado'?0:mod==='producto_pagado'?e:m+e;
+ const MOD={pendiente:'Todo',producto_pagado:'Solo envío',todo_pagado:'Nada'};
+ const NOM={nombre_cliente:'cliente',telefono_cliente:'teléfono',direccion_cliente:'dirección',producto:'producto',referencias:'referencia',observaciones:'observaciones',precio_mercaderia:'precio',precio_delivery:'envío',modalidad_pago:'forma de cobro',lat:'ubicación'};
+ function leerCoords(t){let d=String(t||'').trim();try{d=decodeURIComponent(d)}catch(_){}const m=d.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/)||d.match(/[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/)||d.match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/)||d.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);return m?{lat:Number(m[1]),lng:Number(m[2])}:null}
+ window.dyEditarPedido=function(o){
+  if(!o)return;
+  if(o.estado!=='pendiente'){alert('Este pedido ya está '+String(o.estado).replaceAll('_',' ')+': no se puede editar desde acá.');return}
+  const d=(typeof drivers!=='undefined'?drivers:[]).find(x=>x.id===o.motorista_id);let mod=o.modalidad_pago||'pendiente';
+  document.getElementById('dyEdit')?.remove();
+  document.body.insertAdjacentHTML('beforeend','<div id="dyEdit" role="dialog" aria-modal="true"><div class="box"><h3>✏️ Editar pedido N.º '+esc(o.numero_general??'—')+'</h3><p class="sub">'+esc(o.nombre_cliente)+'</p>'
+  +(d?'<div class="asig">🏍️ Asignado a <b>'+esc(d.nombre)+'</b>. Al guardar se le actualiza solo en su app y le aparece un aviso.</div>':'')
+  +'<div class="row"><div><label for="eN">Cliente</label><input id="eN" value="'+esc(o.nombre_cliente)+'" maxlength="100"></div><div><label for="eT">WhatsApp</label><input id="eT" inputmode="tel" value="'+esc(o.telefono_cliente)+'" maxlength="30"></div></div>'
+  +'<label for="eD">Dirección</label><input id="eD" value="'+esc(o.direccion_cliente)+'" maxlength="240">'
+  +'<label for="eU">Cambiar ubicación (opcional)</label><input id="eU" placeholder="Pegá enlace de Google Maps o coordenadas"><div class="ubic">'+(o.lat!=null?'Actual: <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng)+'">ver en Maps</a>':'Sin ubicación')+'</div>'
+  +'<label for="eP">Producto</label><input id="eP" value="'+esc(o.producto)+'" maxlength="160">'
+  +'<div class="row"><div><label for="eM">Mercadería (₲)</label><input id="eM" inputmode="numeric" value="'+esc(o.precio_mercaderia)+'"></div><div><label for="eE">Envío (₲)</label><input id="eE" inputmode="numeric" value="'+esc(o.precio_delivery)+'"></div></div>'
+  +'<label>El cliente paga</label><div class="seg" id="eC">'+Object.entries(MOD).map(([k,v])=>'<button type="button" data-m="'+k+'" class="'+(k===mod?'on':'')+'">'+v+'</button>').join('')+'</div>'
+  +'<label for="eR">Referencia</label><input id="eR" value="'+esc(o.referencias)+'" maxlength="200">'
+  +'<label for="eO">Observaciones</label><textarea id="eO" maxlength="500">'+esc(o.observaciones)+'</textarea>'
+  +'<div class="tot"><span>A cobrar al entregar</span><b id="eTot"></b></div><div class="msg" id="eMsg"></div>'
+  +'<div class="acc"><button type="button" id="eX">Cancelar</button><button type="button" class="ok" id="eS">Guardar cambios</button></div><div id="eWa"></div></div></div>');
+  const $=id=>document.getElementById(id);
+  const tot=()=>{const m=num($('eM').value)??0,e=num($('eE').value)??0;$('eTot').textContent=gs(aCobrar(m,e,mod))};tot();
+  ['eM','eE'].forEach(id=>$(id).addEventListener('input',tot));
+  $('eC').querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{mod=b.dataset.m;$('eC').querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x===b));tot()});
+  const cerrar=()=>$('dyEdit')?.remove();$('eX').onclick=cerrar;$('dyEdit').addEventListener('click',e=>{if(e.target.id==='dyEdit')cerrar()});
+  $('eS').onclick=async()=>{
+   const b=$('eS');$('eMsg').textContent='';const c={};
+   const txt={nombre_cliente:'eN',telefono_cliente:'eT',direccion_cliente:'eD',producto:'eP',referencias:'eR',observaciones:'eO'};
+   for(const [k,id] of Object.entries(txt)){const v=$(id).value.trim();if(v!==String(o[k]??'').trim())c[k]=v}
+   if(c.nombre_cliente!==undefined&&c.nombre_cliente.length<2){$('eMsg').textContent='Escribí el nombre del cliente.';return}
+   const m=num($('eM').value),e=num($('eE').value);if(m==null||e==null){$('eMsg').textContent='Revisá los importes.';return}
+   if(m!==Number(o.precio_mercaderia))c.precio_mercaderia=m;if(e!==Number(o.precio_delivery))c.precio_delivery=e;if(mod!==o.modalidad_pago)c.modalidad_pago=mod;
+   const u=$('eU').value.trim();
+   if(u){b.disabled=true;b.textContent='Verificando ubicación…';let p=leerCoords(u);
+    if(!p&&/^https:\/\//.test(u)){try{const r=await fetch('/api/resolve-map',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})});const j=await r.json();if(r.ok&&j.coords)p={lat:Number(j.coords.lat),lng:Number(j.coords.lng)}}catch(_){}}
+    b.disabled=false;b.textContent='Guardar cambios';
+    if(!p||p.lat<-28||p.lat>-19||p.lng<-63||p.lng>-54){$('eMsg').textContent='No pude leer una ubicación válida de Paraguay. Probá pegando las coordenadas.';return}
+    c.lat=p.lat;c.lng=p.lng}
+   if(!Object.keys(c).length){$('eMsg').textContent='No cambiaste nada.';return}
+   b.disabled=true;b.textContent='Guardando…';
+   const {data,error}=await client.rpc('editar_pedido_seguro',{p_pedido_id:o.id,p_version:o.version_edicion,p_cambios:c});
+   b.disabled=false;b.textContent='Guardar cambios';
+   if(error){$('eMsg').textContent=/cambió/.test(error.message)?'Alguien cambió este pedido recién. Cerrá, actualizá y volvé a intentar.':error.message;return}
+   Object.assign(o,(Array.isArray(data)?data[0]:data)||{});
+   try{window.dyDespacho&&window.dyDespacho.refrescar()}catch(_){}
+   try{window.__dyRedibujar&&window.__dyRedibujar()}catch(_){}
+   try{const q=document.getElementById('orderSearch');if(q)q.dispatchEvent(new Event('input'))}catch(_){}
+   const ch=Object.keys(c).map(k=>NOM[k]).filter(Boolean);
+   if(d){
+    const dg=String(d.telefono||'').replace(/\D/g,'');const ph=dg.startsWith('595')?dg:'595'+dg.replace(/^0/,'');
+    const t='✏️ *Cambio en tu pedido N.º '+(o.numero_general??'')+'* · '+o.nombre_cliente+'\nSe modificó: '+ch.join(', ')+'.\n'+(o.producto?'📦 '+o.producto+'\n':'')+'💰 *A cobrar: '+gs(aCobrar(Number(o.precio_mercaderia),Number(o.precio_delivery),o.modalidad_pago))+'*'+(o.observaciones?'\n📝 '+o.observaciones:'')+(c.lat!=null?'\n📍 Nueva ubicación: https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng):'')+'\n\nYa está actualizado en tu app: '+location.origin+'/motorista.html';
+    $('eWa').innerHTML='<a class="wa" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?phone='+ph+'&text='+encodeURIComponent(t)+'">📲 Avisar a '+esc(d.nombre)+' por WhatsApp</a>';
+    $('eMsg').style.color='#0e7a3a';$('eMsg').textContent='✅ Guardado. '+d.nombre+' ya lo ve actualizado en su app.';$('eS').hidden=true;$('eX').textContent='Cerrar'}
+   else cerrar()};
+ };
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-dyedit]');if(!b)return;e.preventDefault();e.stopPropagation();const o=(typeof orders!=='undefined'?orders:[]).find(x=>x.id===b.dataset.dyedit);window.dyEditarPedido(o)},true);
 })();
 </script>
 </body></html>
