@@ -12,7 +12,7 @@ function busy(value){['register','login','reset'].forEach(id=>$(id).disabled=val
 function credentials(){if(!/^\S+@\S+\.\S+$/.test(email()))throw Error('Ingresá un correo válido.');if($('password').value.length<8)throw Error('La contraseña debe tener al menos 8 caracteres.');}
 let recovering=false;
 db.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY'){recovering=true;$('recoveryBox').style.display='block';report('Escribí tu nueva contraseña y tocá Guardar contraseña nueva.');}});
-$('savePassword').onclick=async()=>{if($('password').value.length<8){report('La nueva contraseña necesita al menos 8 caracteres.');return;}const {error}=await db.auth.updateUser({password:$('password').value});if(error){report('No se pudo cambiar la contraseña: '+error.message);return;}recovering=false;$('recoveryBox').style.display='none';report('Contraseña cambiada. Ya podés ingresar a tu tienda.');};
+$('savePassword').onclick=async()=>{if($('password').value.length<8){report('La nueva contraseña necesita al menos 8 caracteres.');return;}const {error}=await db.auth.updateUser({password:$('password').value});if(error){report('No se pudo cambiar la contraseña: '+error.message);return;}recovering=false;$('recoveryBox').style.display='none';$('password').value='';report('Contraseña actualizada. Volvé a Mi tienda e ingresá con tu correo y contraseña nueva.');};
 async function activate(){
  const {data:{user},error:ue}=await db.auth.getUser();if(ue||!user)throw Error('No hay una sesión válida. Ingresá con tu correo.');
  if(!user.email_confirmed_at)throw Error('Confirmá tu correo electrónico antes de activar la tienda.');
