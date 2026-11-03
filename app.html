@@ -117,25 +117,31 @@ $('switchMode').onclick=()=>setMode(mode==='login'?'register':'login');
 $('togglePw').onclick=()=>{const p=$('password');p.type=p.type==='password'?'text':'password';$('togglePw').textContent=p.type==='password'?'Ver':'Ocultar'};
 $('forgot').onclick=async()=>{const email=$('email').value.trim();if(!/^\S+@\S+\.\S+$/.test(email)){say('Escribí primero tu correo y volvé a tocar «Olvidé mi contraseña».');return}const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/tienda-registro.html'});say(error?'No se pudo enviar: '+error.message:'Si el correo existe, te llegó un enlace para crear una contraseña nueva.',error?'err':'ok')};
 $('otherAccount').onclick=async()=>{await db.auth.signOut().catch(()=>{});$('rolesCard').classList.add('hide');$('loginCard').classList.remove('hide');say('')};
-// Validar la sesión real antes de redirigir: una sesión caducada no debe provocar un bucle en la app Android.
+// Validar la sesión antes de redirigir: no entrar a un panel con tokens vencidos.
 (async function(){
  const raw=ls.get(KEY_APP);
  if(!raw)return;
- let stale=false;
- try{
-   const stored=JSON.parse(raw);
-   if(!stored||!stored.refresh_token){stale=true}
-   else {
-     const {data,error}=await db.auth.getUser();
-     if(!error&&data?.user){await continuar(data.user);return}
-     stale=!!error;
-   }
- }catch(e){stale=true}
- if(stale){
-   try{await db.auth.signOut({scope:'local'})}catch(_){}
+ let stored=null;
+ try{stored=JSON.parse(raw)}catch(_){}
+ if(!stored?.refresh_token){
    try{localStorage.removeItem(KEY_APP)}catch(_){}
-   say('La sesión anterior venció. Ingresá nuevamente con tu correo y contraseña.','ok');
+   say('Ingresá con tu correo y contraseña para continuar.','ok');return;
  }
+ try{
+   const {data,error}=await db.auth.getUser();
+   if(!error&&data?.user){
+     try{await continuar(data.user)}catch(e){say(e.message||'No se pudo abrir tu panel. Probá de nuevo.')}
+     return;
+   }
+   const msg=String(error?.message||'');
+   if(/session|refresh.token|invalid.jwt|token.*expired|invalid.refresh/i.test(msg)){
+     try{await db.auth.signOut({scope:'local'})}catch(_){}
+     try{localStorage.removeItem(KEY_APP)}catch(_){}
+     say('La sesión anterior venció. Ingresá nuevamente con tu correo y contraseña.','ok');
+   }else{
+     say('No pudimos verificar tu sesión. Revisá internet y tocá Ingresar para intentar nuevamente.');
+   }
+ }catch(_){say('No pudimos comprobar la sesión. Revisá la conexión e intentá ingresar nuevamente.')}
 })();
 </script>
 </body>
