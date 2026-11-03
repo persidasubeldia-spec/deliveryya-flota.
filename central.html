@@ -1186,9 +1186,9 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   const cM=contar('manana'),cT=contar('tarde'),cS=contar('sin_definir');
   if(!st.turno)st.turno=cM||cT?(cM>=cT?'manana':'tarde'):(new Date().getHours()<12?'manana':'tarde');
   box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+hoy()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=hoy()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button></div></div>'
-  +(editable()?'<p class="sub">Para repartir: optimizá, marcá los pedidos, elegí la moto y asigná.</p>':'<div class="dy-readonly">📅 Jornada histórica — solo consulta. No se pueden optimizar ni asignar pedidos en esta fecha.</div>')
+  +(editable()?'<p class="sub">La Central organiza por zonas; cada motorista define el recorrido desde su GPS.</p>':'<div class="dy-readonly">📅 Jornada histórica — solo consulta. No se pueden optimizar ni asignar pedidos en esta fecha.</div>')
   +'<div class="fila" id="dyDT">'+[['manana','🌅 Mañana',cM],['tarde','🌇 Tarde',cT]].concat(cS?[['sin_definir','Sin turno',cS]]:[]).map(([v,l,c])=>'<button type="button" class="chip '+(st.turno===v?'on':'')+'" data-t="'+v+'">'+l+' <small>'+c+' sin asignar</small></button>').join('')
-  +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
+  +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Ordenar por zonas para distribuir</button></div>'
   +'<button type="button" class="link" id="dyDOtro">'+(st.manual?'Usar mi ubicación (GPS)':'Salir desde otro punto…')+'</button>'
   +(st.manual?'<div class="orig"><input id="dyDOrig" placeholder="Coordenadas: -25.30,-57.60 o enlace de Maps con coordenadas" value="'+(st.origen?st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6):'')+'"></div>':'')
   +'<div id="dyDAv"></div><div class="msg" id="dyDMsg"></div>'
