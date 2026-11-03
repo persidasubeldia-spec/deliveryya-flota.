@@ -78,3 +78,7 @@ test('Android valida sesión y permisos antes de abrir el panel de la tienda',()
  assert.ok(acceso.includes("La sesión anterior venció"),'Falta recuperación de token caducado');
  assert.ok(!acceso.includes("if(s&&s.refresh_token)location.replace("),'No debe redirigir solo por token en localStorage');
 });
+
+test('Recuperación desde Tienda usa formulario específico',()=>{
+ assert.ok(tienda.includes("resetPasswordForEmail(email,{redirectTo:location.origin+'/tienda-registro.html'})"),'Destino de recuperación incorrecto');
+});
