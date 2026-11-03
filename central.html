@@ -1216,8 +1216,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $('dyDPrev').onclick=()=>moverFecha(-1);$('dyDNext').onclick=()=>moverFecha(1);$('dyDHoy').onclick=()=>escogerFecha(hoy());$('dyDFecha').onchange=e=>escogerFecha(e.target.value);
   box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.t;st.sel.clear();st.fit=false;pintar()});
   $('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$('dyDGo').onclick=optimizar;
-  $('dyBuscar').oninput=e=>{st.busqueda=e.target.value;st.sel.clear();st.fit=false;refrescar()};
-  box.querySelectorAll('[data-dy-filtro]').forEach(b=>b.onclick=()=>{st.filtro=b.dataset.dyFiltro;st.sel.clear();st.fit=false;refrescar()});
+  $('dyBuscar').oninput=e=>{st.busqueda=e.target.value;st.sel.clear();refrescar()};
+  box.querySelectorAll('[data-dy-filtro]').forEach(b=>b.onclick=()=>{st.filtro=b.dataset.dyFiltro;st.sel.clear();refrescar()});
   if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}st.map=null;st.objs=[];iniciarMapa();refrescar()}
  function refrescar(){const ps=paradas(),vistos=visiblesTurno();
   // limpiar selección de lo que ya no se puede asignar
@@ -1227,17 +1227,17 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $$('dyDAv').querySelectorAll('[data-pasar]').forEach(b=>b.onclick=()=>pasar(b.dataset.pasar));$$('dyDAv').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.ver;st.sel.clear();st.fit=false;pintar()});
   const elSum=$('dyResumenTurno');
   if(elSum){const pendientes=ps.filter(o=>!FIN.includes(o.estado)).length,entregados=ps.filter(o=>o.estado==='entregado').length,inc=ps.filter(o=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(o.estado)).length;
-   elSum.textContent='Turno '+(st.turno==='manana'?'Mañana':st.turno==='tarde'?'Tarde':'Sin definir')+': '+ps.length+' pedidos · '+pendientes+' por realizar · '+entregados+' entregados · '+inc+' incidencias';
+   elSum.textContent='Turno '+(st.turno==='manana'?'Mañana':st.turno==='tarde'?'Tarde':'Sin definir')+': '+ps.length+' pedidos · '+pendientes+' por realizar · '+entregados+' entregados · '+inc+' incidencias · '+ps.filter(gps).length+' con GPS';
   }
   document.querySelectorAll('#dyDesp [data-dy-filtro]').forEach(b=>b.classList.toggle('on',b.dataset.dyFiltro===st.filtro));
   const libres=vistos.filter(libre);
   $$('dyDList').innerHTML='<div class="lhead"><span>'+vistos.length+' visible(s) · '+libres.length+' libre(s)</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
   +(vistos.map(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const col=d?colorMoto(d.id):null;const ok=libre(o),sel=st.sel.has(o.id);
    const est=o.estado==='entregado'?'<span class="pill" style="background:#2b8a3e">✓ Entregado</span>':o.estado!=='pendiente'?'<span class="pill" style="background:#c92a2a">'+esc(o.estado.replaceAll('_',' '))+'</span>':'';
-   return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':o.estado==='entregado'?'#16803c':o.estado==='rechazado'?'#dc2626':o.estado==='no_responde'?'#eab308':o.estado==='no_recibio'?'#ea580c':o.estado==='pasa_manana'?'#2563eb':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(o.numero_general??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+(editable()&&o.estado==='pendiente'?'<button type="button" class="link" data-dyedit="'+esc(o.id)+'" style="font-size:13px;padding:4px 0">✏️ Editar</button>':'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">No hay pedidos en este turno.</p>');
+   return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':o.estado==='entregado'?'#16803c':o.estado==='rechazado'?'#dc2626':o.estado==='no_responde'?'#eab308':o.estado==='no_recibio'?'#ea580c':o.estado==='pasa_manana'?'#2563eb':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(o.numero_general??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+(editable()&&o.estado==='pendiente'?'<button type="button" class="link" data-dyedit="'+esc(o.id)+'" style="font-size:13px;padding:4px 0">✏️ Editar</button>':'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">'+(ps.length?'Este filtro no tiene pedidos. Hay '+ps.length+' pedidos en el turno; el mapa sigue mostrando todos. Elegí «Todos» para verlos en la lista.':'No hay pedidos en este turno.')+'</p>');
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $$('dyDTodos').onclick=()=>{libres.forEach(o=>st.sel.add(o.id));refrescar()};$$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
-  barra(ps);dibujar(vistos);st.firma=firma()}
+  barra(ps);dibujar(ps);st.firma=firma()}
  function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const act=drivers.filter(d=>d.activo);
   if(st.moto&&!act.some(d=>d.id===st.moto))st.moto=null;
   const nums=selOs.map(o=>o.numero_general);const k=largo(selOs.filter(gps),null);
@@ -1246,7 +1246,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   +'<div class="motos">'+(editable()?act:[]).map(d=>{const n=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&tur(o)===st.turno&&!FIN.includes(o.estado)).length;return '<button type="button" class="moto '+(st.moto===d.id?'on':'')+'" data-moto="'+esc(d.id)+'"><span class="dot" style="background:'+colorMoto(d.id)+'"></span>'+esc(d.nombre)+' <small>'+n+'</small></button>'}).join('')+'</div>'
   +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(selOs.length&&st.moto?'':'disabled')+'>Asignar</button><button type="button" class="a2" id="dyDAsigW" '+(selOs.length&&st.moto?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&orders.some(o=>esFecha(o)&&o.motorista_id===st.moto&&o.estado==='pendiente')?'<button type="button" class="a0" id="dyDW">📲 Reenviar WhatsApp</button>':'')+'</div>'
   +(st.ultimo?'<div class="post">'+st.ultimo+'</div>':'');
-  el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{st.moto=st.moto===b.dataset.moto?null:b.dataset.moto;st.ultimo=null;barra(paradas());dibujar(visiblesTurno())});
+  el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{st.moto=st.moto===b.dataset.moto?null:b.dataset.moto;st.ultimo=null;barra(paradas());dibujar(paradas())});
   const a=$$('dyDAsig'),w=$$('dyDAsigW'),r=$$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);
   if(r)r.onclick=()=>{const d=drivers.find(x=>x.id===st.moto);if(d)window.open(waUrl(d),'_blank')}}
  const NT={manana:'🌅 Mañana',tarde:'🌇 Tarde',sin_definir:'Sin turno'};
@@ -1308,10 +1308,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   else{const m=L.marker([p.lat,p.lng],{title:titulo,icon:L.divIcon({className:'',html:'<div style="min-width:'+(sel?34:28)+'px;padding:0 5px;box-sizing:border-box;height:'+(sel?34:28)+'px;border-radius:17px;background:'+color+';border:'+(sel?3:2)+'px solid '+(sel?'#111':'#fff')+';color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px #0006">'+esc(txt)+'</div>',iconSize:[30,30],iconAnchor:[15,15]})});if(id)m.on('click',()=>tocar(id));st.layer.addLayer(m)}}
  function tocar(id){if(!editable())return;if(String(id).includes(',')){const ids=String(id).split(',');const libres=ids.filter(i=>libre(orders.find(o=>o.id===i)));if(!libres.length){tocar(ids[0]);return}const todos=libres.every(i=>st.sel.has(i));libres.forEach(i=>todos?st.sel.delete(i):st.sel.add(i));refrescar();return}const o=orders.find(x=>x.id===id);if(!libre(o)){msg(o&&o.motorista_id?'Ese pedido ya está asignado a '+(drivers.find(d=>d.id===o.motorista_id)?.nombre||'una moto')+'.':'Primero tocá «Optimizar ruta» para numerarlo.','err');return}st.sel.has(id)?st.sel.delete(id):st.sel.add(id);refrescar()}
  function dibujar(ps){if(!st.map)return;limpiar();const PP=P;const geo=ps.filter(gps).filter(o=>o.numero_general!=null);const sinN=ps.filter(gps).filter(o=>o.numero_general==null);
-  // recorrido completo en gris
-  const full=(st.origen?[st.origen]:[]).concat(geo.map(PP));linea(full,'#64748b',3,.55);
-  // tramos de cada moto en su color
-  drivers.forEach(d=>{const m=geo.filter(o=>o.motorista_id===d.id);if(m.length)linea(m.map(PP),colorMoto(d.id),6,.95)});
+  // Supervisión por estados: no unir pedidos con líneas rectas que simulan rutas reales.
+  // Cada motorista calcula la ruta vial desde su GPS en su propia aplicación.
   // selección en amarillo
   const s=geo.filter(o=>st.sel.has(o.id));if(s.length)linea(s.map(PP),'#f5a000',8,.9);
   if(st.origen)punto(st.origen,'🏁','#111827',false,null,'Salida');
@@ -1320,7 +1318,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    const color=sel?'#f5a000':arr.every(x=>x.estado==='entregado')?'#16803c':arr.every(x=>x.estado==='rechazado')?'#dc2626':arr.every(x=>x.estado==='no_responde')?'#eab308':arr.every(x=>x.estado==='no_recibio')?'#ea580c':arr.every(x=>x.estado==='pasa_manana')?'#2563eb':d&&mismo?colorMoto(d.id):(arr.some(x=>x.estado==='pendiente')?'#1f3a63':'#94a3b8');
    punto(P(o),arr.map(x=>x.numero_general).join('·'),color,sel,arr.map(x=>x.id).join(','),arr.map(x=>'N.º '+x.numero_general+' · '+x.nombre_cliente+(x.observaciones?' · 📝 '+x.observaciones:'')).join('\n')+(arr.length>1?'\n(misma ubicación)':''))});
   sinN.forEach(o=>punto(PP(o),'NUEVO','#dc2626',true,o.id,o.nombre_cliente+' · pedido nuevo: tocá Optimizar para sumarlo'));
-  if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40);if(all.length===1)st.map.setZoom(16)}else if(all.length===1)st.map.setView([all[0].lat,all[0].lng],16);else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[45,45],maxZoom:15})}}}
+  if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40);if(all.length===1)st.map.setZoom(12)}else if(all.length===1)st.map.setView([all[0].lat,all[0].lng],12);else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[45,45],maxZoom:13})}}}
  // ---------- acciones ----------
  function ubic(){return new Promise((ok,no)=>{if(!navigator.geolocation)return no(Error('Este navegador no da la ubicación.'));navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),e=>no(Error(e.code===1?'Permití la ubicación en el navegador (candado de la barra de direcciones) o usá «Salir desde otro punto».':'No se pudo obtener tu ubicación: '+e.message)),{enableHighAccuracy:true,timeout:15000,maximumAge:60000})})}
  function leerOrigen(){const v=($$('dyDOrig')?.value||'').trim();let d=v;try{d=decodeURIComponent(v)}catch(_){}const m=d.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/)||d.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);if(!m)throw Error('Escribí coordenadas (ej. -25.30,-57.60) o pegá un enlace de Maps que las tenga.');const o={lat:Number(m[1]),lng:Number(m[2])};if(o.lat<-28||o.lat>-19||o.lng<-63||o.lng>-54)throw Error('Ese punto no está en Paraguay.');return o}
