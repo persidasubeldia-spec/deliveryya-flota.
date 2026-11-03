@@ -1,4 +1,10 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeliveryYa · Mi Ruta</title><style id="dyMotoUx20261103">
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeliveryYa · Mi Ruta</title><style id="dyMotoMapaEncuadre">
+#app #map{height:360px!important;min-height:310px}
+#app #dyOptWrap[hidden]{display:none!important}
+#app #dyOptWrap{margin:8px 0;padding:0 8px}
+#app #dyOptWrap button{width:100%;min-height:52px;background:#078755;border:0;font-weight:800}
+#app #mapSource{font-size:13px}
+</style><style id="dyMotoUx20261103">
 #app #map{height:340px!important;min-height:300px}
 #app .dy-ped{padding:12px!important;margin:7px 0!important}
 #app .dy-ped .dy-top{margin-bottom:6px}
@@ -104,7 +110,7 @@ window.dyIrAlRol=async function(db,claveActual,actual,{nuevaVaTienda=false}={}){
  document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;inset:0;background:#0b2a5ee6;color:#fff;display:flex;align-items:center;justify-content:center;font:600 18px system-ui;z-index:99999">Abriendo tu panel…</div>');
  location.replace(D[dest][1]);return true}catch(e){console.warn('dyIrAlRol',e);return false}};
 </script><script>window.deliveryyaGoogleError=false;window.gm_authFailure=()=>{window.deliveryyaGoogleError=true;window.dispatchEvent(new Event("deliveryya-google-failed"));};</script><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpfB3PfNovtq0dIfmXmqrH2sI2U1YSDNA&v=weekly"></script><script>
-const sb=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv',{auth:{storageKey:'dyf-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),$=x=>document.getElementById(x),safe=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),money=n=>'₲ '+Number(n||0).toLocaleString('es-PY');let moto=null,map=null,markers=null,gpsWatch=null,lastGpsSent=0,googleMap=false,mapPoints=[],lastMapSignature="",mapRoute=null,osmTiles=null;
+const sb=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','sb_publishable_aKiJpn8HK3tpqRuQkNc3CQ_YUi9EnGv',{auth:{storageKey:'dyf-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),$=x=>document.getElementById(x),safe=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),money=n=>'₲ '+Number(n||0).toLocaleString('es-PY');let moto=null,map=null,markers=null,gpsWatch=null,lastGpsSent=0,googleMap=false,mapPoints=[],lastMapSignature="",mapRoute=null,osmTiles=null,ultimaRutaVisible=[];
 const nightMapStyle=[{elementType:'geometry',stylers:[{color:'#192737'}]},{elementType:'labels.text.fill',stylers:[{color:'#c5d0e0'}]},{elementType:'labels.text.stroke',stylers:[{color:'#17212d'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#324b64'}]},{featureType:'road',elementType:'geometry.stroke',stylers:[{color:'#23374b'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#102d46'}]},{featureType:'poi.park',elementType:'geometry',stylers:[{color:'#1d4238'}]}];
 function setTheme(night){
  document.body.classList.toggle('dark',night);
@@ -117,10 +123,30 @@ function setTheme(night){
 }
 $('themeToggle').onclick=()=>setTheme(!document.body.classList.contains('dark'));
 try{setTheme(localStorage.getItem('deliveryya_moto_theme')==='dark')}catch{setTheme(false)}
+function encuadrarRutaMotorista(){
+ if(!map)return;
+ const coords=ultimaRutaVisible;
+ const el=$('map');
+ if(!el||el.clientWidth<20||el.clientHeight<20)return;
+ if(googleMap){
+   google.maps.event.trigger(map,'resize');
+   if(!coords.length){map.setCenter({lat:-25.33,lng:-57.55});map.setZoom(10);return}
+   if(coords.length===1){map.setCenter({lat:coords[0][0],lng:coords[0][1]});map.setZoom(12);return}
+   const bounds=new google.maps.LatLngBounds();
+   coords.forEach(p=>bounds.extend({lat:p[0],lng:p[1]}));
+   map.fitBounds(bounds,{top:45,right:45,bottom:45,left:45});
+   google.maps.event.addListenerOnce(map,'idle',()=>{if(map&&googleMap&&map.getZoom()>13)map.setZoom(13)});
+ }else{
+   map.invalidateSize();
+   if(!coords.length){map.setView([-25.33,-57.55],10);return}
+   if(coords.length===1){map.setView(coords[0],12);return}
+   map.fitBounds(coords,{padding:[35,35],maxZoom:13,animate:false});
+ }
+}
 function recoverMotoristaMap(){
  if(!googleMap||!$('map'))return;
  try{for(const m of mapPoints)m.setMap(null);}catch{}
- mapPoints=[];map=null;googleMap=false;window.deliveryyaGoogleError=true;
+ mapPoints=[];map=null;googleMap=false;window.deliveryyaGoogleError=true;lastMapSignature='';
  const old=$('map');old.replaceWith(old.cloneNode(false));
  if(!window.L){$('mapSource').textContent='Google Maps no está disponible y no se cargó el mapa alternativo.';return;}
  try{
@@ -193,7 +219,7 @@ finally{btn.disabled=false;}
 const [movRes,closeRes,rechRes]=await Promise.all([sb.from('movimientos_financieros').select('*').eq('motorista_id',moto.id),sb.from('flota_cierres_motoristas').select('*').eq('motorista_id',moto.id).order('created_at',{ascending:false}).limit(12),sb.from('flota_rechazos_detalle').select('*').eq('motorista_id',moto.id)]);
 dyDatos.mov=movRes.data||[];dyDatos.cierres=closeRes.data||[];dyDatos.rech=rechRes.data||[];if(movRes.error){$('cashSummary').textContent=movRes.error.message}else dyPintarCaja(a);setTimeout(dyMisRutas,0);
 
-{const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:14px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.style.display=pend.length>1?'':'none';box.after(ow)}}
+{const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:14px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.hidden=pend.length<2;box.after(ow)}}
 $('orders').innerHTML=dyTarjetas(a);$('orders').querySelectorAll('[data-edit-operativo]').forEach(b=>b.onclick=async()=>{const p=a.find(x=>x.id===b.dataset.editOperativo);if(!p)return;const cambios={};for(const key of ['telefono_cliente','referencias','observaciones']){const original=String(p[key]??'');const n=prompt('Corregir '+key.replaceAll('_',' '),original);if(n===null)return;if(n.trim()!==original.trim())cambios[key]=n.trim();}if(!Object.keys(cambios).length)return;const {error}=await sb.rpc('editar_pedido_seguro',{p_pedido_id:p.id,p_version:p.version_edicion,p_cambios:cambios});if(error){alert('No guardado: '+error.message);return}try{window.dyVisto&&window.dyVisto(p.id,(p.version_edicion||0)+1)}catch(_){}await load();});
 $('orders').querySelectorAll('[data-complete]').forEach(b=>b.onclick=()=>{const p=a.find(x=>x.id===b.dataset.complete);if(p)panelEntregado(p)});
 $('orders').querySelectorAll('[data-reject]').forEach(b=>b.onclick=()=>{const p=a.find(x=>x.id===b.dataset.reject);if(p)panelRechazo(p)});
@@ -235,16 +261,16 @@ if(map){
   }
  }
  const signature=points.map(p=>p.id+':'+p.estado+':'+p.lat+','+p.lng).join(';');
- if(coords.length&&signature!==lastMapSignature){
-   if(googleMap){const bounds=new google.maps.LatLngBounds();coords.forEach(p=>bounds.extend({lat:p[0],lng:p[1]}));map.fitBounds(bounds,35);if(coords.length===1)map.setZoom(15);}
-   else if(coords.length===1)map.setView(coords[0],16);else map.fitBounds(coords,{padding:[30,30],maxZoom:15});
+ ultimaRutaVisible=coords;
+ if(signature!==lastMapSignature){
+   lastMapSignature=signature;
+   requestAnimationFrame(()=>{encuadrarRutaMotorista();setTimeout(encuadrarRutaMotorista,250)});
  }
- lastMapSignature=signature;
  if(!googleMap){$('map').style.filter='';setTimeout(()=>map.invalidateSize(),80);}
- if(!coords.length)$('mapSource').textContent=(googleMap?'Google Maps':'Mapa alternativo')+' · Sin pedidos asignados con ubicación';
+ if(!coords.length)$('mapSource').textContent=(googleMap?'Google Maps':'Mapa alternativo')+' · No tenés entregas activas con ubicación para hoy';
 }
 }
-$('centerMotoMap').onclick=()=>{lastMapSignature='';if(moto)load()};
+$('centerMotoMap').onclick=()=>{encuadrarRutaMotorista()};
 $('login').onclick=async()=>{const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error){$('msg').textContent=error.message;return}await abrirSesionMoto()};$('register').onclick=async()=>{const {data,error}=await sb.auth.signUp({email:$('email').value.trim(),password:$('password').value,options:{emailRedirectTo:location.origin+'/motorista'}});if(error&&(/already registered|already exists/i.test(error.message||'')||error.code==='user_already_exists')){const login=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(login.error){$('msg').textContent='Esta cuenta ya existe. Ingresá con tu contraseña correcta.';return;}await abrirSesionMoto();return;}$('msg').textContent=error?error.message:data?.session?'Cuenta creada. Aceptando invitación…':'Listo. Te enviamos un correo a '+$('email').value.trim()+': abrilo y tocá el botón de confirmar. Después volvé a esta página, poné tu correo y contraseña y tocá «Ingresar».';if(!error&&data?.session)await abrirSesionMoto()};$('gpsStart').onclick=()=>{if(!navigator.geolocation){$('gpsStatus').textContent='GPS no disponible';return}if(gpsWatch!==null)return;$('gpsStatus').textContent='Solicitando permiso de ubicación…';gpsWatch=navigator.geolocation.watchPosition(async pos=>{const now=Date.now();if(now-lastGpsSent<20000)return;lastGpsSent=now;const {error}=await sb.rpc('motorista_compartir_gps',{p_lat:pos.coords.latitude,p_lng:pos.coords.longitude,p_precision_m:pos.coords.accuracy});$('gpsStatus').textContent=error?'No se pudo actualizar GPS: '+error.message:'Ubicación compartida: '+new Date().toLocaleTimeString('es-PY')+' · precisión '+Math.round(pos.coords.accuracy)+' m'},err=>{$('gpsStatus').textContent='Ubicación no disponible: '+err.message},{enableHighAccuracy:true,maximumAge:5000,timeout:15000})};
 $('gpsStop').onclick=()=>{if(gpsWatch!==null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}$('gpsStatus').textContent='Compartir ubicación detenido. La última posición guardada quedará identificada por su fecha.'};
 window.addEventListener('beforeunload',()=>{if(gpsWatch!==null)navigator.geolocation.clearWatch(gpsWatch)});
@@ -382,7 +408,7 @@ let dyPestanasListas=false;
 function dyPestanas(){
  if(dyPestanasListas)return;dyPestanasListas=true;
  const app=$('app'),mapCard=$('map').closest('.card'),cajaCard=$('cashSummary').closest('.card');
- [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('orders').before(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';mapCard.after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mapa de mis entregas';cajaCard.classList.add('t-caja');
+ [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('orders').before(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';mapCard.after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi recorrido de hoy';cajaCard.classList.add('t-caja');
  document.querySelectorAll('#app > .notice').forEach(n=>n.remove());
  cajaCard.querySelector('h3').textContent='💰 Mi caja de hoy';{const vb=document.createElement('button');vb.type='button';vb.id='dyVerificarBtn';vb.textContent='🔍 Verificar mis entregas';$('submitClose').parentElement.before(vb)}cajaCard.querySelector('p.muted').textContent='Al terminar, tocá el botón verde: se cierra tu caja y se le envía al jefe el detalle de cada cliente por WhatsApp.';
  $('cashDeclared').closest('label').firstChild.textContent='Efectivo que entregás: ';$('transferDeclared').closest('label').firstChild.textContent='Transferencias recibidas: ';
@@ -394,7 +420,7 @@ function dyPestanas(){
  const jin=document.createElement('input');jin.type='tel';jin.placeholder='WhatsApp del jefe (ej. 0981 123456)';jin.value=dyJefeTel();jin.onchange=()=>{try{localStorage.setItem('dyf-jefe-wa',jin.value.trim())}catch(_){}};fila('📲 WhatsApp del jefe para la rendición',jin);
  const rp=$('refresh').parentElement;fila('🔄 Cuenta',$('refresh'),$('logout'));$('refresh').textContent='🔄 Actualizar datos';$('logout').textContent='🚪 Cerrar sesión';$('logout').classList.add('dy-salir');rp.remove();
  const nav=document.createElement('nav');nav.className='dy-nav';nav.innerHTML='<button data-tab="entregas" aria-pressed="true">🚚<span>Entregas</span></button><button data-tab="caja">💰<span>Caja</span></button><button data-tab="ajustes">⚙️<span>Ajustes</span></button>';document.body.append(nav);
- const ir=t=>{app.dataset.tab=t;nav.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===t)));try{localStorage.setItem('dyf-moto-tab',t)}catch(_){}scrollTo(0,0);if(t==='entregas'&&map){setTimeout(()=>{try{googleMap?google.maps.event.trigger(map,'resize'):map.invalidateSize()}catch(_){}},60)}};
+ const ir=t=>{app.dataset.tab=t;nav.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===t)));try{localStorage.setItem('dyf-moto-tab',t)}catch(_){}scrollTo(0,0);if(t==='entregas'&&map){setTimeout(encuadrarRutaMotorista,120)}};
  nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{ir(b.dataset.tab);if(b.dataset.tab==='caja')dyPrecargarPdf()});let t0='entregas';try{t0=localStorage.getItem('dyf-moto-tab')||'entregas'}catch(_){}ir(t0);
  const css=document.createElement('style');css.textContent='body{padding-bottom:78px}#metrics.grid{display:block}#app[data-tab=entregas] .t-caja,#app[data-tab=entregas] .t-ajustes,#app[data-tab=caja] .t-entregas,#app[data-tab=caja] .t-ajustes,#app[data-tab=caja] #rutaCompleta,#app[data-tab=ajustes] .t-entregas,#app[data-tab=ajustes] .t-caja,#app[data-tab=ajustes] #rutaCompleta{display:none!important}#app[data-tab=caja] #metrics,#app[data-tab=ajustes] #metrics{display:none}header #themeToggle{display:none}#map{height:260px}#name{margin:6px 0;font-size:20px}.dy-nav{position:fixed;left:0;right:0;bottom:0;z-index:5000;display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border-top:1px solid #d7e1ec;box-shadow:0 -4px 16px #0001;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}.dy-nav button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:22px;background:none;border:0;color:#5b6b80;padding:6px;border-radius:12px}.dy-nav button span{font-size:12px;font-weight:700}.dy-nav button[aria-pressed=true]{background:#e6f0fb;color:#1765ba}.dy-prog{padding:12px 14px}.dy-bar{height:10px;background:#e3eaf3;border-radius:99px;margin-top:8px;overflow:hidden}.dy-bar span{display:block;height:100%;background:#16a34a}.dy-ped{padding:14px}.dy-next{border:2px solid #1765ba;box-shadow:0 6px 20px #1765ba22}.dy-tag{display:inline-block;background:#1765ba;color:#fff;font-size:11px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:6px;margin-bottom:8px}.dy-top{display:flex;gap:12px;align-items:flex-start}.dy-num{min-width:38px;height:38px;border-radius:50%;background:#1765ba;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px}.dy-main{min-width:0}.dy-inc{margin-top:4px;color:#b45309;font-weight:700;font-size:14px}.dy-cobro{margin:10px 0;padding:10px;border-radius:10px;background:#ecfdf3;color:#14532d;font-size:16px}.dy-pagado{background:#eef2f7;color:#334155}.dy-ic{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px}.dy-ic button.dy-i{width:50px}.dy-i{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #c7d4e4;border-radius:10px;background:#fff;color:#1a304b;text-decoration:none;font-weight:600;font-size:15px}.dy-acc{display:grid;grid-template-columns:1fr 64px 64px;gap:8px;margin-top:10px}.dy-acc button{min-height:56px;border:0;border-radius:12px;font-size:19px;font-weight:800;color:#fff}.dy-ok{background:#16803c}.dy-no{background:#b42323}.dy-warn{background:#c27408}.dy-done{display:flex;justify-content:space-between;gap:8px;padding:9px 2px;border-bottom:1px solid #e6edf4;font-size:15px}.dy-fin{background:#ecfdf3;font-size:16px}.dy-kpi{padding:8px}.dy-kpi-main{background:#e6f0fb;border-radius:10px}#submitClose{width:100%;min-height:58px;font-size:18px;font-weight:800;background:#16803c;color:#fff;border:0;border-radius:12px}.dy-cerrada{padding:10px;border-radius:10px;background:#ecfdf3;font-weight:700;margin-top:8px}.dy-fila{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid #e6edf4}.dy-fila button,.dy-fila input{min-height:46px}#app[data-tab] label{display:block;margin:8px 0}#app[data-tab] label input{width:100%;min-height:46px;font-size:18px;box-sizing:border-box}body.dark .dy-nav{background:#1c293b;border-color:#36465a}body.dark .dy-i{background:#1c293b;color:#e9eff8;border-color:#36465a}body.dark .dy-cobro{background:#123a25;color:#d1fadf}body.dark .dy-pagado{background:#26354a;color:#dbe4ef}';document.head.append(css);
  sb.rpc('motorista_contacto_jefe').then(({data})=>{const r=Array.isArray(data)?data[0]:data;if(r){dyDatos.jefe=r.telefono||'';dyDatos.empresa=r.empresa||'';if(!jin.value)jin.value=dyDatos.jefe}}).catch(()=>{});
