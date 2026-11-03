@@ -96,6 +96,8 @@ async function roles(uid){const [c,m,t]=await Promise.all([
  db.from('flota_usuarios').select('rol').eq('usuario_id',uid).eq('activo',true).limit(1),
  db.from('motoristas').select('id').eq('usuario_id',uid).eq('activo',true).limit(1),
  db.from('tienda_miembros').select('tienda_id').eq('usuario_id',uid).eq('activo',true).limit(1)]);
+ const permisosError=c.error||m.error||t.error;
+ if(permisosError)throw Error('No se pudieron comprobar los permisos de la cuenta. Revisá tu conexión y probá de nuevo.');
  const r=[];if(c.data?.length)r.push('central');if(m.data?.length)r.push('motorista');if(t.data?.length)r.push('tienda');return r}
 async function continuar(user){say('Abriendo tu panel…','ok');const r=await roles(user.id);
  if(!r.length){abrir('tienda');return} // cuenta nueva: la app Tienda la activa sola
@@ -115,9 +117,26 @@ $('switchMode').onclick=()=>setMode(mode==='login'?'register':'login');
 $('togglePw').onclick=()=>{const p=$('password');p.type=p.type==='password'?'text':'password';$('togglePw').textContent=p.type==='password'?'Ver':'Ocultar'};
 $('forgot').onclick=async()=>{const email=$('email').value.trim();if(!/^\S+@\S+\.\S+$/.test(email)){say('Escribí primero tu correo y volvé a tocar «Olvidé mi contraseña».');return}const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/tienda-registro.html'});say(error?'No se pudo enviar: '+error.message:'Si el correo existe, te llegó un enlace para crear una contraseña nueva.',error?'err':'ok')};
 $('otherAccount').onclick=async()=>{await db.auth.signOut().catch(()=>{});$('rolesCard').classList.add('hide');$('loginCard').classList.remove('hide');say('')};
-// Si ya hay una sesión abierta en algún panel, entrar directo.
-(function(){const ult=ls.get('dyf-ultimo-rol');const orden=ult&&DEST[ult]?[ult,...Object.keys(DEST).filter(k=>k!==ult)]:Object.keys(DEST);
- const raw=ls.get(KEY_APP);if(!raw)return;try{const s=JSON.parse(raw);if(s&&s.refresh_token)location.replace(DEST[orden[0]].url)}catch{}})();
+// Validar la sesión real antes de redirigir: una sesión caducada no debe provocar un bucle en la app Android.
+(async function(){
+ const raw=ls.get(KEY_APP);
+ if(!raw)return;
+ let stale=false;
+ try{
+   const stored=JSON.parse(raw);
+   if(!stored||!stored.refresh_token){stale=true}
+   else {
+     const {data,error}=await db.auth.getUser();
+     if(!error&&data?.user){await continuar(data.user);return}
+     stale=!!error;
+   }
+ }catch(e){stale=true}
+ if(stale){
+   try{await db.auth.signOut({scope:'local'})}catch(_){}
+   try{localStorage.removeItem(KEY_APP)}catch(_){}
+   say('La sesión anterior venció. Ingresá nuevamente con tu correo y contraseña.','ok');
+ }
+})();
 </script>
 </body>
 </html>
