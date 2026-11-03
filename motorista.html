@@ -165,9 +165,12 @@ $('orders').querySelectorAll('[data-incident]').forEach(b=>b.onclick=()=>{const 
 if(!map){
  if(window.google?.maps&&!window.deliveryyaGoogleError){
    googleMap=true;map=new google.maps.Map($('map'),{center:{lat:-25.33,lng:-57.55},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:true,styles:[]});
-   google.maps.event.addListenerOnce(map,'tilesloaded',()=>{map._deliveryyaTilesReady=true;});
-   setTimeout(()=>{if(googleMap&&map&&!map._deliveryyaTilesReady)recoverMotoristaMap();},6500);
-   $('mapSource').textContent='✓ Google Maps activo';
+   google.maps.event.addListenerOnce(map,'tilesloaded',()=>{map._deliveryyaTilesReady=true;if(!$('map')?.querySelector('.gm-err-container'))$('mapSource').textContent='✓ Google Maps activo';});
+   const ref=map,container=$('map');
+   const check=new MutationObserver(()=>{if(googleMap&&map===ref&&container.querySelector('.gm-err-container')){check.disconnect();recoverMotoristaMap()}});
+   check.observe(container,{childList:true,subtree:true});
+   setTimeout(()=>{check.disconnect();if(googleMap&&map===ref&&(!ref._deliveryyaTilesReady||container.querySelector('.gm-err-container')))recoverMotoristaMap()},9000);
+   $('mapSource').textContent='Cargando Google Maps…';
  }else if(window.L){
    googleMap=false;map=L.map('map').setView([-25.33,-57.55],10);
    osmTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
