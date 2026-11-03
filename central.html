@@ -887,7 +887,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!libre(orders.find(o=>o.id===id)))st.sel.delete(id)});
   const sinNum=ps.filter(o=>o.numero_general==null&&o.estado==='pendiente'&&!o.motorista_id),sinGps=ps.filter(o=>!gps(o));
-  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso">🔢 '+sinNum.filter(gps).length+' pedido(s) sin número: tocá <b>Optimizar ruta</b> para ordenarlos'+(ps.some(o=>o.motorista_id)?' (se suman al final de la ruta)':'')+'.</div>':'')+otrosHtml()+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
+  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso" style="background:#fff1f1;border-color:#f3a3a3">🆕 '+(sinNum.filter(gps).length===1?'Pedido nuevo':sinNum.filter(gps).length+' pedidos nuevos')+': <b>'+sinNum.filter(gps).slice(0,6).map(o=>esc(o.nombre_cliente)).join(', ')+'</b>'+(sinNum.filter(gps).length>6?'…':'')+' · tocá <b>📍 Optimizar ruta</b> para '+(ps.some(o=>o.motorista_id)?'sumarlos al final de la ruta':'ordenarlos')+'.</div>':'')+otrosHtml()+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
   $$('dyDAv').querySelectorAll('[data-pasar]').forEach(b=>b.onclick=()=>pasar(b.dataset.pasar));$$('dyDAv').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.ver;st.sel.clear();st.fit=false;pintar()});
   const libres=ps.filter(libre);
   $$('dyDList').innerHTML='<div class="lhead"><span>'+ps.length+' pedido(s) · '+libres.length+' libres</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
@@ -937,7 +937,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   Object.values(grupos).forEach(arr=>{const o=arr[0];const sel=arr.some(x=>st.sel.has(x.id));const d=drivers.find(x=>x.id===o.motorista_id);const mismo=arr.every(x=>x.motorista_id===o.motorista_id);
    const color=sel?'#f5a000':d&&mismo?colorMoto(d.id):(arr.some(x=>x.estado==='pendiente')?'#1f3a63':'#94a3b8');
    punto(P(o),arr.map(x=>x.numero_general).join('·'),color,sel,arr.map(x=>x.id).join(','),arr.map(x=>'N.º '+x.numero_general+' · '+x.nombre_cliente+(x.observaciones?' · 📝 '+x.observaciones:'')).join('\n')+(arr.length>1?'\n(misma ubicación)':''))});
-  sinN.forEach(o=>punto(PP(o),'?','#94a3b8',false,o.id,o.nombre_cliente+' (sin número)'));
+  sinN.forEach(o=>punto(PP(o),'NUEVO','#dc2626',true,o.id,o.nombre_cliente+' · pedido nuevo: tocá Optimizar para sumarlo'));
   if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40)}else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[30,30],maxZoom:14})}}}
  // ---------- acciones ----------
  function ubic(){return new Promise((ok,no)=>{if(!navigator.geolocation)return no(Error('Este navegador no da la ubicación.'));navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),e=>no(Error(e.code===1?'Permití la ubicación en el navegador (candado de la barra de direcciones) o usá «Salir desde otro punto».':'No se pudo obtener tu ubicación: '+e.message)),{enableHighAccuracy:true,timeout:15000,maximumAge:60000})})}
@@ -983,6 +983,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  const orig=window.page;if(typeof orig==='function'){window.page=function(n){const r=orig.apply(this,arguments);if(n==='Rutas')setTimeout(montar,0);return r}}
  const cont=$$('content');if(cont)new MutationObserver(()=>{if($$('routeActionPanel')&&!$$('dyDesp'))montar()}).observe(cont,{childList:true});
  setInterval(()=>{if($$('dyDesp')&&firma()!==st.firma)refrescar()},2500);
+ let canal=null,tRec=null;setInterval(()=>{try{if(canal||typeof account==='undefined'||!account||!account.empresa_id)return;
+  canal=client.channel('dy-despacho-'+account.empresa_id).on('postgres_changes',{event:'*',schema:'public',table:'pedidos',filter:'empresa_id=eq.'+account.empresa_id},()=>{clearTimeout(tRec);tRec=setTimeout(()=>{if($$('dyDesp')&&$$('routeReload'))Promise.resolve($$('routeReload').onclick()).then(()=>refrescar()).catch(()=>{})},700)}).subscribe()}catch(_){canal=null}},2000);
  window.dyDespacho={st,refrescar,mejorar,cercania};
 })();
 </script>
