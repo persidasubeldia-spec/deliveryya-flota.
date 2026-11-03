@@ -27,6 +27,49 @@ V.forEach(function(k){localStorage.removeItem(k);localStorage.removeItem(k+'-cod
   if(nuevo){try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(_){}}};
 })();
 </script>
+<style id="dyAvisarCss">
+.dy-avisar{display:block;width:100%;margin:8px 0 0;padding:11px;border-radius:12px;border:2px solid #f0b429;background:#fff7e0;color:#6b4a00;font-weight:900;font-size:15px;cursor:pointer}
+#dyAvisarOv{position:fixed;inset:0;background:#0b1730b3;z-index:9000;display:flex;align-items:flex-end;justify-content:center}
+#dyAvisarOv .sh{background:#fff;color:#18243a;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+#dyAvisarOv h3{margin:0;font-size:19px}#dyAvisarOv .sub{color:#5d6f87;font-size:14px;margin:2px 0 12px}
+#dyAvisarOv .op{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:2px solid #dbe4ef;background:#fff;border-radius:14px;padding:14px;margin:0 0 8px;font-size:16px;font-weight:800;color:#18243a;cursor:pointer}
+#dyAvisarOv .op span{font-size:26px}#dyAvisarOv .op small{display:block;font-weight:500;color:#5d6f87;font-size:13px}
+#dyAvisarOv textarea{width:100%;box-sizing:border-box;min-height:70px;border:2px solid #dbe4ef;border-radius:12px;padding:10px;font:inherit;font-size:15px}
+#dyAvisarOv .env{width:100%;margin-top:8px;padding:13px;border:0;border-radius:12px;background:#25d366;color:#fff;font-weight:900;font-size:16px}
+#dyAvisarOv .x{width:100%;margin-top:6px;padding:12px;border:0;background:none;color:#5d6f87;font-weight:700;font-size:15px}
+#dyAvisarOv .sin{background:#fff1f1;border:1px solid #f3b3b3;color:#8a1c1c;border-radius:10px;padding:10px;font-size:14px;margin-bottom:10px}
+</style>
+<script id="dyAvisarJs">
+// Motorista → vendedora: avisa por WhatsApp un problema con la entrega para que llame a su clienta.
+(function(){
+ const g=v=>'₲ '+Math.round(Number(v)||0).toLocaleString('es-PY');
+ const wa=t=>{const d=String(t||'').replace(/\D/g,'');if(!d)return '';return d.startsWith('595')?d:'595'+d.replace(/^0/,'')};
+ const OPC=[
+  ['nat','📵','No atiende','No contesta el teléfono','no atiende el teléfono. ¿Podés comunicarte con ella/él? Estoy yendo a la dirección.'],
+  ['nes','🚪','No está / no abre','Llegué y no sale nadie','llegué a la dirección y no está o no abre. ¿Podés llamarle para que salga?'],
+  ['pag','💵','Problema con el pago','No quiere pagar o dice que ya pagó','tengo un problema con el cobro (no quiere pagar o dice que ya pagó). ¿Podés confirmarle con la clienta?'],
+  ['dir','📍','Dirección incorrecta','La ubicación no coincide','la dirección o ubicación no coincide. ¿Me pasás la dirección correcta o la ubicación por acá?']];
+ function texto(p,motivo){const yo=(typeof moto!=='undefined'&&moto&&moto.nombre)?moto.nombre:'el delivery';
+  let c=0;try{c=typeof dyCobro==='function'?dyCobro(p):0}catch(_){}
+  return 'Hola, soy '+yo+' de DeliveryYa 🏍️\nPedido *N.º '+(p.numero_general??'—')+' · '+(p.nombre_cliente||'')+'*'+(p.telefono_cliente?' ('+p.telefono_cliente+')':'')+(p.producto?'\n📦 '+p.producto:'')+(c?'\n💵 A cobrar: '+g(c):'')+'\n\n⚠️ '+motivo}
+ function abrir(p){const t=(typeof dyTiendas!=='undefined'&&dyTiendas.get(p.tienda_id))||null;const tel=wa(t&&t.telefono);
+  document.getElementById('dyAvisarOv')?.remove();
+  const ov=document.createElement('div');ov.id='dyAvisarOv';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+  ov.innerHTML='<div class="sh"><h3>📢 Avisar a la tienda</h3><p class="sub">N.º '+String(p.numero_general??'—').replace(/[<>&]/g,'')+' · '+String(p.nombre_cliente||'').replace(/[<>&]/g,'')+(t?' · '+String(t.nombre_comercial||t.codigo||'').replace(/[<>&]/g,''):'')+'</p>'
+   +(tel?'':'<div class="sin">Esta tienda no tiene WhatsApp cargado. Se abrirá WhatsApp para que elijas el contacto.</div>')
+   +OPC.map(o=>'<button type="button" class="op" data-op="'+o[0]+'"><span>'+o[1]+'</span><div>'+o[2]+'<small>'+o[3]+'</small></div></button>').join('')
+   +'<button type="button" class="op" data-op="otro"><span>✏️</span><div>Otro<small>Escribí qué pasa</small></div></button><div id="dyAvOtro" hidden><textarea id="dyAvTxt" maxlength="400" placeholder="Ej.: la clienta pide que vuelva después de las 18:00"></textarea><button type="button" class="env" id="dyAvEnv">📲 Enviar a la tienda</button></div>'
+   +'<button type="button" class="x" data-cancel>Cancelar</button></div>';
+  document.body.append(ov);
+  const enviar=m=>{const url='https://api.whatsapp.com/send?'+(tel?'phone='+tel+'&':'')+'text='+encodeURIComponent(texto(p,m));window.open(url,'_blank');ov.remove()};
+  ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.querySelector('[data-cancel]').onclick=()=>ov.remove();
+  ov.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{if(b.dataset.op==='otro'){ov.querySelector('#dyAvOtro').hidden=false;ov.querySelector('#dyAvTxt').focus();return}enviar(OPC.find(o=>o[0]===b.dataset.op)[4])});
+  ov.querySelector('#dyAvEnv').onclick=()=>{const v=ov.querySelector('#dyAvTxt').value.trim();if(!v){ov.querySelector('#dyAvTxt').focus();return}enviar(v)}}
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-avisar]');if(!b)return;e.preventDefault();
+  const p=(typeof dyTodos!=='undefined'?dyTodos:[]).find(x=>x.id===b.dataset.avisar);if(p)abrir(p)});
+ window.dyAvisarTienda=abrir;
+})();
+</script>
 <script id="dyRol">
 /* Lleva la cuenta al panel que le corresponde según su correo (Central, Motorista o Tienda). */
 window.dyIrAlRol=async function(db,claveActual,actual,{nuevaVaTienda=false}={}){
@@ -193,7 +236,7 @@ function dyTarjetas(a){
  const total=a.length,ok=hechos.length,pct=total?Math.round(ok*100/total):0;
  $('metrics').innerHTML='<div class="card dy-prog"><div><strong>'+ok+' de '+total+'</strong> terminadas'+(act.length?' · faltan '+act.length:' · ¡ruta completa!')+'</div><div class="dy-bar"><span style="width:'+pct+'%"></span></div></div>';
  const tarjeta=(p,i)=>{const c=dyCobro(p),num=safe(p.numero_general??'—'),nav=p.lat!=null&&p.lng!=null?'<a class="dy-i" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(p.lat+','+p.lng)+'">🧭 Ir</a>':'';
-  const ed=window.__dyEditados&&window.__dyEditados.has(p.id);return '<div class="card dy-ped'+(i===0?' dy-next':'')+(ed?' dy-edit':'')+'">'+(ed?'<div class="dy-tag" style="background:#f5a000;color:#1d1300">✏️ MODIFICADO POR LA CENTRAL · revisá cobro y datos</div>':'')+''+(i===0?'<div class="dy-tag">PRÓXIMA ENTREGA</div>':'')+'<div class="dy-top"><span class="dy-num">'+num+'</span><div class="dy-main"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">'+safe(p.direccion_cliente)+(p.referencias?' · '+safe(p.referencias):'')+'</div>'+dyInfoPedido(p)+(p.estado!=='pendiente'?'<div class="dy-inc">'+(dyEst[p.estado]||safe(p.estado))+(p.motivo_incidencia?' · '+safe(p.motivo_incidencia):'')+'</div>':'')+'</div></div><div class="dy-cobro'+(c?'':' dy-pagado')+'">'+(c?'💵 Cobrar <b>'+money(c)+'</b> <small>('+dyModal[p.modalidad_pago]+')</small>':'✔ Ya pagado · no cobrar')+'</div><div class="dy-ic">'+nav+'<a class="dy-i" href="tel:'+encodeURIComponent(p.telefono_cliente)+'">📞 Llamar</a><a class="dy-i" target="_blank" rel="noopener" href="https://wa.me/'+waPY(p.telefono_cliente)+'">💬 Chat</a>'+(p.estado==='pendiente'?'<button class="dy-i" data-edit-operativo="'+safe(p.id)+'">✏️</button>':'')+'</div><div class="dy-acc"><button class="dy-ok" data-complete="'+safe(p.id)+'">✅ Entregado</button><button class="dy-no" data-reject="'+safe(p.id)+'" aria-label="Rechazado">❌</button><button class="dy-warn" data-incident="'+safe(p.id)+'" aria-label="Incidencia">⚠️</button></div></div>'};
+  const ed=window.__dyEditados&&window.__dyEditados.has(p.id);return '<div class="card dy-ped'+(i===0?' dy-next':'')+(ed?' dy-edit':'')+'">'+(ed?'<div class="dy-tag" style="background:#f5a000;color:#1d1300">✏️ MODIFICADO POR LA CENTRAL · revisá cobro y datos</div>':'')+''+(i===0?'<div class="dy-tag">PRÓXIMA ENTREGA</div>':'')+'<div class="dy-top"><span class="dy-num">'+num+'</span><div class="dy-main"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">'+safe(p.direccion_cliente)+(p.referencias?' · '+safe(p.referencias):'')+'</div>'+dyInfoPedido(p)+(p.estado!=='pendiente'?'<div class="dy-inc">'+(dyEst[p.estado]||safe(p.estado))+(p.motivo_incidencia?' · '+safe(p.motivo_incidencia):'')+'</div>':'')+'</div></div><div class="dy-cobro'+(c?'':' dy-pagado')+'">'+(c?'💵 Cobrar <b>'+money(c)+'</b> <small>('+dyModal[p.modalidad_pago]+')</small>':'✔ Ya pagado · no cobrar')+'</div><div class="dy-ic">'+nav+'<a class="dy-i" href="tel:'+encodeURIComponent(p.telefono_cliente)+'">📞 Llamar</a><a class="dy-i" target="_blank" rel="noopener" href="https://wa.me/'+waPY(p.telefono_cliente)+'">💬 Chat</a>'+(p.estado==='pendiente'?'<button class="dy-i" data-edit-operativo="'+safe(p.id)+'">✏️</button>':'')+'</div><button type="button" class="dy-avisar" data-avisar="'+safe(p.id)+'">📢 Avisar a la tienda</button><div class="dy-acc"><button class="dy-ok" data-complete="'+safe(p.id)+'">✅ Entregado</button><button class="dy-no" data-reject="'+safe(p.id)+'" aria-label="Rechazado">❌</button><button class="dy-warn" data-incident="'+safe(p.id)+'" aria-label="Incidencia">⚠️</button></div></div>'};
  const linea=p=>{const m=dyDatos.mov.find(x=>x.pedido_id===p.id),cob=m?Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0):0;return '<div class="dy-done"><span>'+(p.estado==='entregado'?'✅':'❌')+' N.º '+safe(p.numero_general??'—')+' · '+safe(p.nombre_cliente)+'</span><b>'+(cob?money(cob):p.estado==='entregado'?'pagado':'—')+'</b></div>'};
  return (act.length?act.map(tarjeta).join(''):(total?'<div class="card dy-fin">🎉 Terminaste todas tus entregas. Andá a <b>💰 Caja</b> y tocá <b>Terminar ruta y enviar rendición</b>.</div>':'<p class="muted">Aún no tenés pedidos asignados.</p>'))+'';
 }
