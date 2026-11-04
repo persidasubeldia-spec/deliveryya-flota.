@@ -194,15 +194,15 @@ async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos'
  avisoAnterior.hidden=!activosAnteriores.length;
  if(activosAnteriores.length)avisoAnterior.textContent='⚠ '+activosAnteriores.length+' pedido(s) pendientes de otras fechas. Pedí a la Central que los reprograme para trabajar hoy; no se agregaron automáticamente a tu ruta.';
  const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',today);
-if(!orderResult.error&&orderResult.data?.length){
- const indexes=new Map(orderResult.data.map(x=>[x.pedido_id,x.posicion]));
- a.sort((x,y)=>{const xa=DY_ACT.includes(x.estado),ya=DY_ACT.includes(y.estado);
+// Orden personal persistido: independiente del N.º general de la Central.
+const indexes=new Map((orderResult.data||[]).map(x=>[x.pedido_id,x.posicion]));
+a.sort((x,y)=>{const xa=DY_ACT.includes(x.estado),ya=DY_ACT.includes(y.estado);
  if(xa!==ya)return xa?-1:1;
- return (indexes.get(x.id)??9999)-(indexes.get(y.id)??9999)||(x.numero_general??9999)-(y.numero_general??9999)});
-}
+ return (indexes.get(x.id)??999999)-(indexes.get(y.id)??999999)||(x.numero_general??999999)-(y.numero_general??999999)||String(x.id).localeCompare(String(y.id))});
 const ordenActivos=a.filter(p=>DY_ACT.includes(p.estado));
 const idsActivos=new Set(ordenActivos.map(p=>p.id));
-if(motoOrdenRuta.length&&motoOrdenRuta.some(id=>!idsActivos.has(id))){motoGeoRuta=null;motoInicioRuta=null;motoOrdenRuta=[]}
+// Si entran pedidos nuevos o desaparecen paradas, la línea vieja deja de ser válida.
+if(motoOrdenRuta.length&&(motoOrdenRuta.length!==idsActivos.size||motoOrdenRuta.some(id=>!idsActivos.has(id)))){motoGeoRuta=null;motoInicioRuta=null;motoOrdenRuta=[]}
 window.dyMotoOrdenLocal=new Map(ordenActivos.map((p,i)=>[p.id,i+1]));
 $('optimizeMine').onclick=async()=>{
 const btn=$('optimizeMine'),msg=$('optimizeMessage');
@@ -275,7 +275,7 @@ if(map){
   const near=points.filter(q=>Math.abs(Number(q.lat)-lat)<0.00065&&Math.abs(Number(q.lng)-lng)<0.00075);
   const index=near.findIndex(q=>q.id===p.id),angle=2*Math.PI*index/near.length,radius=0.00028+(near.length>8?0.00012:0);
   const shown=near.length<2?{lat,lng}:{lat:lat+radius*Math.cos(angle),lng:lng+radius*Math.sin(angle)/Math.max(.2,Math.cos(lat*Math.PI/180))};
-  const label=DY_ACT.includes(p.estado)?String(window.dyMotoOrdenLocal?.get(p.id)??points.filter(x=>DY_ACT.includes(x.estado)).findIndex(v=>v.id===p.id)+1):p.estado==='entregado'?'✓':'×',estadoTxt={entregado:'✅ Entregado',rechazado:'❌ Rechazado',no_responde:'⚠️ No responde',no_recibio:'⚠️ No recibió',pasa_manana:'📅 Pasa mañana',pendiente:'Pendiente'}[p.estado]||p.estado,desc='Parada '+label+' · Central N.º '+(p.numero_general??'—')+' — '+p.nombre_cliente+' · '+estadoTxt,colorEstado=p.estado==='entregado'?'#16a34a':p.estado==='rechazado'?'#dc2626':['no_responde','no_recibio'].includes(p.estado)?'#f59e0b':p.estado==='pasa_manana'?'#7c3aed':'#1765ba';
+  const label=DY_ACT.includes(p.estado)?String(window.dyMotoOrdenLocal?.get(p.id)??(points.filter(x=>DY_ACT.includes(x.estado)).findIndex(v=>v.id===p.id)+1)):p.estado==='entregado'?'✓':'×',estadoTxt={entregado:'✅ Entregado',rechazado:'❌ Rechazado',no_responde:'⚠️ No responde',no_recibio:'⚠️ No recibió',pasa_manana:'📅 Pasa mañana',pendiente:'Pendiente'}[p.estado]||p.estado,desc='Parada '+label+' · Central N.º '+(p.numero_general??'—')+' — '+p.nombre_cliente+' · '+estadoTxt,colorEstado=p.estado==='entregado'?'#16a34a':p.estado==='rechazado'?'#dc2626':['no_responde','no_recibio'].includes(p.estado)?'#f59e0b':p.estado==='pasa_manana'?'#7c3aed':'#1765ba';
   if(googleMap){
     const m=new google.maps.Marker({map,position:shown,title:desc,label:{text:p.estado==='entregado'?'✓':label,color:'#fff',fontWeight:'bold'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:19,fillColor:colorEstado,fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
     const info=new google.maps.InfoWindow({content:'<strong>'+safe(desc)+'</strong>'});
