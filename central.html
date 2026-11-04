@@ -399,7 +399,7 @@ document.getElementById('verRendDia').onclick=()=>{rdEstado.fecha=filtroDia;page
 }catch(e){const b=document.getElementById('valFin');if(v===filtroVersion&&b)b.textContent='No se pudieron consultar los movimientos: '+e.message}
 }
 
-const pages=['Inicio','Pedidos','Rutas','Motoristas','Tiendas','Rendiciones','Finanzas','Usuarios y socios'];function table(head,rows){return '<div class="card scroll"><table><thead><tr>'+head.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}function summary(name,val){return '<div class="card"><div class="muted">'+name+'</div><div class="number">'+val+'</div></div>'}
+const pages=['Inicio','Pedidos','Rutas','Seguimiento','Motoristas','Tiendas','Rendiciones','Finanzas','Usuarios y socios'];function table(head,rows){return '<div class="card scroll"><table><thead><tr>'+head.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}function summary(name,val){return '<div class="card"><div class="muted">'+name+'</div><div class="number">'+val+'</div></div>'}
 function page(n){let html='<h2>'+n+'</h2>';if(n==='Rendiciones')html+='<div id="rendRoot"></div>';if(n==='Inicio'){
  const today=filtroDia;
  const todays=orders.filter(o=>o.estado!=='cancelado'&&diaPY(o.created_at)===today);
