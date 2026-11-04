@@ -576,9 +576,12 @@ document.addEventListener('submit',e=>{if(e.target&&e.target.id==='storeForm')se
  $('dyTurno').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('turnoPedido').value=b.dataset.v;$('turnoPedido').dispatchEvent(new Event('change',{bubbles:true}));syncTurno();limpiarErr('turno')});
  // Barra
  function barra(){const pay=(document.querySelector('input[name="payment"]:checked')||{}).value;const city=$('city').value;const tot=$('sumTotal').textContent.trim();
-  $('dyTot').textContent=city?tot:'—';
-  $('dyDet').textContent=!city?'Elegí la localidad':pay==='todo_pagado'?'Nada que cobrar (todo pagado a la tienda)':pay==='producto_pagado'?'Solo envío '+$('sumShipping').textContent+' (mercadería ya pagada)':'Mercadería '+$('sumGoods').textContent+' + envío '+$('sumShipping').textContent;
-  const falta=!$('customer').value.trim()||!$('phone').value.trim()||!city||!$('turnoPedido').value||!$('goods').value.trim()||(manualDeliveryStore()&&$('shipping').value.trim()==='')||!coordsTxt()&&!$('mapLink').value.trim();cb.classList.toggle('dy-incompleto',falta)}
+  const manual=manualDeliveryStore(),envio=manual?parseGs($('shipping').value):tariff(city);
+  const envioValido=Number.isSafeInteger(envio)&&envio>=0&&envio<=1000000000;
+  const lugarValido=manual||!!city;
+  $('dyTot').textContent=lugarValido&&envioValido?tot:'—';
+  $('dyDet').textContent=!lugarValido?'Elegí la localidad':!envioValido?(manual?'Ingresá el precio manual del delivery':'Elegí una localidad con tarifa disponible'):pay==='todo_pagado'?'Nada que cobrar (todo pagado a la tienda)':pay==='producto_pagado'?'Solo envío '+$('sumShipping').textContent+' (mercadería ya pagada)':'Mercadería '+$('sumGoods').textContent+' + envío '+$('sumShipping').textContent;
+  const falta=!$('customer').value.trim()||!$('phone').value.trim()||!lugarValido||!envioValido||!$('turnoPedido').value||!$('goods').value.trim()||!coordsTxt()&&!$('mapLink').value.trim();cb.classList.toggle('dy-incompleto',falta)}
  ['input','change'].forEach(ev=>f.addEventListener(ev,()=>setTimeout(barra,0)));
  new MutationObserver(barra).observe(f.querySelector('.summary')||f,{childList:true,characterData:true,subtree:true});
  f.addEventListener('reset',()=>setTimeout(()=>{if(!$('mapLink').value.trim()){const av=$('dyMapaAviso');if(av)av.remove()}editando=false;pintarLoc();syncTurno();barra();limpiarErr()},0));
