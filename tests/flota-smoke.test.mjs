@@ -84,3 +84,18 @@ test('Android valida sesión y permisos antes de abrir el panel de la tienda',()
 test('Recuperación desde Tienda usa formulario específico',()=>{
  assert.ok(tienda.includes("resetPasswordForEmail(email,{redirectTo:location.origin+'/tienda-registro.html'})"),'Destino de recuperación incorrecto');
 });
+
+test('Rendición oficial separa motociclista, tienda y administración',()=>{
+ for(const token of [
+  "rdPdfMotoCentral","async function rdPdf(t,fecha)","rdPdfAdministracion",
+  "flota_resumen_ajustes_tienda","flota_confirmar_compensacion_tienda",
+  "flota_registrar_pago_tienda","rdAuditar(d)",
+  "Rechazos pendientes (no descontados)","PROVISIONAL / NO LIQUIDADO",
+  "Compensaciones de rechazo confirmadas (-)",
+  "if(audit.errores.length)throw Error('Conciliación inconsistente:"
+ ]) assert.ok(central.includes(token),'Falta norma de rendición: '+token);
+ const tiendaPdf=central.slice(central.indexOf('async function rdPdf(t,fecha)'),central.indexOf('</script>',central.indexOf('async function rdPdf(t,fecha)')));
+ for(const interno of ["Retiene motorista 75%","comision_empresa","comision_motorista","Porcentaje de ganancia","Entrega a central"]){
+  assert.ok(!tiendaPdf.includes(interno),'No exponer '+interno+' en informe a tienda');
+ }
+});
