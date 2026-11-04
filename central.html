@@ -1202,7 +1202,11 @@ async function rdPdf(t,fecha){
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
  if(!window.jspdf?.jsPDF)throw Error('La libreria PDF no esta disponible');
- const audit=rdAuditar(rdEstado.datos);if(audit.errores.length)throw Error('Conciliación inconsistente: '+audit.errores.join('; '));
+ const datosAudit=rdEstado.datos?.fecha===fecha?rdEstado.datos:await rdCargar(fecha);
+ const audit=rdAuditar(datosAudit);if(audit.errores.length)throw Error('Conciliación inconsistente: '+audit.errores.join('; '));
+ const tiendaOficial=rdTiendas(datosAudit).find(g=>g.tienda.id===t.tienda?.id);
+ if(!tiendaOficial)throw Error('La tienda solicitada no tiene movimientos verificables en esta fecha');
+ t=tiendaOficial;
  const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
  if(typeof doc.autoTable!=='function')throw Error('La tabla PDF no esta disponible');
  const W=297,H=210,M=10,inner=W-M*2;
@@ -1281,7 +1285,7 @@ async function rdPdf(t,fecha){
   const deuda=est==='rechazado'&&linea?linea.debeTienda:0;
   const rr=t.rechazos.get(p.id);
   const cobroRechazo=est==='rechazado'&&rr?.responsable_pago==='tienda'?Number(rr.importe_pendiente||0):0;
-  const compensado=(rdEstado.datos?.compensaciones||[]).some(c=>c.pedido_id===p.id);
+  const compensado=datosAudit.compensaciones.some(c=>c.pedido_id===p.id);
   const rider=drivers.find(d=>d.id===p.motorista_id)?.nombre||'Sin motorista';
   const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE')):motivo);
   return [
