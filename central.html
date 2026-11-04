@@ -1036,10 +1036,10 @@ async function rdPdf(t,fecha){
  const tonos={
   entregado:{nombre:'Entregado',rgb:[228,249,233],color:[26,112,58]},
   rechazado:{nombre:'Rechazado',rgb:[253,232,232],color:[158,35,42]},
-  no_responde:{nombre:'No responde',rgb:[255,247,213],color:[145,97,11]},
-  no_recibio:{nombre:'No recibio',rgb:[255,237,215],color:[160,75,21]},
+  no_responde:{nombre:'No responde',rgb:[255,237,213],color:[154,52,18]},
+  no_recibio:{nombre:'No recibio',rgb:[241,245,249],color:[51,65,85]},
   pasa_manana:{nombre:'Pasa manana',rgb:[226,240,255],color:[25,82,158]},
-  pendiente:{nombre:'Pendiente',rgb:[239,241,244],color:[74,85,102]},
+  pendiente:{nombre:'Pendiente',rgb:[254,243,199],color:[146,64,14]},
   cancelado:{nombre:'Cancelado',rgb:[224,227,233],color:[64,72,89]}
  };
  const orden=['entregado','rechazado','no_responde','no_recibio','pasa_manana','pendiente','cancelado'];
@@ -1070,7 +1070,7 @@ async function rdPdf(t,fecha){
  function encabezado(primera){
   doc.setFillColor(24,52,84);doc.rect(0,0,W,23,'F');
   txt('DELIVERYYA FLOTA',M,9,14,true,[255,255,255]);
-  txt('Resumen de entregas y rendicion',M,16,10,false,[227,236,247]);
+  txt('RENDICION A LA TIENDA · SOLO INFORMACION DE LA TIENDA',M,16,9,false,[227,236,247]);
   doc.setFillColor(255,255,255);doc.roundedRect(W-90,4,80,14,2,2,'F');
   txt((codigo+' · '+nombre).slice(0,46),W-86,13,10,true,[24,52,84]);
   if(primera){
@@ -1093,26 +1093,29 @@ async function rdPdf(t,fecha){
   txt(k==='total'?unicos.length:(conteo[k]||0),x+2,yCard+13,14,true);
  });
  txt('Detalle de pedidos  ·  Estado actual  ·  Movimiento = asiento financiero registrado',M,70,9,true);
- const rows=unicos.map(p=>{
+ const rows=unicos.map((p,i)=>{
   const mov=movPorPedido.get(p.id)||[],est=p.estado;
   let motivo=String(p.motivo_incidencia||p.observaciones||'').trim();
   if(est==='pasa_manana'&&!motivo)motivo='Verificar traslado al dia siguiente';
   if(est==='no_responde'&&!motivo)motivo='Sin respuesta registrada';
   if(!motivo)motivo='—';
+  const rec=mov.reduce((n,m)=>n+Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0),0);
+  const linea=mov.length?rdLineaTienda(mov[0],p,(t.rechazos||new Map()).get(p.id)):null;
+  const deuda=est==='rechazado'&&linea?linea.debeTienda:0;
+  const observacion=est==='rechazado'?(motivo+' · Envio pendiente de tienda: '+rdGs(deuda)):motivo;
   return [
-    String(p.numero_general??'—'),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
-    rdGs(p.precio_mercaderia||0),rdGs(p.precio_delivery||0),
-    mov.length?'Si':'No',acciones[est]||'Consultar con la flota',motivo
+    String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
+    rdGs(p.precio_mercaderia||0),rdGs(p.precio_delivery||0),rdGs(rec),observacion
   ];
  });
  doc.autoTable({
   startY:74,margin:{top:37,left:M,right:M,bottom:17},
-  head:[['N.º','Cliente','Producto','Estado','Mercaderia','Envio','Mov.','Accion sugerida','Observacion / motivo']],
-  body:rows.length?rows:[['—','Sin pedidos en este dia','—','—','—','—','No','—','—']],
+  head:[['N.º','Cliente','Producto','Estado','Mercaderia','Envio','Cobrado','Observacion / motivo']],
+  body:rows.length?rows:[['—','Sin pedidos en este dia','—','—','—','—','—','—']],
   theme:'grid',showHead:'everyPage',rowPageBreak:'avoid',
   styles:{font:'helvetica',fontSize:7.4,cellPadding:2,overflow:'linebreak',valign:'middle',lineColor:[222,230,239],lineWidth:0.15,textColor:[31,49,70]},
   headStyles:{fillColor:[24,52,84],textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
-  columnStyles:{0:{cellWidth:10},1:{cellWidth:29},2:{cellWidth:28},3:{cellWidth:24},4:{cellWidth:27,halign:'right'},5:{cellWidth:23,halign:'right'},6:{cellWidth:13,halign:'center'},7:{cellWidth:52},8:{cellWidth:71}},
+  columnStyles:{0:{cellWidth:11},1:{cellWidth:35},2:{cellWidth:38},3:{cellWidth:28},4:{cellWidth:30,halign:'right'},5:{cellWidth:27,halign:'right'},6:{cellWidth:30,halign:'right'},7:{cellWidth:78}},
   didParseCell(data){
    if(data.section!=='body'||!rows.length)return;
    const p=unicos[data.row.index],ton=tonos[p?.estado];
@@ -1129,7 +1132,7 @@ async function rdPdf(t,fecha){
  let y=(doc.lastAutoTable?.finalY||74)+8;
  const minimo=66;
  if(y+minimo>H-16){doc.addPage();encabezado(false);y=42}
- txt('Resumen financiero (solo movimientos registrados)',M,y,11,true);y+=7;
+ txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
  const financiero=[
   ['Mercaderia cobrada para la tienda (+)',t.merc],
   ['Envios que debe la tienda (-)',t.debe],
@@ -1154,14 +1157,14 @@ async function rdPdf(t,fecha){
   txt(linea,M+3,y,8.5);y+=5;
  }
  if(y>H-28){doc.addPage();encabezado(false);y=42}
- txt('Estados: verde entregado | rojo rechazado | amarillo no responde | naranja no recibio | azul pasa manana | gris pendiente/cancelado',M,y+5,7.5);
+ txt('Estados: VERDE entregado | ROJO rechazado | AMARILLO pendiente | AZUL pasa manana | NARANJA no responde | GRIS no recibio',M,y+5,7.5);
  const pages=doc.getNumberOfPages();
  for(let page=1;page<=pages;page++){
   doc.setPage(page);doc.setDrawColor(219,227,239);doc.line(M,H-12,W-M,H-12);
   txt('Estados actuales: no reconstruye el historial de cambios. Documento informativo, no factura ni comprobante de pago.',M,H-8,7);
   doc.setFontSize(7);doc.setTextColor(90,106,125);doc.text('Pagina '+page+' de '+pages,W-M,H-8,{align:'right'});
  }
- const pdfName='Resumen_Entregas_Rendicion_'+codigo.replace(/[^a-z0-9_-]/gi,'')+'_'+fecha+'.pdf';
+ const pdfName='Rendicion_Tienda_'+codigo.replace(/[^a-z0-9_-]/gi,'')+'_'+fecha+'.pdf';
  return new File([doc.output('blob')],pdfName,{type:'application/pdf'});
 }
 
