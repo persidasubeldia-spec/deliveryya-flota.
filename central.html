@@ -1708,6 +1708,57 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
    }).join('')||'<p class="muted">No hay pedidos asignados para la fecha o motorista elegidos.</p>';
      list.querySelectorAll('[data-track-order]').forEach(b=>b.onclick=()=>{const p=base.find(x=>x.id===b.dataset.trackOrder);if(p&&valid(p)&&state.map){state.map.panTo({lat:Number(p.lat),lng:Number(p.lng)});state.map.setZoom(14)}});
    }
+   // Verificamos que la geometría corresponda exactamente a los pedidos con GPS
+   // todavía activos. Nunca dibujar el trayecto viejo después de nuevas asignaciones.
+   const rutasValidas=new Map(),avisos=[];
+   const porMoto=new Map();
+   base.forEach(p=>{if(!porMoto.has(p.motorista_id))porMoto.set(p.motorista_id,[]);porMoto.get(p.motorista_id).push(p)});
+   for(const [id,items] of porMoto){
+     const d=state.motos.find(m=>m.id===id);
+     const nombre=d?.nombre||'Motorista';
+     const record=state.recorridos.find(r=>r.motorista_id===id);
+     const activosGps=items.filter(p=>active.includes(p.estado)&&valid(p));
+     const idsActuales=new Set(activosGps.map(p=>String(p.id)));
+     const idsGuardados=(record?.pedido_ids||[]).map(String);
+     const geometry=record?.coordenadas;
+     const esGeometriaValida=Array.isArray(geometry)&&geometry.length>=2&&geometry.every(c=>Array.isArray(c)&&c.length===2&&
+       Number.isFinite(Number(c[0]))&&Number.isFinite(Number(c[1]))&&Number(c[0])>=-64&&Number(c[0])<=-53&&Number(c[1])>=-29&&Number(c[1])<=-18);
+     const corresponde=idsGuardados.length===idsActuales.size&&idsGuardados.every(x=>idsActuales.has(x));
+     if(record&&corresponde&&esGeometriaValida){
+       rutasValidas.set(id,record);
+       avisos.push('✅ '+nombre+': recorrido vial confirmado '+fmtTime(record.confirmado_en)+' · versión '+record.version);
+     }else if(!record){
+       avisos.push('⚪ '+nombre+': este motorista todavía no confirmó un recorrido optimizado');
+     }else if(!corresponde){
+       avisos.push('⚠️ '+nombre+': hay entregas nuevas o estados cambiados. El motorista todavía no actualizó su recorrido; no se muestra una línea antigua');
+     }else{
+       avisos.push('⚠️ '+nombre+': no se pudo recuperar correctamente la geometría vial');
+     }
+   }
+   const info=$('dyTrackRouteInfo');
+   if(info)info.textContent=state.recorridoError?
+     '⚠️ No se pudo consultar el recorrido optimizado: '+state.recorridoError+'. Los pedidos siguen disponibles.':
+     (avisos.length?avisos.join('  |  '):'No hay recorridos asignados para la fecha seleccionada.');
+   // Reutilizar cada polilínea si la versión no cambió. Retirar la anterior
+   // inmediatamente si cambian los pedidos, la selección o la optimización.
+   const idsVigentes=new Set();
+   if(state.map){
+     for(const [id,record] of rutasValidas){
+       idsVigentes.add(id);
+       const version=String(record.version)+'-'+String(record.confirmado_en);
+       const anterior=state.paths.get(id);
+       if(anterior&&anterior.version===version)continue;
+       if(anterior){anterior.line.setMap(null);state.paths.delete(id)}
+       const camino=record.coordenadas.map(c=>({lat:Number(c[1]),lng:Number(c[0])}));
+       const polyline=new google.maps.Polyline({map:state.map,path:camino,
+         strokeColor:state.driver?'#2563eb':ownColor(id),strokeWeight:5,strokeOpacity:.85,
+         zIndex:2,geodesic:false,clickable:false});
+       state.paths.set(id,{version,line:polyline});
+     }
+   }
+   for(const [id,p] of state.paths){
+     if(!idsVigentes.has(id)){p.line.setMap(null);state.paths.delete(id)}
+   }
    if(!state.map)return;
    state.pins.forEach(m=>{try{m.setMap(null)}catch(e){}});state.pins=[]
    const bounds=[];
