@@ -293,6 +293,33 @@ const client=supabase.createClient('https://sxhuvjvbqkovivcbisrn.supabase.co','s
 async function cargarTodosLosPedidos(empresaId){const resultado=[];const tamano=500;for(let desde=0;desde<200000;desde+=tamano){const {data,error}=await client.from('pedidos').select('*').eq('empresa_id',empresaId).order('id',{ascending:true}).range(desde,desde+tamano-1);if(error)throw error;resultado.push(...(data||[]));if(!data||data.length<tamano)return resultado;}throw Error('La consulta alcanzó el límite de seguridad. No se mostrará una lista incompleta.');}
 
 let filtroDia=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}),filtroVersion=0;
+/* Número visible de parada: independiente del número histórico de pedido.
+   Cuando el motorista optimiza, usamos su orden personal persistido. */
+let dyMotoPosiciones=new Map(),dyMotoPosFecha='';
+async function dyActualizarOrdenesMoto(fecha){
+ if(!account||!fecha)return;
+ const {data,error}=await client.rpc('flota_ordenes_motoristas_fecha',{p_fecha:fecha});
+ if(error){console.warn('No se pudo actualizar el orden personal de las motos:',error.message);return}
+ dyMotoPosiciones=new Map((data||[]).map(p=>[p.pedido_id,Number(p.posicion)]));dyMotoPosFecha=fecha;
+}
+window.dyActualizarOrdenesMoto=dyActualizarOrdenesMoto;
+function dyOrdenMotorista(lista,fecha){
+ const activos=[...lista];
+ const map=dyMotoPosFecha===fecha?dyMotoPosiciones:new Map();
+ return activos.sort((a,b)=>(map.get(a.id)??999999)-(map.get(b.id)??999999)||(a.numero_general??999999)-(b.numero_general??999999)||String(a.id).localeCompare(String(b.id)));
+}
+function dyPosicionMapa(lista,fecha){
+ const result=new Map();
+ const grupos=new Map();
+ for(const p of lista){const k=p.motorista_id||'_general';if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(p)}
+ for(const [k,arr] of grupos){
+   const ordered=k==='_general'?[...arr].sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999)):dyOrdenMotorista(arr,fecha);
+   ordered.forEach((p,i)=>result.set(p.id,i+1));
+ }
+ return result;
+}
+window.dyPosicionMapa=dyPosicionMapa;
+
 const diaPY=t=>new Date(t).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
 function cambioDia(n){const d=new Date(filtroDia+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);filtroDia=d.toISOString().slice(0,10);actualizarDia()}
 function actualizarDia(){window.dispatchEvent(new Event('dy-fecha-cambio'));rdEstado.fecha=filtroDia;if(document.getElementById('filtroFin')){if(document.getElementById('newOrdersPanel'))page('Inicio');else mostrarDia()}else if(document.getElementById('rendRoot'))dyRendiciones()}
