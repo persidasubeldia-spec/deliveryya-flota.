@@ -238,12 +238,63 @@ try{
  if(json.code!=='Ok'||!json.trips?.length||json.waypoints?.length!==pending.length+1)throw Error('No se pudo calcular el recorrido vial.');
  const candidatos=pending.map((p,i)=>({id:p.id,order:json.waypoints[i+1]?.waypoint_index}));
  if(candidatos.some(x=>!Number.isInteger(x.order)||x.order<1||x.order>pending.length))throw Error('El optimizador devolvió posiciones inválidas');
- const ids=candidatos.sort((x,y)=>x.order-y.order).map(p=>p.id);
+ let ids=candidatos.sort((x,y)=>x.order-y.order).map(p=>p.id);
  if(ids.some(id=>!id)||new Set(ids).size!==pending.length)throw Error('Orden incompleto: no se guardó ningún cambio.');
+ // OSRM se conserva como respaldo. Google Routes Pro se intenta una sola vez,
+ // bajo reserva de cupo preventivo en Supabase, sin consultas automáticas repetidas.
+ let proveedor='OSRM (respaldo)',coordenadas=json.trips[0]?.geometry?.coordinates;
+ let distanciaM=Number(json.trips[0]?.distance)||0,duracionMs=(Number(json.trips[0]?.duration)||0)*1000;
+ let advertenciaGoogle='';
+ if(window.google?.maps?.importLibrary&&pending.length<=26&&googleMap){
+  const reserva=await sb.rpc('flota_reservar_optimizacion_google');
+  if(reserva.error){advertenciaGoogle='No se pudo comprobar el cupo Google. Se utiliza OSRM.'}
+  else if(!reserva.data?.autorizado){advertenciaGoogle=reserva.data?.motivo||'Cupo preventivo agotado. Se utiliza OSRM.'}
+  else{
+   try{
+    msg.textContent='Comparando y mejorando el recorrido con Google Routes…';
+    const {Route}=await google.maps.importLibrary('routes');
+    if(!Route||typeof Route.computeRoutes!=='function')throw Error('Google Routes API no disponible');
+    // OSRM propone un último destino para permitir un recorrido abierto.
+    // Google optimiza por calles y tiempos el orden de todas las otras visitas.
+    const ultima=ids[ids.length-1],destino=pending.find(p=>p.id===ultima);
+    const intermedias=pending.filter(p=>p.id!==ultima);
+    const gps=p=>({lat:Number(p.lat),lng:Number(p.lng)});
+    const respuesta=await Promise.race([
+      Route.computeRoutes({
+       origin:{lat:startLat,lng:startLng},destination:gps(destino),
+       intermediates:intermedias.map(p=>({location:gps(p)})),
+       travelMode:'DRIVING', optimizeWaypointOrder:true,
+       fields:['optimizedIntermediateWaypointIndices','path','distanceMeters','durationMillis'],
+       polylineQuality:'HIGH_QUALITY'
+      }),
+      new Promise((_,reject)=>setTimeout(()=>reject(Error('Google tardó más de 18 segundos')),18000))
+    ]);
+    const ruta=respuesta.routes?.[0],indices=ruta?.optimizedIntermediateWaypointIndices;
+    if(!Array.isArray(indices)||indices.length!==intermedias.length||new Set(indices).size!==intermedias.length||
+      indices.some(i=>!Number.isInteger(i)||i<0||i>=intermedias.length))throw Error('Google devolvió un orden incompleto');
+    const nuevosIds=indices.map(i=>intermedias[i].id).concat(ultima);
+    const camino=(ruta.path||[]).map(p=>{
+      const lat=typeof p.lat==='function'?p.lat():p.lat,lng=typeof p.lng==='function'?p.lng():p.lng;
+      return [Number(lng),Number(lat)];
+    });
+    if(camino.length<2||camino.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))
+      throw Error('Google no devolvió el recorrido por calles');
+    if(!Number.isFinite(Number(ruta.distanceMeters))||!Number.isFinite(Number(ruta.durationMillis)))
+      throw Error('Google no devolvió distancia o duración válidas');
+    ids=nuevosIds;coordenadas=camino;
+    distanciaM=Number(ruta.distanceMeters);duracionMs=Number(ruta.durationMillis);
+    proveedor='Google Routes (Pro)';
+   }catch(googleError){
+    advertenciaGoogle='Google no pudo optimizar: '+(googleError?.message||'servicio no disponible')+'. Se conserva OSRM.';
+    console.warn('Optimizador Google no disponible, usando respaldo:',googleError);
+   }
+  }
+ }
+ if(ids.some(id=>!id)||new Set(ids).size!==pending.length)throw Error('El optimizador perdió pedidos; ruta original conservada.');
  const preview=ids.map((id,i)=>(i+1)+'ª parada · Central N.º '+(a.find(p=>p.id===id)?.numero_general??'—')+' — '+(a.find(p=>p.id===id)?.nombre_cliente??'')).join('\\n');
- if(!confirm('Recorrido desde tu ubicación actual ('+Math.round(pos.coords.accuracy)+' m de precisión).\\n'+preview+(missing.length?'\\n'+missing.length+' pedido(s) sin GPS quedan fuera de la optimización.':'')+'\\nLos números originales no cambian. ¿Guardar este orden?')){msg.textContent='Orden anterior conservado.';return}
+ const info='Motor: '+proveedor+' · ≈ '+(distanciaM/1000).toFixed(1)+' km · ≈ '+Math.round(duracionMs/60000)+' min (sin tiempos de entrega).';
+ if(!confirm('Recorrido desde tu ubicación actual ('+Math.round(pos.coords.accuracy)+' m de precisión).\\n'+info+(advertenciaGoogle?'\\n'+advertenciaGoogle:'')+'\\n'+preview+(missing.length?'\\n'+missing.length+' pedido(s) sin GPS quedan fuera de la optimización.':'')+'\\nLos números originales no cambian. ¿Guardar este orden?')){msg.textContent='Orden anterior conservado.';return}
  msg.textContent='Guardando orden individual…';
- const coordenadas=json.trips[0]?.geometry?.coordinates;
  if(!Array.isArray(coordenadas)||coordenadas.length<2)throw Error('El servicio no devolvió geometría vial válida; no se guardó el orden.');
  const {data:version,error}=await sb.rpc('motorista_guardar_recorrido',{
   p_pedidos:ids,p_coordenadas:coordenadas,p_origen_lat:startLat,p_origen_lng:startLng
@@ -252,7 +303,7 @@ try{
  motoGeoRuta=coordenadas;
  motoInicioRuta=[startLat,startLng];motoOrdenRuta=ids.slice();lastMapSignature='';
  await load();
- msg.textContent='Recorrido confirmado y guardado en la Central (versión '+version+'). Podés optimizar nuevamente cuando quieras.';
+ msg.textContent='Recorrido de '+proveedor+' confirmado y guardado en la Central (versión '+version+'). '+info+' Podés optimizar nuevamente cuando quieras.';
 }catch(e){msg.textContent='No se cambió tu ruta. '+(e.name==='AbortError'?'El servicio de calles tardó demasiado; usá Navegar en cada pedido y reintentá luego.':e.code===1?'Activá el permiso GPS del teléfono.':e.message||'No se pudo optimizar.');}
 finally{btn.disabled=false;}
 };
