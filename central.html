@@ -1024,6 +1024,65 @@ async function dyRendiciones(){
  pintar();
 }
 function rdScript(src){return new Promise((ok,fail)=>{if(document.querySelector('script[src="'+src+'"]'))return ok();const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>fail(Error('sin conexión para generar PDF'));document.head.append(s)})}
+async function rdPdfMotoCentral(r,d){
+ await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+ await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+ if(!window.jspdf?.jsPDF)throw Error('PDF no disponible');
+ const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+ const W=297,H=210,M=12,gs=n=>'Gs. '+Math.round(Number(n)||0).toLocaleString('es-PY');
+ const ink=[24,48,76],states={
+ entregado:{label:'ENTREGADO',bg:[220,252,231],fg:[22,101,52]},
+ rechazado:{label:'RECHAZADO',bg:[254,226,226],fg:[153,27,27]},
+ pendiente:{label:'PENDIENTE',bg:[254,243,199],fg:[146,64,14]},
+ pasa_manana:{label:'PASA MANANA',bg:[219,234,254],fg:[30,64,175]},
+ no_responde:{label:'NO RESPONDE',bg:[255,237,213],fg:[154,52,18]},
+ no_recibio:{label:'NO RECIBIO',bg:[241,245,249],fg:[51,65,85]}};
+ function txt(v,x,y,size=9,bold=false,c=ink){doc.setTextColor(...c);doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);doc.text(String(v??''),x,y)}
+ function header(first){doc.setFillColor(20,49,86);doc.rect(0,0,W,23,'F');
+ txt('DELIVERYYA FLOTA',M,9,14,true,[255,255,255]);
+ txt('RENDICION INTERNA DE MOTORISTA · CENTRAL',M,16,9,false,[225,238,250]);
+ txt(String(r.x.nombre||'').slice(0,37),W-M,12,11,true,[255,255,255]);
+ txt('Fecha: '+d.fecha.split('-').reverse().join('/')+' · '+(first?'Generado: '+new Date().toLocaleString('es-PY',{timeZone:'America/Asuncion'}):'Continuacion'),M,32,9);
+ }
+ const mv=d.movs.filter(m=>m.motorista_id===r.x.id),ledger=new Map(),rej=d.rech instanceof Map?d.rech:new Map();
+ for(const m of mv){if(!ledger.has(m.pedido_id))ledger.set(m.pedido_id,[]);ledger.get(m.pedido_id).push(m)}
+ const vistos=new Set(),ped=[];
+ for(const p of d.porPedido.values()){
+  if(p.motorista_id!==r.x.id)continue;
+  const f=routes.find(x=>x.id===p.ruta_general_id)?.fecha;
+  const creado=new Date(p.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
+  if(f===d.fecha||creado===d.fecha||ledger.has(p.id)){if(!vistos.has(p.id)){ped.push(p);vistos.add(p.id)}}
+ }
+ for(const m of mv){const p=d.porPedido.get(m.pedido_id);if(p&&!vistos.has(p.id)){ped.push(p);vistos.add(p.id)}}
+ ped.sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999)||String(a.created_at).localeCompare(String(b.created_at))||String(a.id).localeCompare(String(b.id)));
+ const sum=(array,key)=>array.reduce((n,x)=>n+Number(x[key]||0),0);
+ const ef=sum(mv,'efectivo_cobrado'),tr=sum(mv,'transferencia_cobrada');
+ const cm=sum(mv,'comision_motorista'),ce=sum(mv,'comision_empresa');
+ const comEntrega=sum(mv.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado'),'comision_motorista');
+ const rendir=r.c?Number(r.c.a_rendir_esperado):r.x.modalidad_liquidacion==='retener_comision'?Math.max(0,ef-Math.min(ef,comEntrega)):ef;
+ const counts={};for(const p of ped)counts[p.estado]=(counts[p.estado]||0)+1;
+ header(true);
+ const kpis=[['PEDIDOS',ped.length],['ENTREGADOS',counts.entregado||0],['RECHAZADOS',counts.rechazado||0],['SIN FINALIZAR',ped.length-(counts.entregado||0)-(counts.rechazado||0)-(counts.cancelado||0)]];
+ kpis.forEach(([n,v],i)=>{const x=M+i*69.4;doc.setFillColor(...[[230,240,255],[220,252,231],[254,226,226],[254,243,199]][i]);doc.roundedRect(x,38,66,18,2,2,'F');txt(n,x+3,44,8,true);txt(v,x+3,52,13,true)});
+ txt('DETALLE DE PEDIDOS · NUMERACION CORRELATIVA DEL INFORME',M,66,9,true);
+ const rows=ped.map((p,i)=>{const mm=ledger.get(p.id)||[],rr=rej.get(p.id),observacion=p.estado==='rechazado'?(p.motivo_incidencia||rr?.motivo||'Rechazo')+' · Sin cobrar '+gs(rr?.importe_pendiente||0)+' ('+(rr?.responsable_pago||'por definir')+')':(p.motivo_incidencia||p.observaciones||'—');return [String(i+1),p.nombre_cliente||'—',stores.find(t=>t.id===p.tienda_id)?.codigo||'—',states[p.estado]?.label||p.estado,gs(p.precio_mercaderia),gs(p.precio_delivery),gs(sum(mm,'efectivo_cobrado')+sum(mm,'transferencia_cobrada')),gs(sum(mm,'comision_motorista')),observacion]});
+ doc.autoTable({startY:70,margin:{left:M,right:M,top:37,bottom:17},head:[['N.º','Cliente','Tienda','Estado','Mercaderia','Envio','Cobrado','Com. moto','Observaciones']],body:rows.length?rows:[['—','Sin pedidos','—','—','—','—','—','—','—']],theme:'grid',showHead:'everyPage',rowPageBreak:'avoid',styles:{fontSize:7.1,cellPadding:2,lineColor:[220,229,239],lineWidth:.15,overflow:'linebreak',valign:'middle',textColor:ink},headStyles:{fillColor:[20,49,86],textColor:[255,255,255],fontStyle:'bold'},columnStyles:{0:{cellWidth:11},1:{cellWidth:30},2:{cellWidth:18},3:{cellWidth:29},4:{cellWidth:30,halign:'right'},5:{cellWidth:26,halign:'right'},6:{cellWidth:31,halign:'right'},7:{cellWidth:31,halign:'right'},8:{cellWidth:71}},didParseCell(c){if(c.section==='body'&&rows.length){const tone=states[ped[c.row.index]?.estado];if(tone){c.cell.styles.fillColor=tone.bg;if(c.column.index===3){c.cell.styles.textColor=tone.fg;c.cell.styles.fontStyle='bold'}}}},didDrawPage(c){if(c.pageNumber>1)header(false)}});
+ let y=(doc.lastAutoTable?.finalY||70)+10;if(y>H-87){doc.addPage();header(false);y=42}
+ txt('CONCILIACION FINANCIERA · SOLO CENTRAL',M,y,11,true);y+=9;
+ function pair(label,v){if(y>H-23){doc.addPage();header(false);y=42}txt(label,M+3,y,9);txt(gs(v),W-M-3,y,9,true);y+=8}
+ pair('Efectivo registrado',ef);pair('Transferencias registradas',tr);pair('Comision del motorista registrada (incluye rechazo facturable)',cm);pair('Comision de empresa registrada (incluye rechazo facturable)',ce);
+ const retiene=r.x.modalidad_liquidacion==='retener_comision'?Math.min(ef,comEntrega):0;
+ pair('Comision de entregas retenida en efectivo',retiene);
+ pair('Rechazos pendientes de cobro (NO sumar al efectivo)',ped.filter(p=>p.estado==='rechazado').reduce((n,p)=>n+Number(rej.get(p.id)?.importe_pendiente||0),0));
+ if(y>H-39){doc.addPage();header(false);y=42}
+ doc.setFillColor(230,240,254);doc.roundedRect(M,y-5,W-2*M,17,2,2,'F');txt('EFECTIVO ESPERADO PARA LA CENTRAL',M+4,y+5,11,true);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.text(gs(rendir),W-M-4,y+5,{align:'right'});y+=23;
+ txt('Modalidad: '+(r.x.modalidad_liquidacion==='retener_comision'?'retiene comision de entregas':'rinde todo el efectivo'),M,y,9);y+=7;
+ if(r.c){txt('Cierre: '+r.c.estado+' · Declarado '+gs(r.c.efectivo_declarado??0)+' · Recibido '+(r.c.efectivo_recibido==null?'SIN CONFIRMAR':gs(r.c.efectivo_recibido)),M,y,9,true)}
+ else txt('PRELIMINAR · NO EXISTE CIERRE CONFIRMADO. No acredita entrega de efectivo.',M,y,9,true,[150,75,14]);
+ const pages=doc.getNumberOfPages();for(let i=1;i<=pages;i++){doc.setPage(i);doc.setDrawColor(221,231,241);doc.line(M,H-13,W-M,H-13);txt('Uso exclusivo Central · importes registrados, no necesariamente liquidados',M,H-8,7);doc.setTextColor(90,105,126);doc.setFontSize(7);doc.text('Pagina '+i+' de '+pages,W-M,H-8,{align:'right'})}
+ return new File([doc.output('blob')],'Rendicion_Central_'+String(r.x.nombre||'Motorista').replace(/[^a-z0-9_-]/gi,'_')+'_'+d.fecha+'.pdf',{type:'application/pdf'});
+}
+
 async function rdPdf(t,fecha){
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
