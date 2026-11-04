@@ -987,6 +987,61 @@ function rdMotos(d){
   return {x,ef,tr,cm,ce,rendir:c?c.a_rendir_esperado:rendir,c,ent:ped.filter(p=>p.estado==='entregado').length,rej:ped.filter(p=>p.estado==='rechazado').length,pend:ped.filter(p=>!['entregado','rechazado','cancelado'].includes(p.estado)).length};
  }).filter(r=>r.ent||r.rej||r.pend||r.c);
 }
+
+function rdAuditar(d){
+ const errores=[],avisos=[],vistos=new Set(),sum=k=>d.movs.reduce((v,m)=>v+Number(m[k]||0),0);
+ for(const m of d.movs){
+  if(!m.id||!m.pedido_id||!d.porPedido.has(m.pedido_id)){errores.push('Movimiento sin pedido verificable');continue}
+  if(vistos.has(m.pedido_id))errores.push('Múltiples movimientos para el mismo pedido: '+m.pedido_id);
+  vistos.add(m.pedido_id);
+  const p=d.porPedido.get(m.pedido_id);
+  const delivery=Number(m.monto_delivery||0),distribuido=Number(m.comision_empresa||0)+Number(m.comision_motorista||0);
+  if(delivery!==distribuido)errores.push('Descuadre en distribución del envío: '+p.nombre_cliente);
+  const cobro=Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0);
+  if(p.estado==='entregado'&&p.modalidad_pago==='pendiente'&&cobro!==Number(m.monto_mercaderia||0)+delivery)
+   errores.push('Descuadre de cobro en '+p.nombre_cliente);
+ }
+ const ts=rdTiendas(d),motos=rdMotos(d);
+ const totalMov=d.movs.reduce((v,m)=>v+Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0),0);
+ const totalDistribucion= sum('monto_mercaderia')+sum('comision_empresa')+sum('comision_motorista');
+ // Este balance solo aplica a los pedidos con cobro completo al motorista.
+ const completos=d.movs.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado'&&d.porPedido.get(m.pedido_id)?.modalidad_pago==='pendiente');
+ const suma=a=>completos.reduce((v,m)=>v+Number(m[a]||0),0);
+ if(suma('monto_mercaderia')+suma('monto_delivery')!==suma('efectivo_cobrado')+suma('transferencia_cobrada'))
+  errores.push('El total cobrado de pedidos con pago completo no coincide');
+ if(d.movs.some(m=>m.liquidado)&&d.cierres.some(c=>c.estado!=='confirmada'))
+  avisos.push('Hay movimientos marcados liquidados y cierres aún no confirmados');
+ if(d.pagos?.length===0)avisos.push('No hay pagos a tiendas registrados como confirmados para esta fecha');
+ if(ts.some(t=>t.cargosPendientes>0))avisos.push('Hay cargos por rechazos pendientes; no se descontaron del saldo de las tiendas');
+ return {errores:[...new Set(errores)],avisos,ts,motos,totalMov,totalDistribucion};
+}
+async function rdPdfAdministracion(d){
+ await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+ await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+ const a=rdAuditar(d);if(a.errores.length)throw Error('La conciliación contiene errores: '+a.errores.join('; '));
+ const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+ const F=n=>'Gs. '+Math.round(Number(n)||0).toLocaleString('es-PY');
+ const header=()=>{doc.setFillColor(20,49,86);doc.rect(0,0,297,24,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('DELIVERYYA FLOTA',12,10);
+  doc.setFontSize(9);doc.text('CONCILIACIÓN ADMINISTRATIVA · USO INTERNO',12,18);};
+ header();doc.setTextColor(25,45,70);doc.setFontSize(9);
+ doc.text('Fecha: '+d.fecha.split('-').reverse().join('/')+' · Generado: '+new Date().toLocaleString('es-PY',{timeZone:'America/Asuncion'}),12,32);
+ doc.text('Cobros registrados: '+F(a.totalMov)+' · Mercadería: '+F(a.ts.reduce((v,t)=>v+t.merc,0))+' · Ganancia central: '+F(d.movs.reduce((v,m)=>v+Number(m.comision_empresa||0),0)),12,40);
+ doc.autoTable({startY:46,margin:{left:12,right:12},head:[['Motorista','Efectivo','Transferencias','Comisión moto','Comisión empresa','A rendir (calculado)','Recibido confirmado','Estado']],
+ body:a.motos.map(r=>[r.x.nombre,F(r.ef),F(r.tr),F(r.cm),F(r.ce),F(r.rendir),r.c?.estado==='confirmada'?F(r.c.efectivo_recibido):'SIN CONFIRMAR',r.c?.estado||'Pendiente']),
+ headStyles:{fillColor:[20,49,86]},styles:{fontSize:8,cellPadding:2},theme:'striped'});
+ let y=(doc.lastAutoTable?.finalY||55)+10;if(y>140){doc.addPage();header();y=38}
+ doc.autoTable({startY:y,margin:{left:12,right:12},head:[['Tienda','Mercadería','Cargo envío a tienda','Rechazos pendientes','Compensado','Neto calculado','Pagado registrado','Saldo']],
+ body:a.ts.map(t=>[t.tienda.codigo+' · '+t.tienda.nombre_comercial,F(t.merc),F(t.debe),F(t.cargosPendientes),F(t.compensado),F(t.neto),F(t.pagado),F(t.saldo)]),
+ headStyles:{fillColor:[20,49,86]},styles:{fontSize:8,cellPadding:2},theme:'striped'});
+ y=doc.lastAutoTable.finalY+8;
+ for(const line of ['CONTROL: '+(a.errores.length?'ERRORES DETECTADOS':'CÁLCULOS SIN DESCUADRES DETECTADOS'),...a.avisos]){
+  if(y>193){doc.addPage();header();y=40}
+  doc.setFontSize(8);doc.setTextColor(43,61,84);doc.text(String(line).slice(0,155),12,y);y+=6;
+ }
+ const pages=doc.getNumberOfPages();for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(90,105,125);doc.text('Conciliación calculada; no acredita pagos sin recepción confirmada.',12,202);doc.text(i+' / '+pages,285,202,{align:'right'})}
+ return new File([doc.output('blob')],'Conciliacion_Administrativa_'+d.fecha+'.pdf',{type:'application/pdf'});
+}
 async function dyRendiciones(){
  const root=$('rendRoot');if(!root)return;
  const hoy=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});rdEstado.fecha=filtroDia||hoy;
@@ -1004,6 +1059,10 @@ async function dyRendiciones(){
    (rows.length?'<div class="card" style="padding:0"><div class="rd-row rd-head"><span>Motorista</span><span>Entregas</span><span>Efectivo</span><span>Transfer.</span><span>Su comisión</span><span>A entregar</span><span>Entregó</span><span>Estado</span></div>'+rows.map(r=>'<div class="rd-row"><b>'+escapeHtml(r.x.nombre)+'</b><span>✅ '+r.ent+' · ❌ '+r.rej+'</span><span>'+money(r.ef)+'</span><span>'+money(r.tr)+'</span><span>'+money(r.cm)+'</span><b>'+money(r.rendir)+'</b><span>'+(r.c?money(r.c.efectivo_declarado):'—')+'</span><span>'+est(r)+(r.c&&r.c.estado!=='confirmada'&&(account.rol==='propietario'||account.puede_confirmar_rendiciones)?' <button data-rdfix="'+escapeHtml(r.c.id)+'">Corregir</button>':'')+'</span></div>').join('')+'</div>':'<p class="muted">No hay movimientos de motos en este día.</p>')+
    '<p class="muted" style="margin-top:10px">“A entregar” = efectivo cobrado (o efectivo menos su comisión si la moto retiene comisión). Las rendiciones se cierran solas cuando la moto termina su ruta.</p>';
    body.querySelectorAll('[data-rdfix]').forEach(b=>b.onclick=async()=>{const c=d.cierres.find(x=>x.id===b.dataset.rdfix);const ef=prompt('Efectivo realmente recibido (esperado '+money(c.a_rendir_esperado)+'):',String(c.efectivo_declarado));if(ef===null)return;const tr=prompt('Transferencias verificadas (registradas '+money(c.transferencia_registrada)+'):',String(c.transferencia_declarada));if(tr===null)return;const {error}=await client.rpc('flota_confirmar_cierre_completo',{p_cierre:c.id,p_efectivo_recibido:Number(ef),p_transferencia_confirmada:Number(tr)});if(error){alert(error.message);return}pintar()});
+  }else if(rdEstado.vista==='admin'){
+   const audit=rdAuditar(d),sum=k=>d.movs.reduce((v,m)=>v+Number(m[k]||0),0);
+   body.innerHTML='<div class="rd-card"><h3>🔒 Conciliación administrativa · '+d.fecha+'</h3><p>Informe exclusivo de la Central. No compartir con tiendas.</p><div class="rd-nums">'+[['Cobros verificados',audit.totalMov],['Mercadería de tiendas',audit.ts.reduce((v,t)=>v+t.merc,0)],['Comisión de motoristas',sum('comision_motorista')],['Ingreso empresa',sum('comision_empresa')],['Rechazos pendientes',audit.ts.reduce((v,t)=>v+t.cargosPendientes,0)]].map(([k,v])=>'<div><small>'+k+'</small><b>'+money(v)+'</b></div>').join('')+'</div><p class="'+(audit.errores.length?'rd-warn':'rd-ok')+'">'+(audit.errores.length?'⛔ Conciliación con errores: '+audit.errores.map(escapeHtml).join(' · '):'✅ Sin descuadres detectados en los movimientos verificados')+'</p><p>'+audit.avisos.map(escapeHtml).join(' · ')+'</p><button id="rdAdminPdf" '+(audit.errores.length?'disabled':'')+'>📄 Descargar PDF administrativo</button></div>';
+   const btn=$('rdAdminPdf');if(btn)btn.onclick=async()=>{btn.disabled=true;try{const file=await rdPdfAdministracion(d),a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;a.click()}catch(e){alert(e.message)}finally{btn.disabled=false}};
   }else{
    const ts=rdTiendas(d),T=k=>ts.reduce((t,x)=>t+x[k],0);
    body.innerHTML='<div class="rd-kpis">'+[['🛍️ Mercadería a pagar a tiendas',T('merc')],['🚚 Envíos que deben tiendas',T('debe')],['💰 Neto a pagar a tiendas',T('neto')],['📦 Envíos cobrados a clientes',T('env')]].map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
