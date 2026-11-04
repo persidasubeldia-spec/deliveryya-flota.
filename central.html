@@ -1261,7 +1261,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $('dyBuscar').oninput=e=>{st.busqueda=e.target.value;st.sel.clear();refrescar()};
   box.querySelectorAll('[data-dy-filtro]').forEach(b=>b.onclick=()=>{st.filtro=b.dataset.dyFiltro;st.sel.clear();refrescar()});
   if(st.mapObservador){st.mapObservador.disconnect();st.mapObservador=null}st.map=null;st.objs=[];iniciarMapa();refrescar()}
- function refrescar(){const ps=paradas(),vistos=visiblesTurno();const ordenVisible=dyPosicionMapa(ps.filter(o=>o.numero_general!=null),st.fecha);
+ function refrescar(){const ps=paradas(),vistos=visiblesTurno();const ordenVisible=dyPosicionMapa(ps.filter(o=>o.numero_general!=null&&!FIN.includes(o.estado)),st.fecha);
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!marcable(orders.find(o=>o.id===id)))st.sel.delete(id)});
   const sinNum=ps.filter(o=>o.numero_general==null&&o.estado==='pendiente'&&!o.motorista_id),sinGps=ps.filter(o=>!gps(o));
@@ -1276,7 +1276,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $$('dyDList').innerHTML='<div class="lhead"><span>'+vistos.length+' visible(s) · '+libres.length+' libre(s)</span><span><button type="button" class="link" id="dyDTodos">Marcar libres</button> · <button type="button" class="link" id="dyDAsignados">Marcar de la moto elegida</button> · <button type="button" class="link" id="dyDNinguno">Ninguno</button></span></div>'
   +(vistos.map(o=>{const d=drivers.find(x=>x.id===o.motorista_id);const col=d?colorMoto(d.id):null;const ok=marcable(o),sel=st.sel.has(o.id);
    const est=o.estado==='entregado'?'<span class="pill" style="background:#2b8a3e">✓ Entregado</span>':o.estado!=='pendiente'?'<span class="pill" style="background:#c92a2a">'+esc(o.estado.replaceAll('_',' '))+'</span>':'';
-   return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':o.estado==='entregado'?'#16803c':o.estado==='rechazado'?'#dc2626':o.estado==='no_responde'?'#eab308':o.estado==='no_recibio'?'#ea580c':o.estado==='pasa_manana'?'#2563eb':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(ordenVisible.get(o.id)??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+(editable()&&o.estado==='pendiente'?'<button type="button" class="link" data-dyedit="'+esc(o.id)+'" style="font-size:13px;padding:4px 0">✏️ Editar</button>':'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">'+(ps.length?'Este filtro no tiene pedidos. Hay '+ps.length+' pedidos en el turno; el mapa sigue mostrando todos. Elegí «Todos» para verlos en la lista.':'No hay pedidos en este turno.')+'</p>');
+   return '<label class="stop '+(sel?'sel ':'')+(d?'asig':'')+'" data-id="'+esc(o.id)+'" style="'+(d?'border-left-color:'+col:'')+'"><input type="checkbox" '+(sel?'checked':'')+' '+(ok?'':'disabled')+' data-ck="'+esc(o.id)+'" aria-label="Marcar pedido '+esc(o.numero_general??'')+'"><span class="num" style="background:'+(sel?'#f5a000':o.estado==='entregado'?'#16803c':o.estado==='rechazado'?'#dc2626':o.estado==='no_responde'?'#eab308':o.estado==='no_recibio'?'#ea580c':o.estado==='pasa_manana'?'#2563eb':col||(o.numero_general!=null?'#1f3a63':'#94a3b8'))+'">'+esc(o.estado==='entregado'?'✓':o.estado==='rechazado'?'×':ordenVisible.get(o.id)??'—')+'</span><span class="t"><b>'+esc(o.nombre_cliente)+'</b><small>'+esc(stores.find(t=>t.id===o.tienda_id)?.codigo||'')+(o.direccion_cliente?' · '+esc(o.direccion_cliente):'')+'</small>'+(d?'<br><span class="pill" style="background:'+col+'">🏍️ '+esc(d.nombre)+'</span> ':'')+est+(window.dyNota?dyNota(o):'')+(editable()&&o.estado==='pendiente'?'<button type="button" class="link" data-dyedit="'+esc(o.id)+'" style="font-size:13px;padding:4px 0">✏️ Editar</button>':'')+'</span></label>'}).join('')||'<p class="sub" style="padding:12px">'+(ps.length?'Este filtro no tiene pedidos. Hay '+ps.length+' pedidos en el turno; el mapa sigue mostrando todos. Elegí «Todos» para verlos en la lista.':'No hay pedidos en este turno.')+'</p>');
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $('dyDTodos').onclick=()=>{st.sel.clear();libres.forEach(o=>st.sel.add(o.id));refrescar()};$('dyDAsignados').onclick=()=>{if(!st.moto){msg('Primero elegí un motorista en las tarjetas de abajo.','err');return}st.sel.clear();vistos.filter(o=>reenviable(o)&&o.motorista_id===st.moto).forEach(o=>st.sel.add(o.id));refrescar();if(!st.sel.size)msg('No hay pedidos activos de esta moto en el filtro actual. Elegí Todos.','err')};$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
   barra(ps);dibujar(ps);st.firma=firma()}
@@ -1358,7 +1358,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   if(st.origen)punto(st.origen,'🏁','#111827',false,null,'Salida');
   // Mantener visibles todos los pedidos al elegir moto: cada marcador conserva su color.
   const visiblesMapa=geo;
-  const ordenVisible=dyPosicionMapa(ps.filter(o=>o.numero_general!=null&&o.estado!=='cancelado'),st.fecha);
+  const ordenVisible=dyPosicionMapa(ps.filter(o=>o.numero_general!=null&&!FIN.includes(o.estado)),st.fecha);
   // Un marcador nunca puede heredar el color de otro motorista.
   // Agrupar solo pedidos de la misma moto en la misma ubicación.
   const grupos={};
@@ -1381,7 +1381,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    // Si distintas motos comparten GPS, desplazar ligeramente cada marcador para que se vean todos.
    const distancia=conjuntos.length>1?0.00022:0,angulo=2*Math.PI*indice/conjuntos.length;
    const mostrado=distancia?{lat:pos.lat+Math.cos(angulo)*distancia,lng:pos.lng+Math.sin(angulo)*distancia/Math.max(.2,Math.cos(pos.lat*Math.PI/180))}:pos;
-   punto(mostrado,arr.map(x=>ordenVisible.get(x.id)??'—').join('·'),color,sel,arr.map(x=>x.id).join(','),
+   punto(mostrado,arr.map(x=>x.estado==='entregado'?'✓':x.estado==='rechazado'?'×':ordenVisible.get(x.id)??'—').join('·'),color,sel,arr.map(x=>x.id).join(','),
     (d?'🏍️ '+d.nombre+'\\n':'Sin asignar\\n')+arr.map(x=>'N.º '+x.numero_general+' · '+x.nombre_cliente+' · '+x.estado+(x.observaciones?' · 📝 '+x.observaciones:'')).join('\\n')+(arr.length>1?'\\n(misma ubicación y moto)':''));
   }));
   sinN.forEach(o=>punto(PP(o),'NUEVO','#dc2626',true,o.id,o.nombre_cliente+' · pedido nuevo: tocá Optimizar para sumarlo'));
