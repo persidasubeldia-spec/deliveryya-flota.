@@ -1627,7 +1627,7 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
  const operatingDate=o=>routes.find(r=>r.id===o.ruta_general_id)?.fecha||new Date(o.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
  const active=['pendiente','no_responde','no_recibio','pasa_manana'];
  const colors=['#1765ba','#e8590c','#2b8a3e','#ae3ec9','#c92a2a','#0b7285','#5c940d','#d6336c','#f08c00','#364fc7'];
- const state={date:day(),driver:'',list:[],motos:[],map:null,pins:[],loop:null,loading:false,fit:true,lastUpdate:0,ordersSaved:null};
+ const state={date:day(),driver:'',list:[],motos:[],map:null,pins:[],loop:null,loading:false,fit:true,lastUpdate:0,ordersSaved:null,recorridos:[],recorridoError:'',paths:new Map()};
  const current=()=>!!$('dyTrackRoot');
  const ownColor=id=>{
    const act=state.motos.filter(d=>d.activo),i=act.findIndex(d=>d.id===id),d=act[i];
@@ -1639,12 +1639,12 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
  const gpsAge=d=>d?.gps_actualizado_en?Date.now()-new Date(d.gps_actualizado_en).getTime():Infinity;
  const fresh=d=>valid({lat:d?.gps_lat,lng:d?.gps_lng})&&gpsAge(d)>=0&&gpsAge(d)<300000;
  const fmtTime=v=>v?new Date(v).toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',timeZone:'America/Asuncion'}):'—';
- function closeMap(){state.pins.forEach(m=>{try{m.setMap(null)}catch(e){}});state.pins=[];if(state.map){try{google.maps.event.clearInstanceListeners(state.map)}catch(e){}state.map=null}}
+ function closeMap(){state.pins.forEach(m=>{try{m.setMap(null)}catch(e){}});state.pins=[];state.paths.forEach(p=>{try{p.line.setMap(null)}catch(e){}});state.paths.clear();if(state.map){try{google.maps.event.clearInstanceListeners(state.map)}catch(e){}state.map=null}}
  function clearTimer(){if(state.loop){clearInterval(state.loop);state.loop=null}closeMap()}
  function mount(){
    const host=$('content');if(!host)return;
    clearTimer();state.date=day();state.fit=true;state.driver='';
-   host.innerHTML='<section id="dyTrackRoot"><div class="card" style="padding:18px;margin-bottom:14px"><h2 style="margin:0 0 8px">📍 Seguimiento por motorista</h2><p class="muted" style="margin:0 0 12px">Pedidos y estados actualizados desde Supabase. La ubicación solo aparece como «en vivo» cuando el motorista activó Compartir GPS y envió una posición reciente.</p><div class="toolbar" style="display:flex;flex-wrap:wrap;gap:9px;align-items:center"><label>Fecha <input id="dyTrackDate" type="date" value="'+state.date+'" max="'+day()+'" style="min-height:42px"></label><label>Motorista <select id="dyTrackDriver" style="min-width:200px;min-height:42px"><option value="">Todos los motoristas</option></select></label><button type="button" id="dyTrackReload">Actualizar ahora</button><span class="muted" id="dyTrackStatus">Consultando…</span></div></div><div id="dyTrackSummary" class="grid" style="margin-bottom:12px"></div><div id="dyTrackDrivers" role="group" aria-label="Elegir motorista para ver su ruta" style="display:flex;gap:9px;flex-wrap:wrap;margin:0 0 14px"></div><div style="display:grid;grid-template-columns: minmax(280px,360px) minmax(0,1fr);gap:14px" id="dyTrackLayout"><div class="card" style="padding:12px;max-height:580px;overflow:auto" id="dyTrackStops">Cargando pedidos…</div><div class="card" style="padding:6px;min-height:480px"><div id="dyTrackMap" style="height:480px;width:100%;border-radius:10px"></div><p id="dyTrackMapHelp" class="muted" style="padding:8px 12px;margin:0">Los pines indican entregas y última ubicación compartida. No representan un recorrido vial calculado.</p></div></div><p class="muted" style="margin-top:12px">Los datos se actualizan cada 20 segundos con la pantalla abierta. El GPS no funciona en segundo plano si el teléfono impide compartir ubicación; nunca se muestra una posición antigua como actual.</p></section>';
+   host.innerHTML='<section id="dyTrackRoot"><div class="card" style="padding:18px;margin-bottom:14px"><h2 style="margin:0 0 8px">📍 Seguimiento por motorista</h2><p class="muted" style="margin:0 0 12px">Pedidos y estados actualizados desde Supabase. La ubicación solo aparece como «en vivo» cuando el motorista activó Compartir GPS y envió una posición reciente.</p><div class="toolbar" style="display:flex;flex-wrap:wrap;gap:9px;align-items:center"><label>Fecha <input id="dyTrackDate" type="date" value="'+state.date+'" max="'+day()+'" style="min-height:42px"></label><label>Motorista <select id="dyTrackDriver" style="min-width:200px;min-height:42px"><option value="">Todos los motoristas</option></select></label><button type="button" id="dyTrackReload">Actualizar ahora</button><span class="muted" id="dyTrackStatus">Consultando…</span></div></div><div id="dyTrackSummary" class="grid" style="margin-bottom:12px"></div><div id="dyTrackDrivers" role="group" aria-label="Elegir motorista para ver su ruta" style="display:flex;gap:9px;flex-wrap:wrap;margin:0 0 14px"></div><div id="dyTrackRouteInfo" role="status" style="margin:0 0 12px;color:#274263;font-size:14px"></div><div style="display:grid;grid-template-columns: minmax(280px,360px) minmax(0,1fr);gap:14px" id="dyTrackLayout"><div class="card" style="padding:12px;max-height:580px;overflow:auto" id="dyTrackStops">Cargando pedidos…</div><div class="card" style="padding:6px;min-height:480px"><div id="dyTrackMap" style="height:480px;width:100%;border-radius:10px"></div><p id="dyTrackMapHelp" class="muted" style="padding:8px 12px;margin:0">Los pines indican paradas. La línea muestra exclusivamente el recorrido vial confirmado por el motorista, cuando está vigente.</p></div></div><p class="muted" style="margin-top:12px">Los datos se actualizan cada 20 segundos con la pantalla abierta. El GPS no funciona en segundo plano si el teléfono impide compartir ubicación; nunca se muestra una posición antigua como actual.</p></section>';
    const style=document.createElement('style');style.id='dyTrackStyle';style.textContent='@media(max-width:850px){#dyTrackLayout{grid-template-columns:1fr!important}#dyTrackMap{height:370px!important}}#dyTrackStops button{width:100%;text-align:left;margin:5px 0;padding:10px;border:1px solid #dce4f0;border-radius:10px;background:#fff;color:#152b45;cursor:pointer}#dyTrackStops button:hover{background:#eff5ff}';$('dyTrackRoot').append(style);
    $('dyTrackDate').onchange=e=>{if(e.target.value>day()){e.target.value=state.date;return}state.date=e.target.value;state.fit=true;refresh()};
    $('dyTrackDriver').onchange=e=>{state.driver=e.target.value;state.fit=true;paint()};
@@ -1661,8 +1661,15 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
      const rs=routes.filter(r=>r.fecha===state.date).map(r=>r.id);
      const queries=[client.from('motoristas').select('id,nombre,activo,color_identificador,gps_lat,gps_lng,gps_precision_m,gps_actualizado_en').eq('empresa_id',account.empresa_id)];
      if(rs.length)queries.push(client.from('pedidos').select('id,nombre_cliente,estado,motorista_id,numero_general,lat,lng,ruta_general_id,turno,created_at').eq('empresa_id',account.empresa_id).in('ruta_general_id',rs).neq('estado','cancelado').limit(1800));
-     const results=await Promise.all(queries);
+     // La lectura de geometría no puede impedir que la Central muestre estados y pedidos.
+     const [results,routeResult]=await Promise.all([
+       Promise.all(queries),
+       client.rpc('flota_recorridos_confirmados_fecha',{p_fecha:state.date})
+         .catch(e=>({error:e}))
+     ]);
      if(results.some(x=>x.error))throw Error(results.find(x=>x.error).error.message);
+     state.recorridoError=routeResult.error?.message||'';
+     state.recorridos=state.recorridoError?[]:(routeResult.data||[]);
      if(!current())return;
      await dyActualizarOrdenesMoto(state.date);state.motos=results[0].data||[];
      state.list=rs.length?(results[1].data||[]).filter(p=>p.motorista_id&&operatingDate(p)===state.date):[];
