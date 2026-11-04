@@ -836,7 +836,13 @@ async function checkIncomingOrders(){
   if(arrivals.length||changes){
    const fresh=await cargarTodosLosPedidos(account.empresa_id);
    const stillNew=fresh.filter(o=>o.estado!=='cancelado'&&!known.has(o.id));
-   orders=fresh;if(stillNew.length)notifyNewOrders(stillNew);
+   orders=fresh;
+   const activosIds=new Set(fresh.filter(o=>o.estado!=='cancelado').map(o=>o.id));
+   newOrderAlerts=newOrderAlerts.filter(o=>activosIds.has(o.id));
+   if(newOrderAlerts.length===0){document.title='DeliveryYa Flota';}
+   const avisos=$('newOrdersCount');if(avisos)avisos.textContent='('+newOrderAlerts.length+')';
+   const detalleAvisos=$('newOrdersDetail');if(detalleAvisos)detalleAvisos.textContent=newOrderAlerts.length?newOrderAlerts.slice(0,5).map(o=>(o.nombre_cliente||'Pedido')+' · '+(stores.find(t=>t.id===o.tienda_id)?.codigo||'Tienda')).join(' | '):'No hay pedidos nuevos pendientes de revisar';
+   if(stillNew.length)notifyNewOrders(stillNew);
    if($('routeReload')){const m=$('routeMsg'),antes=m?m.innerHTML:'';await $('routeReload').onclick();if(m&&antes)m.innerHTML=antes;}
    else if($('newOrdersPanel'))page('Inicio');
   }
