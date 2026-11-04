@@ -762,7 +762,7 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
     const asignados=orders.filter(o=>o.motorista_id===motor&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)).sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999));
     const conGps=asignados.filter(o=>o.lat!=null&&o.lng!=null);const tramos=enlacesRuta(conGps);
     const lista=asignados.slice(0,40).map(o=>'N.º '+(o.numero_general??'S/N')+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+dyNotaTxt(o)).join('\n');
-    const texto='*DeliveryYa Flota* 🏍️\nHola '+driver.nombre+', tenés '+asignados.length+' entrega(s).\n\n*▶ Abrir la ruta en Google Maps:*\n'+tramos.map(t=>(tramos.length>1?'Paradas '+t.desde+'–'+t.hasta+': ':'')+t.url).join('\n')+'\n\n*Orden de entrega:*\n'+lista+(asignados.length>40?'\n… y '+(asignados.length-40)+' más en la app.':'')+'\n\n*Cobros y entregas:* https://deliveryya-flota.pages.dev/motorista.html';
+    const texto='*DeliveryYa Flota* 🏍️\nHola '+driver.nombre+', tenés '+asignados.length+' entrega(s).\n\n*▶ ABRIR MI RUTA EN DELIVERY YA:*\n'+location.origin+'/motorista.html'+'\n\n*Orden de entrega:*\n'+lista+(asignados.length>40?'\n… y '+(asignados.length-40)+' más en la app.':'')+'\n\n📍 Para navegar a cada cliente, tocá *Navegar* dentro de la aplicación.\n✅ Registrá ahí las entregas y los cobros.';
     const url='https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto);
     if(ventana&&!ventana.closed)ventana.location.href=url;else window.open(url,'_blank');
     msgEl.innerHTML='✅ '+data+' pedido(s) asignados a '+escapeHtml(driver.nombre)+'. Se abrió WhatsApp con su ruta. <a target="_blank" rel="noopener" href="'+url+'">Abrir WhatsApp otra vez</a>';
@@ -1197,7 +1197,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function waUrl(d){const dg=String(d.telefono||'').replace(/\D/g,'');const phone=dg.startsWith('595')?dg:'595'+dg.replace(/^0/,'');
   const asig=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)).sort((a,b)=>(a.numero_general??1e9)-(b.numero_general??1e9));
   const tr=enlaces(asig.filter(gps));const lista=asig.slice(0,40).map(o=>'N.º '+(o.numero_general??'S/N')+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+(window.dyNotaTxt?dyNotaTxt(o):'')).join('\n');
-  const texto='*DeliveryYa Flota* 🏍️\nHola '+d.nombre+', tenés '+asig.length+' entrega(s).\n\n*▶ Abrir la ruta en Google Maps:*\n'+tr.map(t=>(tr.length>1?'Paradas '+t.desde+'–'+t.hasta+': ':'')+t.url).join('\n')+'\n\n*Orden de entrega:*\n'+lista+(asig.length>40?'\n… y '+(asig.length-40)+' más en la app.':'')+'\n\n*Cobros y entregas:* '+location.origin+'/motorista.html';
+  const texto='*DeliveryYa Flota* 🏍️\nHola '+d.nombre+', tenés '+asig.length+' entrega(s).\n\n*▶ ABRIR MI RUTA EN DELIVERY YA:*\n'+location.origin+'/motorista.html'+'\n\n*Orden de entrega:*\n'+lista+(asig.length>40?'\n… y '+(asig.length-40)+' más en la app.':'')+'\n\n📍 Para navegar a cada cliente, tocá *Navegar* dentro de la aplicación.\n✅ Registrá ahí las entregas y los cobros.';
   return 'https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto)}
  function msg(t,k){const m=$$('dyDMsg');if(m){m.className='msg '+(k||'');m.textContent=t}}
  function contar(t){return orders.filter(o=>esFecha(o)&&tur(o)===t&&o.estado==='pendiente'&&!o.motorista_id).length}
