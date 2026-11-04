@@ -1098,6 +1098,8 @@ async function rdPdf(t,fecha){
  const W=297,H=210,M=10,inner=W-M*2;
  const fechaTexto=fecha.split('-').reverse().join('/');
  const nombre=String(t.tienda.nombre_comercial||'Tienda'),codigo=String(t.tienda.codigo||'—');
+ const refInforme='TDA-'+fecha.replaceAll('-','')+'-'+codigo.replace(/[^a-z0-9]/gi,'');
+ const esLiquidada=t.saldo===0&&t.pagado>0&&t.cargosPendientes===0;
  const tonos={
   entregado:{nombre:'Entregado',rgb:[228,249,233],color:[26,112,58]},
   rechazado:{nombre:'Rechazado',rgb:[253,232,232],color:[158,35,42]},
@@ -1142,7 +1144,7 @@ async function rdPdf(t,fecha){
    txt('Fecha operativa: '+fechaTexto,M,31,9,true);
    txt('Turnos con movimiento: '+turnoTexto,M+70,31,8);
    txt('Generado: '+generado,W-100,31,8);
-   txt('Resumen operativo: '+unicos.length+' pedidos (incluye pedidos sin cobro)',M,40,11,true);
+   txt('Resumen operativo: '+unicos.length+' pedidos · Informe '+refInforme+' · '+(esLiquidada?'CON PAGO REGISTRADO':'PROVISIONAL'),M,40,10,true);
   }else{
    txt('Fecha: '+fechaTexto+'  ·  '+codigo+' '+nombre,M,30,8);
   }
@@ -1167,7 +1169,11 @@ async function rdPdf(t,fecha){
   const rec=mov.reduce((n,m)=>n+Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0),0);
   const linea=mov.length?rdLineaTienda(mov[0],p,(t.rechazos||new Map()).get(p.id)):null;
   const deuda=est==='rechazado'&&linea?linea.debeTienda:0;
-  const observacion=est==='rechazado'?(motivo+' · Envio pendiente de tienda: '+rdGs(deuda)):motivo;
+  const rr=t.rechazos.get(p.id);
+  const cobroRechazo=est==='rechazado'&&rr?.responsable_pago==='tienda'?Number(rr.importe_pendiente||0):0;
+  const compensado=(rdEstado.datos?.compensaciones||[]).some(c=>c.pedido_id===p.id);
+  const rider=drivers.find(d=>d.id===p.motorista_id)?.nombre||'Sin motorista';
+  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE')):motivo);
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
     rdGs(p.precio_mercaderia||0),rdGs(p.precio_delivery||0),rdGs(rec),observacion
@@ -1195,13 +1201,15 @@ async function rdPdf(t,fecha){
   }
  });
  let y=(doc.lastAutoTable?.finalY||74)+8;
- const minimo=66;
+ const minimo=98;
  if(y+minimo>H-16){doc.addPage();encabezado(false);y=42}
  txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
  const financiero=[
   ['Mercaderia cobrada para la tienda (+)',t.merc],
-  ['Envios que debe la tienda (-)',t.debe],
-  ['Servicios de delivery cobrados a clientes (informativo)',t.env]
+  ['Envíos pagados a la tienda por cliente (cargo a tienda)',t.debe],
+  ['Compensaciones de rechazo confirmadas (-)',t.compensado],
+  ['Rechazos a cargo de tienda sin compensar (INFORMATIVO)',t.cargosPendientes],
+  ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
  const positivo=t.neto>0,negativo=t.neto<0;
@@ -1210,6 +1218,8 @@ async function rdPdf(t,fecha){
  txt(positivo?'LA FLOTA DEBE RENDIR A LA TIENDA':negativo?'LA TIENDA DEBE PAGAR A LA FLOTA':'SIN SALDO NETO A RENDIR',M+4,y+5,10,true);
  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(24,52,84);
  doc.text(rdGs(Math.abs(t.neto)),W-M-4,y+5,{align:'right'});y+=19;
+ txt('Pagos a tienda registrados: '+rdGs(t.pagado)+' | Saldo calculado: '+rdGs(t.saldo),M+3,y,9,true);y+=8;
+ txt('Importes calculados NO acreditan recepción de efectivo ni transferencia sin comprobante.',M+3,y,8);y+=8;
  txt('Pedidos sin movimiento que requieren seguimiento: '+sinMovimiento.length,M,y,10,true);y+=6;
  const sinAgrupar={};for(const p of sinMovimiento){const st=p.estado||'sin_estado';sinAgrupar[st]=(sinAgrupar[st]||0)+1}
  const accionesBreves={
@@ -1226,7 +1236,7 @@ async function rdPdf(t,fecha){
  const pages=doc.getNumberOfPages();
  for(let page=1;page<=pages;page++){
   doc.setPage(page);doc.setDrawColor(219,227,239);doc.line(M,H-12,W-M,H-12);
-  txt('Estados actuales: no reconstruye el historial de cambios. Documento informativo, no factura ni comprobante de pago.',M,H-8,7);
+  txt('Informe '+refInforme+' · '+(esLiquidada?'Con pago registrado':'PROVISIONAL')+' · No es comprobante de pago sin confirmación de recepción.',M,H-8,7);
   doc.setFontSize(7);doc.setTextColor(90,106,125);doc.text('Pagina '+page+' de '+pages,W-M,H-8,{align:'right'});
  }
  const pdfName='Rendicion_Tienda_'+codigo.replace(/[^a-z0-9_-]/gi,'')+'_'+fecha+'.pdf';
