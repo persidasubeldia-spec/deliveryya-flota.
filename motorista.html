@@ -200,9 +200,20 @@ a.sort((x,y)=>{const xa=DY_ACT.includes(x.estado),ya=DY_ACT.includes(y.estado);
  if(xa!==ya)return xa?-1:1;
  return (indexes.get(x.id)??999999)-(indexes.get(y.id)??999999)||(x.numero_general??999999)-(y.numero_general??999999)||String(x.id).localeCompare(String(y.id))});
 const ordenActivos=a.filter(p=>DY_ACT.includes(p.estado));
-const idsActivos=new Set(ordenActivos.map(p=>p.id));
-// Si entran pedidos nuevos o desaparecen paradas, la línea vieja deja de ser válida.
-if(motoOrdenRuta.length&&(motoOrdenRuta.length!==idsActivos.size||motoOrdenRuta.some(id=>!idsActivos.has(id)))){motoGeoRuta=null;motoInicioRuta=null;motoOrdenRuta=[]}
+const conGps=ordenActivos.filter(p=>p.lat!=null&&p.lng!=null&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
+const idsActivos=new Set(conGps.map(p=>p.id));
+// Recuperar la geometría vial CONFIRMADA desde Supabase, incluso tras cerrar/reabrir la aplicación.
+try {
+ const {data:recorridos,error:recError}=await sb.rpc('motorista_recorrido_actual');
+ if(recError)throw recError;
+ const guardado=(recorridos||[])[0];
+ const ids=guardado?.pedido_ids||[],geometry=guardado?.coordenadas;
+ const vigente=ids.length===idsActivos.size&&ids.every(id=>idsActivos.has(id))
+   &&Array.isArray(geometry)&&geometry.length>=2&&geometry.every(c=>Array.isArray(c)&&c.length===2&&Number.isFinite(Number(c[0]))&&Number.isFinite(Number(c[1])));
+ if(vigente){
+   motoGeoRuta=geometry;motoInicioRuta=[Number(guardado.origen_lat),Number(guardado.origen_lng)];motoOrdenRuta=ids.slice();
+ }else{motoGeoRuta=null;motoInicioRuta=null;motoOrdenRuta=[]}
+}catch(e){console.warn('No se recuperó la geometría confirmada:',e.message||e);motoGeoRuta=null;motoInicioRuta=null;motoOrdenRuta=[]}
 window.dyMotoOrdenLocal=new Map(ordenActivos.map((p,i)=>[p.id,i+1]));
 $('optimizeMine').onclick=async()=>{
 const btn=$('optimizeMine'),msg=$('optimizeMessage');
@@ -232,12 +243,16 @@ try{
  const preview=ids.map((id,i)=>(i+1)+'ª parada · Central N.º '+(a.find(p=>p.id===id)?.numero_general??'—')+' — '+(a.find(p=>p.id===id)?.nombre_cliente??'')).join('\\n');
  if(!confirm('Recorrido desde tu ubicación actual ('+Math.round(pos.coords.accuracy)+' m de precisión).\\n'+preview+(missing.length?'\\n'+missing.length+' pedido(s) sin GPS quedan fuera de la optimización.':'')+'\\nLos números originales no cambian. ¿Guardar este orden?')){msg.textContent='Orden anterior conservado.';return}
  msg.textContent='Guardando orden individual…';
- const {error}=await sb.rpc('motorista_guardar_orden',{p_pedidos:ids});
- if(error)throw Error('No se guardó: '+error.message);
- motoGeoRuta=json.trips[0]?.geometry?.coordinates||null;
+ const coordenadas=json.trips[0]?.geometry?.coordinates;
+ if(!Array.isArray(coordenadas)||coordenadas.length<2)throw Error('El servicio no devolvió geometría vial válida; no se guardó el orden.');
+ const {data:version,error}=await sb.rpc('motorista_guardar_recorrido',{
+  p_pedidos:ids,p_coordenadas:coordenadas,p_origen_lat:startLat,p_origen_lng:startLng
+ });
+ if(error)throw Error('No se guardó el recorrido completo: '+error.message);
+ motoGeoRuta=coordenadas;
  motoInicioRuta=[startLat,startLng];motoOrdenRuta=ids.slice();lastMapSignature='';
  await load();
- msg.textContent='Recorrido actualizado desde tu ubicación. Podés optimizar nuevamente cuando quieras.';
+ msg.textContent='Recorrido confirmado y guardado en la Central (versión '+version+'). Podés optimizar nuevamente cuando quieras.';
 }catch(e){msg.textContent='No se cambió tu ruta. '+(e.name==='AbortError'?'El servicio de calles tardó demasiado; usá Navegar en cada pedido y reintentá luego.':e.code===1?'Activá el permiso GPS del teléfono.':e.message||'No se pudo optimizar.');}
 finally{btn.disabled=false;}
 };
