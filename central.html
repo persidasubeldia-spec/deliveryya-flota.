@@ -1347,16 +1347,16 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    const enRuta=orders.filter(o=>o.ruta_general_id===rid);
    const bloqueada=enRuta.some(o=>o.motorista_id||o.estado!=='pendiente')||!['abierta','optimizada'].includes(ruta?.estado);
    const cand=orders.filter(o=>esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)&&(o.ruta_general_id==null||o.ruta_general_id===rid));
-   msg('Ordenando del 1 al último…');let n=0;
+   msg('Ordenando del 1 al último…');let n=0;let nuevosIds=[];
    if(!bloqueada){if(!cand.length)throw Error('No hay pedidos con ubicación en este turno.');
     const orden=mejorar(cercania(cand,st.origen),st.origen).map(o=>o.id);const resto=enRuta.filter(o=>!orden.includes(o.id)).map(o=>o.id);
     const cf=await client.rpc('admin_confirmar_ruta_optimizada',{p_ruta_general_id:rid,p_orden_ids:[...orden,...resto]});if(cf.error)throw cf.error;n=orden.length}
-   else{const nuevos=cand.filter(o=>o.numero_general==null);if(!nuevos.length){await $$('routeReload').onclick();st.sel.clear();st.fit=false;refrescar();msg('La ruta ya está ordenada y en reparto. No hay pedidos nuevos para sumar.','ok');return}
+   else{const nuevos=cand.filter(o=>o.numero_general==null);nuevosIds=nuevos.map(o=>o.id);if(!nuevos.length){await $$('routeReload').onclick();st.sel.clear();st.fit=false;refrescar();msg('La ruta ya está ordenada y en reparto. No hay pedidos nuevos para sumar.','ok');return}
     const numerados=enRuta.filter(o=>o.numero_general!=null&&gps(o)).sort((a,b)=>a.numero_general-b.numero_general);const desde=numerados.length?P(numerados.at(-1)):st.origen;
     const ax=await client.rpc('flota_anexar_pedidos_a_ruta',{p_ruta:rid,p_pedidos:mejorar(cercania(nuevos,desde),desde).map(o=>o.id)});if(ax.error)throw ax.error;n=nuevos.length}
-   await $$('routeReload').onclick();st.sel.clear();st.fit=false;st.ultimo=null;try{window.__dyRedibujar&&window.__dyRedibujar()}catch(_){}
+   await $('routeReload').onclick();st.sel.clear();if(bloqueada)nuevosIds.filter(id=>libre(orders.find(o=>o.id===id))).forEach(id=>st.sel.add(id));st.fit=false;st.ultimo=null;try{window.__dyRedibujar&&window.__dyRedibujar()}catch(_){}
    refrescar();const ps=paradas().filter(o=>o.numero_general!=null);
-   msg(bloqueada?'✅ '+n+' pedido(s) nuevos sumados al final (N.º '+(ps.length-n+1)+'–'+ps.length+'). Los números ya repartidos no cambian.':'✅ Ruta ordenada: N.º 1 al '+n+' desde '+(st.manual?'el punto elegido':'tu ubicación')+'. Marcá pedidos y elegí la moto.','ok');
+   msg(bloqueada?'✅ '+n+' pedido(s) nuevos sumados al final (N.º '+(ps.length-n+1)+'–'+ps.length+'). Los números ya repartidos no cambian. Los nuevos ya están marcados: elegí la moto y tocá Asignar y WhatsApp para sumarlos a su misma ruta.':'✅ Ruta ordenada: N.º 1 al '+n+' desde '+(st.manual?'el punto elegido':'tu ubicación')+'. Marcá pedidos y elegí la moto.','ok');
   }catch(e){msg((e&&e.message)||String(e),'err')}finally{const bb=$$('dyDGo');if(bb)bb.disabled=false}}
  async function asignar(conWa){if(!editable())return;const d=drivers.find(x=>x.id===st.moto&&x.activo);const ids=paradas().filter(o=>st.sel.has(o.id)&&libre(o)).map(o=>o.id);
   if(!d||!ids.length)return;if(!confirm('¿Asignar '+ids.length+' pedido(s) a '+d.nombre+(conWa?' y enviarle la ruta por WhatsApp':'')+'?'))return;
