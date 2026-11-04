@@ -456,7 +456,7 @@ if(n==='Pedidos'){
  $('orderResults').innerHTML=filtered.slice(0,100).map(o=>'<tr><td>'+escapeHtml(o.numero_general??'—')+'</td><td>'+escapeHtml(shopName(o.tienda_id))+'</td><td>'+escapeHtml(o.nombre_cliente)+dyNota(o)+'</td><td>'+escapeHtml(o.direccion_cliente)+'</td><td>'+money(o.precio_mercaderia)+'</td><td>'+money(o.precio_delivery)+'</td><td>'+escapeHtml(drivers.find(d=>d.id===o.motorista_id)?.nombre||'—')+'</td><td><span class="badge-state" data-state="'+escapeHtml(o.estado)+'">'+escapeHtml(o.estado.replaceAll('_',' '))+'</span></td><td><button data-order="'+escapeHtml(o.id)+'">Ver</button></td></tr>').join('')||'<tr><td colspan="9">No hay pedidos con esos filtros</td></tr>';
  document.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>{const o=orders.find(o=>o.id===b.dataset.order);if(o)showOrder(o)})};
  ['orderSearch','orderState','orderShop','orderDriver'].forEach(id=>$(id).addEventListener('input',render));
- const setOrderDate=date=>{if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return;$('orderDate').value=date;if(date)filtroDia=date;window.dyFiltroAtencion=null;render()};
+ const setOrderDate=date=>{if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return;$('orderDate').value=date;if(date)filtroDia=date;window.dyFiltroAtencion=null;render()};
  $('orderDate').addEventListener('change',()=>setOrderDate($('orderDate').value));
  const hoyPedidos=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
  const moverPedidos=paso=>{const base=$('orderDate').value||hoyPedidos(),d=new Date(base+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+paso);const fecha=d.toISOString().slice(0,10);if(fecha<=hoyPedidos())setOrderDate(fecha)};
