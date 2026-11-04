@@ -1330,10 +1330,31 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   if(st.origen)punto(st.origen,'🏁','#111827',false,null,'Salida');
   // Mantener visibles todos los pedidos al elegir moto: cada marcador conserva su color.
   const visiblesMapa=geo;
-  const grupos={};visiblesMapa.forEach(o=>{const k=Number(o.lat).toFixed(5)+','+Number(o.lng).toFixed(5);(grupos[k]=grupos[k]||[]).push(o)});
-  Object.values(grupos).forEach(arr=>{const o=arr[0];const sel=arr.some(x=>st.sel.has(x.id));const d=drivers.find(x=>x.id===o.motorista_id);const mismo=arr.every(x=>x.motorista_id===o.motorista_id);
-   const color=sel?'#f5a000':arr.every(x=>x.estado==='entregado')?'#16803c':arr.every(x=>x.estado==='rechazado')?'#dc2626':arr.every(x=>x.estado==='no_responde')?'#eab308':arr.every(x=>x.estado==='no_recibio')?'#ea580c':arr.every(x=>x.estado==='pasa_manana')?'#2563eb':d&&mismo?colorMoto(d.id):(arr.some(x=>x.estado==='pendiente')?'#1f3a63':'#94a3b8');
-   punto(P(o),arr.map(x=>x.numero_general).join('·'),color,sel,arr.map(x=>x.id).join(','),arr.map(x=>'N.º '+x.numero_general+' · '+x.nombre_cliente+(x.observaciones?' · 📝 '+x.observaciones:'')).join('\n')+(arr.length>1?'\n(misma ubicación)':''))});
+  // Un marcador nunca puede heredar el color de otro motorista.
+  // Agrupar solo pedidos de la misma moto en la misma ubicación.
+  const grupos={};
+  visiblesMapa.forEach(o=>{
+   const posicion=Number(o.lat).toFixed(5)+','+Number(o.lng).toFixed(5);
+   const clave=posicion+'|'+(o.motorista_id||'sin_asignar');
+   (grupos[clave]=grupos[clave]||[]).push(o);
+  });
+  const porUbicacion={};
+  Object.values(grupos).forEach(arr=>{
+   const o=arr[0],key=Number(o.lat).toFixed(5)+','+Number(o.lng).toFixed(5);
+   (porUbicacion[key]=porUbicacion[key]||[]).push(arr);
+  });
+  Object.values(porUbicacion).forEach(conjuntos=>conjuntos.forEach((arr,indice)=>{
+   const o=arr[0],sel=arr.some(x=>st.sel.has(x.id));
+   const d=drivers.find(x=>x.id===o.motorista_id);
+   // Prioridad absoluta: color fijo de la moto asignada. La selección solo cambia el borde.
+   const color=d?colorMoto(d.id):'#1f3a63';
+   const pos=P(o);
+   // Si distintas motos comparten GPS, desplazar ligeramente cada marcador para que se vean todos.
+   const distancia=conjuntos.length>1?0.00022:0,angulo=2*Math.PI*indice/conjuntos.length;
+   const mostrado=distancia?{lat:pos.lat+Math.cos(angulo)*distancia,lng:pos.lng+Math.sin(angulo)*distancia/Math.max(.2,Math.cos(pos.lat*Math.PI/180))}:pos;
+   punto(mostrado,arr.map(x=>x.numero_general).join('·'),color,sel,arr.map(x=>x.id).join(','),
+    (d?'🏍️ '+d.nombre+'\\n':'Sin asignar\\n')+arr.map(x=>'N.º '+x.numero_general+' · '+x.nombre_cliente+' · '+x.estado+(x.observaciones?' · 📝 '+x.observaciones:'')).join('\\n')+(arr.length>1?'\\n(misma ubicación y moto)':''));
+  }));
   sinN.forEach(o=>punto(PP(o),'NUEVO','#dc2626',true,o.id,o.nombre_cliente+' · pedido nuevo: tocá Optimizar para sumarlo'));
   if(!st.fit){const all=ps.filter(gps).map(P).concat(st.origen?[st.origen]:[]);if(all.length){st.fit=true;if(st.g){const b=new google.maps.LatLngBounds();all.forEach(p=>b.extend(p));st.map.fitBounds(b,40);if(all.length===1)st.map.setZoom(12)}else if(all.length===1)st.map.setView([all[0].lat,all[0].lng],12);else st.map.fitBounds(all.map(p=>[p.lat,p.lng]),{padding:[45,45],maxZoom:13})}}}
  // ---------- acciones ----------
