@@ -404,12 +404,26 @@ function dyResumenCaja(a){
  const hoy=dyHoyAsu(),mov=dyDatos.mov.filter(x=>dyFechaAsu(x.created_at)===hoy),s=k=>mov.reduce((t,x)=>t+Number(x[k]||0),0);
  const ef=s('efectivo_cobrado'),tr=s('transferencia_cobrada'),comM=s('comision_motorista'),comE=s('comision_empresa');
  const comEnt=mov.filter(x=>(a.find(p=>p.id===x.pedido_id)||{}).estado==='entregado').reduce((t,x)=>t+Number(x.comision_motorista||0),0);
- const rendir=moto?.modalidad_liquidacion==='retener_comision'?Math.max(0,ef-Math.min(ef,comEnt)):ef;
- return {hoy,mov,ef,tr,comM,comE,rendir,cierre:dyDatos.cierres.find(c=>c.fecha===hoy)};
+ const retiene=moto?.modalidad_liquidacion==='retener_comision';
+ const retenido=retiene?Math.min(ef,Math.max(0,comEnt)):0;
+ const rendir=ef-retenido;
+ return {hoy,mov,ef,tr,comM,comE,comEnt,retiene,retenido,rendir,cierre:dyDatos.cierres.find(c=>c.fecha===hoy)};
 }
 function dyPintarCaja(a){
  const r=dyResumenCaja(a);
  $('cashSummary').innerHTML=[['💵 Efectivo cobrado',r.ef],['🏦 Transferencias',r.tr],['🏍️ Mi ganancia',r.comM],['🤝 Entrego al jefe',r.rendir]].map(([n,v],i)=>'<div class="dy-kpi'+(i===3?' dy-kpi-main':'')+'"><small>'+n+'</small><div class="number">'+money(v)+'</div></div>').join('');
+ // Mostrar la resta exacta detrás de la cifra, sin alterar el cierre ni sumar
+ // el costo del envío dos veces (ya forma parte de lo cobrado).
+ let desglose=document.getElementById('dyDesgloseRendicion');
+ if(!desglose){desglose=document.createElement('div');desglose.id='dyDesgloseRendicion';desglose.style.cssText='margin:12px 0 18px;padding:14px;border:1px solid #d6e2ef;border-radius:12px;background:#f7faff;color:#173152;font-size:15px;line-height:1.6';$('cashSummary').after(desglose)}
+ const modo=r.retiene?'La ganancia del delivery se descuenta del efectivo antes de rendir.':'Este motorista está configurado para rendir el efectivo completo; su ganancia se paga por separado.';
+ const faltaRetener=Math.max(0,r.comM-r.retenido);
+ desglose.innerHTML='<strong>🧮 Cálculo de mi rendición</strong>'
+  +'<div style="display:flex;justify-content:space-between;gap:12px"><span>💵 Total cobrado en efectivo</span><b>'+money(r.ef)+'</b></div>'
+  +'<div style="display:flex;justify-content:space-between;gap:12px"><span>− Ganancia retenida por el motorista</span><b>− '+money(r.retenido)+'</b></div>'
+  +'<div style="border-top:1px solid #c8d7e7;margin-top:7px;padding-top:7px;display:flex;justify-content:space-between;gap:12px"><strong>🤝 Efectivo que entrego al jefe</strong><strong>'+money(r.rendir)+'</strong></div>'
+  +(faltaRetener?'<div style="font-size:13px;margin-top:6px">Ganancia no descontada del efectivo: '+money(faltaRetener)+' (se liquida por separado según las reglas aplicables).</div>':'')
+  +'<p style="font-size:13px;margin:8px 0 0">'+modo+' Las transferencias ('+money(r.tr)+') se registran por separado. No se descuenta dos veces el precio del envío.</p>';
  const corregible=!!r.cierre&&r.cierre.estado!=='confirmada'&&!r.cierre.confirmed_at&&(!r.cierre.confirmado_por||r.cierre.confirmado_por===moto.usuario_id);
  if(!r.cierre||corregible){if(!$('cashDeclared').dataset.tocado){$('cashDeclared').value=r.rendir;$('transferDeclared').value=r.tr}}
  ['cashDeclared','transferDeclared'].forEach(id=>{$(id).oninput=()=>{$(id).dataset.tocado='1'}});
