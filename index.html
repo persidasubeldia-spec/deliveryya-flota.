@@ -294,6 +294,20 @@ async function tiendaEnviarPedidoARuta(id,button){
  }catch(e){mostrarResultadoRuta({ok:false,detalle:e.message});}
  finally{button.disabled=false;}
 }
+async function cancelarPedidoTienda(id){
+ if(!cloudMode||!activeStore)return;
+ const p=data.orders.find(x=>x.id===id);
+ if(!p||p.status!=='pendiente'||p.routeId||p.assigned){
+  show('No se puede cancelar: el pedido ya tiene ruta, motorista o no está pendiente. Contactá a la Central.','error');return;
+ }
+ if(!confirm('¿Eliminar el pedido de '+p.customer+'? Se marcará como cancelado, sin borrar el historial.'))return;
+ try{
+  const {error}=await supabaseClient.rpc('tienda_cancelar_pedido_seguro',{p_pedido_id:p.id,p_version:p.version});
+  if(error)throw error;
+  await loadCloud();
+  show('Pedido cancelado correctamente.');
+ }catch(err){show('No se pudo cancelar: '+(err.message||err),'error');}
+}
 function editarPedidoTienda(id) {
   if (!cloudMode || !activeStore) return;
   const p = data.orders.find(x => x.id === id);
