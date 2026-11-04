@@ -914,15 +914,16 @@ const rdGs=n=>'Gs. '+Math.round(Number(n)||0).toLocaleString('es-PY');
 let rdEstado={fecha:null,vista:'delivery',datos:null};
 async function rdCargar(fecha){
  const E=account.empresa_id,ini=fecha+'T00:00:00-03:00',fin=new Date(Date.parse(ini)+86400000).toISOString();
- const [mv,ci,re]=await Promise.all([
+ const [mv,ci,re,aj]=await Promise.all([
   client.from('movimientos_financieros').select('*').eq('empresa_id',E).gte('created_at',ini).lt('created_at',fin).limit(10000),
   client.from('flota_cierres_motoristas').select('*').eq('empresa_id',E).eq('fecha',fecha),
-  client.from('flota_rechazos_detalle').select('*').eq('empresa_id',E).limit(10000)]);
- const err=mv.error||ci.error||re.error;if(err)throw err;
+  client.from('flota_rechazos_detalle').select('*').eq('empresa_id',E).limit(10000),
+  client.rpc('flota_resumen_ajustes_tienda',{p_fecha:fecha})]);
+ const err=mv.error||ci.error||re.error||aj.error;if(err)throw err;
  try{orders=await cargarTodosLosPedidos(E)}catch(_){}
  if((mv.data||[]).length>=10000)throw Error('Movimientos del día exceden el límite de consulta; evitar cifras incompletas.');
  const movs=mv.data||[],porPedido=new Map(orders.map(o=>[o.id,o])),rech=new Map((re.data||[]).map(r=>[r.pedido_id,r]));
- return {fecha,movs,cierres:ci.data||[],porPedido,rech};
+ return {fecha,movs,cierres:ci.data||[],porPedido,rech,compensaciones:aj.data?.compensaciones||[],pagos:aj.data?.pagos||[]};
 }
 // Lógica financiera por pedido, desde la mirada de la tienda (misma regla que reporte-tienda):
 //  entregado + pendiente       → la flota cobró mercadería+envío: debe la MERCADERÍA a la tienda
@@ -935,7 +936,7 @@ function rdLineaTienda(m,p,r){
  const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(m.monto_delivery||0):0;
  let debeTienda=0,nota='';
  if(ent&&p.modalidad_pago==='todo_pagado'){debeTienda=Number(m.monto_delivery||0);nota='Envío ya cobrado por la tienda'}
- else if(rej){if(r&&r.responsable_pago==='tienda'){debeTienda=Number(r.importe_pendiente||0);nota='Rechazo: envío a cargo de la tienda'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
+ else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: cargo de tienda pendiente de conciliación, NO descontado automáticamente'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
  else if(ent&&p.modalidad_pago==='pendiente')nota='Cobrado '+(Number(m.transferencia_cobrada||0)?'por transferencia':'en efectivo');
  else if(ent)nota='Producto pagado: solo envío';
  return {merc,envCliente,debeTienda,nota,rej,ent};
@@ -944,7 +945,7 @@ function rdTiendas(d){
  const out=new Map();
  const asegurar=(id)=>{
   if(out.has(id))return out.get(id);
-  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0};
+  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech};
   out.set(id,t);return t;
  };
  // La rendición financiera se mantiene exclusivamente sobre movimientos reales.
@@ -966,7 +967,12 @@ function rdTiendas(d){
  for(const t of out.values()){
   t.filas.sort((a,b)=>String(a.p.turno).localeCompare(String(b.p.turno))||(a.p.numero_general??9999)-(b.p.numero_general??9999));
   t.pedidos.sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999)||String(a.created_at).localeCompare(String(b.created_at)));
-  t.neto=t.merc-t.debe;
+  const rjs=t.pedidos.filter(p=>p.estado==='rechazado');
+  for(const p of rjs){const r=d.rech.get(p.id);if(r?.responsable_pago==='tienda'&&Number(r.importe_pendiente)>0&&!d.compensaciones.some(c=>c.pedido_id===p.id))t.cargosPendientes+=Number(r.importe_pendiente)}
+  t.compensado=d.compensaciones.filter(c=>c.tienda_id===t.tienda.id).reduce((v,c)=>v+Number(c.importe||0),0);
+  t.pagado=d.pagos.filter(p=>p.tienda_id===t.tienda.id).reduce((v,p)=>v+Number(p.importe||0),0);
+  t.neto=t.merc-t.debe-t.compensado;
+  t.saldo=t.neto-t.pagado;
  }
  return [...out.values()].sort((a,b)=>String(a.tienda.codigo).localeCompare(String(b.tienda.codigo),'es',{numeric:true}));
 }
