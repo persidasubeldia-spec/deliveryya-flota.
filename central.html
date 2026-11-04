@@ -1214,7 +1214,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function colorMoto(id){const act=drivers.filter(d=>d.activo);const i=act.findIndex(d=>d.id===id);const d=act[i];const c=d&&/^#[0-9a-f]{6}$/i.test(d.color_identificador||'')?d.color_identificador:null;const rep=c&&act.findIndex(x=>(x.color_identificador||'').toLowerCase()===c.toLowerCase())!==i;return (!c||rep)?PAL[(i<0?0:i)%PAL.length]:c}
  function rutaHoy(t){return routes.filter(r=>r.fecha===st.fecha&&r.turno===t&&['abierta','optimizada','en_reparto'].includes(r.estado)).sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')))[0]||null}
  function paradas(){return orders.filter(o=>o.estado!=='cancelado'&&esFecha(o)&&tur(o)===st.turno).sort((a,b)=>(a.numero_general??1e9)-(b.numero_general??1e9)||String(a.created_at).localeCompare(String(b.created_at)))}
- function libre(o){if(!o||!editable()||!esFecha(o)||o.estado!=='pendiente'||o.motorista_id||o.numero_general==null)return false;const r=routes.find(x=>x.id===o.ruta_general_id);return !!r&&['optimizada','en_reparto'].includes(r.estado)}
+ function libre(o){if(!o||!editable()||!esFecha(o)||o.estado!=='pendiente'||o.motorista_id||tur(o)!==st.turno)return false;const r=routes.find(x=>x.id===o.ruta_general_id);return !r||(r.fecha===st.fecha&&r.turno===st.turno&&['abierta','optimizada','en_reparto'].includes(r.estado))}
  const reenviable=o=>!!o&&editable()&&esFecha(o)&&!!o.motorista_id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado);
  const marcable=o=>libre(o)||reenviable(o);
  function cercania(lista,desde){const r=[...lista],out=[];let cur=desde||P(r[0]);while(r.length){let bi=0,bd=Infinity;r.forEach((o,i)=>{const d=km(cur,P(o));if(d<bd){bd=d;bi=i}});const n=r.splice(bi,1)[0];out.push(n);cur=P(n)}return out}
@@ -1246,7 +1246,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   const cM=contar('manana'),cT=contar('tarde'),cS=contar('sin_definir');
   if(!st.turno)st.turno=cM||cT?(cM>=cT?'manana':'tarde'):(new Date().getHours()<12?'manana':'tarde');
   box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+hoy()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=hoy()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button></div></div>'
-  +(editable()?'<p class="sub">Para repartir: optimizá, marcá los pedidos, elegí la moto y asigná.</p>':'<div class="dy-readonly">📅 Jornada histórica — solo consulta. No se pueden optimizar ni asignar pedidos en esta fecha.</div>')
+  +(editable()?'<p class="sub">Para repartir: marcá pedidos nuevos y tocá la moto para agregarlos directamente. Optimizar es opcional.</p>':'<div class="dy-readonly">📅 Jornada histórica — solo consulta. No se pueden optimizar ni asignar pedidos en esta fecha.</div>')
   +'<div class="fila" id="dyDT">'+[['manana','🌅 Mañana',cM],['tarde','🌇 Tarde',cT]].concat(cS?[['sin_definir','Sin turno',cS]]:[]).map(([v,l,c])=>'<button type="button" class="chip '+(st.turno===v?'on':'')+'" data-t="'+v+'">'+l+' <small>'+c+' sin asignar</small></button>').join('')
   +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
   +'<button type="button" class="link" id="dyDOtro">'+(st.manual?'Usar mi ubicación (GPS)':'Salir desde otro punto…')+'</button>'
@@ -1265,7 +1265,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   // limpiar selección de lo que ya no se puede asignar
   [...st.sel].forEach(id=>{if(!marcable(orders.find(o=>o.id===id)))st.sel.delete(id)});
   const sinNum=ps.filter(o=>o.numero_general==null&&o.estado==='pendiente'&&!o.motorista_id),sinGps=ps.filter(o=>!gps(o));
-  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso" style="background:#fff1f1;border-color:#f3a3a3">🆕 '+(sinNum.filter(gps).length===1?'Pedido nuevo':sinNum.filter(gps).length+' pedidos nuevos')+': <b>'+sinNum.filter(gps).slice(0,6).map(o=>esc(o.nombre_cliente)).join(', ')+'</b>'+(sinNum.filter(gps).length>6?'…':'')+' · tocá <b>📍 Optimizar ruta</b> para '+(ps.some(o=>o.motorista_id)?'sumarlos al final de la ruta':'ordenarlos')+'.</div>':'')+(otrosHtml()?'<details class="dy-otros-turnos"><summary>📋 Hay pedidos de otros turnos · ver y gestionar</summary>'+otrosHtml()+'</details>':'')+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
+  $$('dyDAv').innerHTML=(sinNum.filter(gps).length?'<div class="aviso" style="background:#fff1f1;border-color:#f3a3a3">🆕 '+(sinNum.filter(gps).length===1?'Pedido nuevo':sinNum.filter(gps).length+' pedidos nuevos')+': <b>'+sinNum.filter(gps).slice(0,6).map(o=>esc(o.nombre_cliente)).join(', ')+'</b>'+(sinNum.filter(gps).length>6?'…':'')+' · marcá esos pedidos y tocá la moto para agregarlos sin optimizar. </div>':'')+(otrosHtml()?'<details class="dy-otros-turnos"><summary>📋 Hay pedidos de otros turnos · ver y gestionar</summary>'+otrosHtml()+'</details>':'')+(sinGps.length?'<div class="aviso">⚠️ '+sinGps.length+' sin ubicación, no entran en el mapa: '+sinGps.slice(0,4).map(o=>esc(o.nombre_cliente)).join(', ')+(sinGps.length>4?'…':'')+'.</div>':'');
   $$('dyDAv').querySelectorAll('[data-pasar]').forEach(b=>b.onclick=()=>pasar(b.dataset.pasar));$$('dyDAv').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.ver;st.sel.clear();st.fit=false;pintar()});
   const elSum=$('dyResumenTurno');
   if(elSum){const pendientes=ps.filter(o=>!FIN.includes(o.estado)).length,entregados=ps.filter(o=>o.estado==='entregado').length,inc=ps.filter(o=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(o.estado)).length;
@@ -1282,13 +1282,13 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   barra(ps);dibujar(ps);st.firma=firma()}
  function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const act=drivers.filter(d=>d.activo);
   if(st.moto&&!act.some(d=>d.id===st.moto))st.moto=null;
-  const nums=selOs.map(o=>o.numero_general);const k=largo(selOs.filter(gps),null);
+  const nums=selOs.map(o=>o.numero_general??'nuevo');const k=largo(selOs.filter(gps),null);
   el.classList.toggle('dy-sin-seleccion',!selOs.length&&!st.moto);
   el.innerHTML='<div class="r1"><div class="cnt">'+(selOs.length?'✅ '+selOs.length+' marcado(s): '+libresMarcados.length+' nuevos sin asignar, '+reenviarMarcados.length+' de la moto seleccionada'+(ajenosMarcados.length?' · '+ajenosMarcados.length+' de otras motos':'')+' <small>N.º Central '+nums.join(', ')+'</small>':(editable()?'Marcá pedidos y elegí la moto para asignar':'Historial del '+st.fecha+' · consulta sin modificaciones'))+'</div></div>'
   +'<div class="motos">'+(editable()?act:[]).map(d=>{const n=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&tur(o)===st.turno&&!FIN.includes(o.estado)).length;return '<button type="button" class="moto '+(st.moto===d.id?'on':'')+'" data-moto="'+esc(d.id)+'"><span class="dot" style="background:'+colorMoto(d.id)+'"></span>'+esc(d.nombre)+' <small>'+n+'</small></button>'}).join('')+'</div>'
-  +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>Agregar '+libresMarcados.length+' a la moto</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
+  +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>✅ Asignar '+libresMarcados.length+' ahora</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
   +(st.ultimo?'<div class="post">'+st.ultimo+'</div>':'');
-  el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{st.moto=st.moto===b.dataset.moto?null:b.dataset.moto;st.ultimo=null;st.fit=false;barra(paradas());dibujar(paradas())});
+  el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{const elegido=b.dataset.moto;st.moto=elegido;st.ultimo=null;st.fit=false;const marcados=paradas().filter(o=>st.sel.has(o.id));barra(paradas());dibujar(paradas());if(marcados.some(libre)&&marcados.every(o=>libre(o)||(reenviable(o)&&o.motorista_id===elegido)))asignar(false)});
   const a=$('dyDAsig'),w=$('dyDAsigW'),r=$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);
   if(r)r.onclick=()=>{const d=drivers.find(x=>x.id===st.moto&&x.activo);const seleccion=paradas().filter(o=>st.sel.has(o.id));const suyos=seleccion.filter(o=>reenviable(o)&&o.motorista_id===d?.id);if(!d||!suyos.length){msg('No hay pedidos marcados asignados a esta moto.','err');return}const excluidos=seleccion.length-suyos.length;if(excluidos&&!confirm('Se enviarán '+suyos.length+' pedidos de '+d.nombre+'. Los otros '+excluidos+' marcados no le pertenecen y NO se enviarán. ¿Continuar?'))return;window.open(waUrl(d,new Set(suyos.map(o=>o.id))),'_blank','noopener');msg('Preparado WhatsApp con '+suyos.length+' pedido(s) de '+d.nombre+(excluidos?' · '+excluidos+' excluidos':'')+'. No se cambiaron las asignaciones.','ok')}}
  const NT={manana:'🌅 Mañana',tarde:'🌇 Tarde',sin_definir:'Sin turno'};
@@ -1426,14 +1426,14 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   let guardados=false;
   try{
    for(let i=0;i<ids.length;i+=200){
-    const r=await client.rpc('flota_asignar_lote',{p_pedidos:ids.slice(i,i+200),p_motorista:d.id});
+    const r=await client.rpc('flota_asignar_pedidos_rapido',{p_pedidos:ids.slice(i,i+200),p_motorista:d.id,p_fecha:st.fecha,p_turno:st.turno});
     if(r.error)throw r.error;
    }
    guardados=true;
    // Confirmar en Supabase, no confiar solo en la selección temporal del navegador.
-   const {data:comprobados,error:verr}=await client.from('pedidos').select('id,motorista_id,estado').in('id',ids);
+   const {data:comprobados,error:verr}=await client.from('pedidos').select('id,motorista_id,estado,numero_general,ruta_general_id').in('id',ids);
    if(verr)throw Error('Se envió la asignación, pero falló su verificación: '+verr.message);
-   const confirmados=new Set((comprobados||[]).filter(o=>o.motorista_id===d.id).map(o=>o.id));
+   const confirmados=new Set((comprobados||[]).filter(o=>o.motorista_id===d.id&&o.ruta_general_id&&Number(o.numero_general)>0).map(o=>o.id));
    if(ids.some(id=>!confirmados.has(id)))throw Error('ATENCIÓN: solo se confirmaron '+confirmados.size+' de '+ids.length+' pedidos nuevos en Supabase. Revisá antes de reenviar.');
    await $$('routeReload').onclick();
    const actuales=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&!FIN.includes(o.estado));
