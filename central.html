@@ -1664,8 +1664,7 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
      // La lectura de geometría no puede impedir que la Central muestre estados y pedidos.
      const [results,routeResult]=await Promise.all([
        Promise.all(queries),
-       client.rpc('flota_recorridos_confirmados_fecha',{p_fecha:state.date})
-         .catch(e=>({error:e}))
+       (async()=>{try{return await client.rpc('flota_recorridos_confirmados_fecha',{p_fecha:state.date})}catch(e){return {error:e}}})()
      ]);
      if(results.some(x=>x.error))throw Error(results.find(x=>x.error).error.message);
      state.recorridoError=routeResult.error?.message||'';
