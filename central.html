@@ -786,9 +786,9 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
    msgEl.textContent='✅ '+data+' pedido(s) asignados a '+driver.nombre+'.';
    if(sendWhatsApp){
     const digits=String(driver.telefono||'').replace(/\D/g,'');const phone=digits.startsWith('595')?digits:'595'+digits.replace(/^0/,'');
-    const asignados=orders.filter(o=>o.motorista_id===motor&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)).sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999));
+    const asignados=dyOrdenMotorista(orders.filter(o=>o.motorista_id===motor&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)),filtroDia);
     const conGps=asignados.filter(o=>o.lat!=null&&o.lng!=null);const tramos=enlacesRuta(conGps);
-    const lista=asignados.slice(0,40).map(o=>'N.º '+(o.numero_general??'S/N')+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+dyNotaTxt(o)).join('\n');
+    const lista=asignados.slice(0,40).map((o,i)=>'Parada '+(i+1)+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+dyNotaTxt(o)).join('\n');
     const texto='*DeliveryYa Flota* 🏍️\nHola '+driver.nombre+', tenés '+asignados.length+' entrega(s).\n\n*▶ ABRIR MI RUTA EN DELIVERY YA:*\n'+location.origin+'/motorista.html'+'\n\n*Orden de entrega:*\n'+lista+(asignados.length>40?'\n… y '+(asignados.length-40)+' más en la app.':'')+'\n\n📍 Para navegar a cada cliente, tocá *Navegar* dentro de la aplicación.\n✅ Registrá ahí las entregas y los cobros.';
     const url='https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto);
     if(ventana&&!ventana.closed)ventana.location.href=url;else window.open(url,'_blank');
@@ -1224,8 +1224,9 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function largo(lista,desde){let t=0,c=desde;lista.forEach(o=>{if(c)t+=km(c,P(o));c=P(o)});return t}
  function enlaces(ps){const g=[];for(let i=0;i<ps.length;i+=10){const t=ps.slice(i,i+10),pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const dest=t[t.length-1],way=t.slice(0,-1);g.push({desde:t[0].numero_general,hasta:dest.numero_general,url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(ps[i-1])):'')})}return g}
  function waUrl(d,seleccion=null){const dg=String(d.telefono||'').replace(/\D/g,'');const phone=dg.startsWith('595')?dg:'595'+dg.replace(/^0/,'');
-  const asig=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)&&(!seleccion||seleccion.has(o.id))).sort((a,b)=>(a.numero_general??1e9)-(b.numero_general??1e9));
-  const tr=enlaces(asig.filter(gps));const lista=asig.slice(0,40).map(o=>'N.º '+(o.numero_general??'S/N')+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+(window.dyNotaTxt?dyNotaTxt(o):'')).join('\n');
+  const todosDeMoto=dyOrdenMotorista(orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado)),st.fecha);
+  const posiciones=new Map(todosDeMoto.map((o,i)=>[o.id,i+1]));const asig=todosDeMoto.filter(o=>!seleccion||seleccion.has(o.id));
+  const tr=enlaces(asig.filter(gps));const lista=asig.slice(0,40).map(o=>'Parada '+posiciones.get(o.id)+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+(window.dyNotaTxt?dyNotaTxt(o):'')).join('\n');
   const texto='*DeliveryYa Flota* 🏍️\nHola '+d.nombre+', tenés '+asig.length+' entrega(s).\n\n*▶ ABRIR MI RUTA EN DELIVERY YA:*\n'+location.origin+'/motorista.html'+'\n\n*Orden de entrega:*\n'+lista+(asig.length>40?'\n… y '+(asig.length-40)+' más en la app.':'')+'\n\n📍 Para navegar a cada cliente, tocá *Navegar* dentro de la aplicación.\n✅ Registrá ahí las entregas y los cobros.';
   return 'https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto)}
  function msg(t,k){const m=$$('dyDMsg');if(m){m.className='msg '+(k||'');m.textContent=t}}
@@ -1663,7 +1664,7 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
      const results=await Promise.all(queries);
      if(results.some(x=>x.error))throw Error(results.find(x=>x.error).error.message);
      if(!current())return;
-     state.motos=results[0].data||[];
+     await dyActualizarOrdenesMoto(state.date);state.motos=results[0].data||[];
      state.list=rs.length?(results[1].data||[]).filter(p=>p.motorista_id&&operatingDate(p)===state.date):[];
      state.lastUpdate=Date.now();
      const select=$('dyTrackDriver'),chosen=state.driver;
@@ -1683,7 +1684,7 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
    base.forEach(p=>{if(!groups.has(p.motorista_id))groups.set(p.motorista_id,[]);groups.get(p.motorista_id).push(p)});
    const list=$('dyTrackStops');
    if(list){list.innerHTML=[...groups.entries()].map(([id,items])=>{
-     const d=state.motos.find(x=>x.id===id),pending=items.filter(p=>active.includes(p.estado)).sort((a,b)=>(a.numero_general??99999)-(b.numero_general??99999)),completed=items.filter(p=>p.estado==='entregado').length,exceptions=items.filter(p=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(p.estado)).length,age=gpsAge(d);
+     const d=state.motos.find(x=>x.id===id),pending=dyOrdenMotorista(items.filter(p=>active.includes(p.estado)),state.date),completed=items.filter(p=>p.estado==='entregado').length,exceptions=items.filter(p=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(p.estado)).length,age=gpsAge(d);
      const gpsLabel=fresh(d)?'🟢 GPS en vivo ('+fmtTime(d.gps_actualizado_en)+')':Number.isFinite(age)?'⚪ Último GPS '+fmtTime(d.gps_actualizado_en)+' · no en vivo':'⚪ GPS no compartido';
      return '<section style="padding:10px 2px;border-bottom:1px solid #dce4f0"><div style="font-weight:800;color:'+ownColor(id)+'">● '+safe(d?.nombre||'Motorista')+'</div><div class="muted">'+items.length+' pedidos · '+pending.length+' por realizar · '+completed+' entregados · '+exceptions+' incidencias</div><div class="muted" style="font-size:12px">'+gpsLabel+'</div>'+pending.map((p,i)=>'<button type="button" data-track-order="'+safe(p.id)+'"><b style="color:'+ownColor(id)+'">Parada '+(i+1)+'</b> · '+safe(p.nombre_cliente)+'<span class="muted"> · Central '+safe(p.numero_general??'—')+' · '+safe(p.estado.replaceAll('_',' '))+'</span></button>').join('')+(pending.length?'':'<p class="muted">Sin entregas pendientes.</p>')+'</section>'
    }).join('')||'<p class="muted">No hay pedidos asignados para la fecha o motorista elegidos.</p>';
@@ -1694,7 +1695,7 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
    const bounds=[];
    [...groups.entries()].forEach(([id,items])=>{
      const d=state.motos.find(x=>x.id===id),color=ownColor(id);
-     const pending=items.filter(p=>active.includes(p.estado)).sort((a,b)=>(a.numero_general??99999)-(b.numero_general??99999));
+     const pending=dyOrdenMotorista(items.filter(p=>active.includes(p.estado)),state.date);
      pending.forEach((p,i)=>{if(!valid(p))return;const lat=Number(p.lat),lng=Number(p.lng);bounds.push({lat,lng});const label=String(i+1);
        const mk=new google.maps.Marker({map:state.map,position:{lat,lng},title:(d?.nombre||'Motorista')+' · Parada '+label+' · '+p.nombre_cliente,label:{text:label,color:'#fff',fontWeight:'bold',fontSize:'12px'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:16,fillColor:color,fillOpacity:1,strokeColor:'#fff',strokeWeight:2}});
        const info=new google.maps.InfoWindow({content:'<b>'+safe(d?.nombre||'Motorista')+' · Parada '+label+'</b><div>'+safe(p.nombre_cliente)+'</div><small>Central N.º '+safe(p.numero_general??'—')+' · '+safe(p.estado)+'</small>'});
