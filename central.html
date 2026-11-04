@@ -1588,4 +1588,96 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
  setTimeout(montar,0);
 })();
 </script>
+<script id="dySeguimientoJs">
+/* Seguimiento de entregas: lectura exclusivamente. GPS compartido voluntariamente. */
+(function(){
+ const $=id=>document.getElementById(id);
+ const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;',"'":'&#39;'}[c]));
+ const day=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
+ const operatingDate=o=>routes.find(r=>r.id===o.ruta_general_id)?.fecha||new Date(o.created_at).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
+ const active=['pendiente','no_responde','no_recibio','pasa_manana'];
+ const colors=['#1765ba','#e8590c','#2b8a3e','#ae3ec9','#c92a2a','#0b7285','#5c940d','#d6336c','#f08c00','#364fc7'];
+ const state={date:day(),driver:'',list:[],motos:[],map:null,pins:[],loop:null,loading:false,fit:true,lastUpdate:0,ordersSaved:null};
+ const current=()=>!!$('dyTrackRoot');
+ const ownColor=id=>{
+   const act=state.motos.filter(d=>d.activo),i=act.findIndex(d=>d.id===id),d=act[i];
+   const c=d&&/^#[0-9a-f]{6}$/i.test(d.color_identificador||'')?d.color_identificador:null;
+   const repeated=c&&act.findIndex(x=>(x.color_identificador||'').toLowerCase()===c.toLowerCase())!==i;
+   return c&&!repeated?c:colors[(i<0?0:i)%colors.length];
+ };
+ const valid=p=>p&&p.lat!=null&&p.lng!=null&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng));
+ const gpsAge=d=>d?.gps_actualizado_en?Date.now()-new Date(d.gps_actualizado_en).getTime():Infinity;
+ const fresh=d=>valid({lat:d?.gps_lat,lng:d?.gps_lng})&&gpsAge(d)>=0&&gpsAge(d)<300000;
+ const fmtTime=v=>v?new Date(v).toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',timeZone:'America/Asuncion'}):'—';
+ function closeMap(){state.pins.forEach(m=>{try{m.remove()}catch(e){}});state.pins=[];if(state.map){try{state.map.remove()}catch(e){}state.map=null}}
+ function clearTimer(){if(state.loop){clearInterval(state.loop);state.loop=null}closeMap()}
+ function mount(){
+   const host=$('content');if(!host)return;
+   clearTimer();state.date=day();state.fit=true;state.driver='';
+   host.innerHTML='<section id="dyTrackRoot"><div class="card" style="padding:18px;margin-bottom:14px"><h2 style="margin:0 0 8px">📍 Seguimiento por motorista</h2><p class="muted" style="margin:0 0 12px">Pedidos y estados actualizados desde Supabase. La ubicación solo aparece como «en vivo» cuando el motorista activó Compartir GPS y envió una posición reciente.</p><div class="toolbar" style="display:flex;flex-wrap:wrap;gap:9px;align-items:center"><label>Fecha <input id="dyTrackDate" type="date" value="'+state.date+'" max="'+day()+'" style="min-height:42px"></label><label>Motorista <select id="dyTrackDriver" style="min-width:200px;min-height:42px"><option value="">Todos los motoristas</option></select></label><button type="button" id="dyTrackReload">Actualizar ahora</button><span class="muted" id="dyTrackStatus">Consultando…</span></div></div><div id="dyTrackSummary" class="grid" style="margin-bottom:12px"></div><div style="display:grid;grid-template-columns: minmax(280px,360px) minmax(0,1fr);gap:14px" id="dyTrackLayout"><div class="card" style="padding:12px;max-height:580px;overflow:auto" id="dyTrackStops">Cargando pedidos…</div><div class="card" style="padding:6px;min-height:480px"><div id="dyTrackMap" style="height:480px;width:100%;border-radius:10px"></div><p id="dyTrackMapHelp" class="muted" style="padding:8px 12px;margin:0">Los pines indican entregas y última ubicación compartida. No representan un recorrido vial calculado.</p></div></div><p class="muted" style="margin-top:12px">Los datos se actualizan cada 20 segundos con la pantalla abierta. El GPS no funciona en segundo plano si el teléfono impide compartir ubicación; nunca se muestra una posición antigua como actual.</p></section>';
+   const style=document.createElement('style');style.id='dyTrackStyle';style.textContent='@media(max-width:850px){#dyTrackLayout{grid-template-columns:1fr!important}#dyTrackMap{height:370px!important}}#dyTrackStops button{width:100%;text-align:left;margin:5px 0;padding:10px;border:1px solid #dce4f0;border-radius:10px;background:#fff;color:#152b45;cursor:pointer}#dyTrackStops button:hover{background:#eff5ff}';$('dyTrackRoot').append(style);
+   $('dyTrackDate').onchange=e=>{if(e.target.value>day()){e.target.value=state.date;return}state.date=e.target.value;state.fit=true;refresh()};
+   $('dyTrackDriver').onchange=e=>{state.driver=e.target.value;state.fit=true;paint()};
+   $('dyTrackReload').onclick=()=>refresh();
+   if(window.L){state.map=L.map('dyTrackMap',{zoomControl:true}).setView([-25.32,-57.55],10);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(state.map)}
+   else $('dyTrackMap').textContent='No se cargó el mapa. Los estados de entregas siguen disponibles.';
+   refresh();state.loop=setInterval(()=>{if(current()&&!document.hidden)refresh()},20000);
+ }
+ async function refresh(){
+   if(state.loading||!current()||!account?.empresa_id)return;
+   state.loading=true;const status=$('dyTrackStatus');if(status)status.textContent='Actualizando…';
+   try{
+     const rs=routes.filter(r=>r.fecha===state.date).map(r=>r.id);
+     const queries=[client.from('motoristas').select('id,nombre,activo,color_identificador,gps_lat,gps_lng,gps_precision_m,gps_actualizado_en').eq('empresa_id',account.empresa_id)];
+     if(rs.length)queries.push(client.from('pedidos').select('id,nombre_cliente,estado,motorista_id,numero_general,lat,lng,ruta_general_id,turno,created_at').eq('empresa_id',account.empresa_id).in('ruta_general_id',rs).neq('estado','cancelado').limit(1800));
+     const results=await Promise.all(queries);
+     if(results.some(x=>x.error))throw Error(results.find(x=>x.error).error.message);
+     if(!current())return;
+     state.motos=results[0].data||[];
+     state.list=rs.length?(results[1].data||[]).filter(p=>p.motorista_id&&operatingDate(p)===state.date):[];
+     state.lastUpdate=Date.now();
+     const select=$('dyTrackDriver'),chosen=state.driver;
+     if(select){select.innerHTML='<option value="">Todos los motoristas</option>'+state.motos.filter(d=>d.activo||state.list.some(p=>p.motorista_id===d.id)).map(d=>'<option value="'+safe(d.id)+'">'+safe(d.nombre)+'</option>').join('');select.value=state.motos.some(d=>d.id===chosen)?chosen:'';if(!select.value)state.driver=''}
+     if(status)status.textContent='Actualizado a las '+fmtTime(new Date().toISOString());
+     paint();
+   }catch(e){if(status)status.textContent='No se pudo actualizar: '+e.message}
+   finally{state.loading=false}
+ }
+ function paint(){
+   if(!current())return;
+   const selected=state.driver,base=state.list.filter(p=>!selected||p.motorista_id===selected),all=state.list;
+   const motoCount=new Set(all.map(p=>p.motorista_id)).size;
+   const stats=[['Motoristas con pedidos',motoCount],['Pendientes',base.filter(p=>active.includes(p.estado)).length],['Entregados',base.filter(p=>p.estado==='entregado').length],['Incidencias',base.filter(p=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(p.estado)).length]];
+   const summary=$('dyTrackSummary');if(summary)summary.innerHTML=stats.map(([title,n])=>'<div class="card"><div class="muted">'+title+'</div><div class="number">'+n+'</div></div>').join('');
+   const groups=new Map();
+   base.forEach(p=>{if(!groups.has(p.motorista_id))groups.set(p.motorista_id,[]);groups.get(p.motorista_id).push(p)});
+   const list=$('dyTrackStops');
+   if(list){list.innerHTML=[...groups.entries()].map(([id,items])=>{
+     const d=state.motos.find(x=>x.id===id),pending=items.filter(p=>active.includes(p.estado)).sort((a,b)=>(a.numero_general??99999)-(b.numero_general??99999)),completed=items.filter(p=>p.estado==='entregado').length,exceptions=items.filter(p=>['rechazado','no_responde','no_recibio','pasa_manana'].includes(p.estado)).length,age=gpsAge(d);
+     const gpsLabel=fresh(d)?'🟢 GPS en vivo ('+fmtTime(d.gps_actualizado_en)+')':Number.isFinite(age)?'⚪ Último GPS '+fmtTime(d.gps_actualizado_en)+' · no en vivo':'⚪ GPS no compartido';
+     return '<section style="padding:10px 2px;border-bottom:1px solid #dce4f0"><div style="font-weight:800;color:'+ownColor(id)+'">● '+safe(d?.nombre||'Motorista')+'</div><div class="muted">'+items.length+' pedidos · '+pending.length+' por realizar · '+completed+' entregados · '+exceptions+' incidencias</div><div class="muted" style="font-size:12px">'+gpsLabel+'</div>'+pending.map((p,i)=>'<button type="button" data-track-order="'+safe(p.id)+'"><b style="color:'+ownColor(id)+'">Parada '+(i+1)+'</b> · '+safe(p.nombre_cliente)+'<span class="muted"> · Central '+safe(p.numero_general??'—')+' · '+safe(p.estado.replaceAll('_',' '))+'</span></button>').join('')+(pending.length?'':'<p class="muted">Sin entregas pendientes.</p>')+'</section>'
+   }).join('')||'<p class="muted">No hay pedidos asignados para la fecha o motorista elegidos.</p>';
+     list.querySelectorAll('[data-track-order]').forEach(b=>b.onclick=()=>{const p=base.find(x=>x.id===b.dataset.trackOrder);if(p&&valid(p)&&state.map){state.map.setView([Number(p.lat),Number(p.lng)],14)}});
+   }
+   if(!state.map)return;
+   state.pins.forEach(m=>{try{m.remove()}catch(e){}});state.pins=[];
+   const bounds=[];
+   [...groups.entries()].forEach(([id,items])=>{
+     const d=state.motos.find(x=>x.id===id),color=ownColor(id);
+     const pending=items.filter(p=>active.includes(p.estado)).sort((a,b)=>(a.numero_general??99999)-(b.numero_general??99999));
+     pending.forEach((p,i)=>{if(!valid(p))return;const lat=Number(p.lat),lng=Number(p.lng);bounds.push([lat,lng]);const label=(i+1);
+       const mk=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div style="width:30px;height:30px;border-radius:50%;background:'+color+';color:white;border:2px solid white;display:grid;place-items:center;font-weight:800;box-shadow:0 1px 5px #3339">'+label+'</div>',iconSize:[34,34],iconAnchor:[17,17]})}).addTo(state.map);
+       mk.bindPopup('<b>'+safe(d?.nombre||'Motorista')+' · Parada '+label+'</b><div>'+safe(p.nombre_cliente)+'</div><small>Central N.º '+safe(p.numero_general??'—')+' · '+safe(p.estado)+'</small>');state.pins.push(mk);
+     });
+     if(fresh(d)){const coords=[Number(d.gps_lat),Number(d.gps_lng)];bounds.push(coords);const marker=L.marker(coords,{icon:L.divIcon({className:'',html:'<div style="width:34px;height:34px;background:#fff;border:3px solid '+color+';border-radius:50%;display:grid;place-items:center;font-size:20px;box-shadow:0 1px 5px #3339">🏍️</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(state.map);marker.bindPopup('<b>'+safe(d.nombre)+'</b><div>GPS compartido a las '+fmtTime(d.gps_actualizado_en)+'</div><small>Precisión: '+Math.round(Number(d.gps_precision_m||0))+' m</small>');state.pins.push(marker)}
+   });
+   if(state.fit&&bounds.length){state.fit=false;if(bounds.length===1)state.map.setView(bounds[0],13);else state.map.fitBounds(bounds,{padding:[35,35],maxZoom:13})}
+ }
+ const orig=window.page;
+ if(typeof orig==='function')window.page=function(n){
+   if(n!=='Seguimiento'){if(state.loop||state.map)clearTimer();return orig.apply(this,arguments)}
+   const result=orig.apply(this,arguments);mount();return result;
+ };
+})();
+</script>
 </body></html>
