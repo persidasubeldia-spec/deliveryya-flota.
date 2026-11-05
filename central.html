@@ -1699,7 +1699,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
     refrescar();msg('No se completó la reasignación: '+(e.message||e),'err');
   }finally{if(btn)btn.disabled=false}
  }
- async async function liberarSeleccionados(idsUnicos=null){
+ async function liberarSeleccionados(idsUnicos=null){
   if(!editable()){msg('La liberación rápida solo está habilitada en la jornada actual.','err');return}
   const elegidos=idsUnicos?paradas().filter(o=>idsUnicos.includes(o.id)):paradas().filter(o=>st.sel.has(o.id));
   if(!elegidos.length){msg('Marcá al menos un pedido asignado para liberarlo.','err');return}
