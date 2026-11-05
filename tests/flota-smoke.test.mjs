@@ -161,3 +161,12 @@ test('Crear rutas, asignar y anexar no recupera pedidos viejos automáticamente'
  assert.ok(central.includes("diaPY(o.created_at)===route.fecha"),'Anexar debe limitar pedidos sin ruta al día correcto');
  assert.ok(central.includes("['pendiente','no_responde','no_recibio'].includes(o.estado)"),'Central debe permitir mover incidencias no cobradas');
 });
+
+test('No reprogramar pedidos futuros hacia hoy; asignar futura ruta sin cambiar fechas',()=>{
+ assert.ok(central.includes("const historicoElegible=o=>!!o&&st.fecha<hoy()"),'Históricos solo fechas pasadas');
+ assert.ok(central.includes("const futuroElegible=o=>!!o&&st.fecha>hoy()"),'Destinos futuros separadamente');
+ assert.ok(central.includes("if(st.fecha>=hoy())return msg('No se pueden devolver pedidos"),'Guardia de reprogramación');
+ assert.ok(central.includes("client.rpc('flota_asignar_lote',{p_pedidos:ids,p_motorista:d.id})"),'Asignar sin mover fechas');
+ assert.ok(central.includes("ver.data||[]).length!==ids.length"),'Verificar cantidad exacta');
+ assert.ok(central.includes("waUrl(d,new Set(ids))"),'WhatsApp solo pedidos confirmados y seleccionados');
+});
