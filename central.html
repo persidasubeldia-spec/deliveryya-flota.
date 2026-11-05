@@ -1650,7 +1650,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    const fecha=$('dyDProgramarFecha')?.value;
    const turno=$('dyDProgramarTurno')?.value;
    if(!d||!lista.length)return msg('Elegí una moto y al menos un pedido asignado pendiente.','err');
-   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha||'')||fecha<hoy()||fecha>fechaLimite())return msg('Elegí una fecha válida dentro de los próximos 14 días.','err');
+   if(!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(fecha||'')||fecha<hoy()||fecha>fechaLimite())return msg('Elegí una fecha válida dentro de los próximos 14 días.','err');
    if(!['manana','tarde'].includes(turno))return msg('Elegí turno mañana o tarde.','err');
    if(lista.some(o=>fechaOperativa(o)>=fecha))return msg('La nueva fecha debe ser posterior a la fecha original de todos los pedidos.','err');
    const nombres=lista.slice(0,4).map(o=>o.nombre_cliente).join(', ');
