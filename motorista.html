@@ -565,6 +565,7 @@ function dyWaTextoCliente(tipo,p,tienda,motorista){
  }
 }
 function dyAbrirWhatsAppCliente(p){
+ if(!document.getElementById('dyPanelCss'))document.head.append(dyEl('style',{id:'dyPanelCss'},document.createTextNode(PANEL_CSS)));
  document.getElementById('dyWaClienteOv')?.remove();
  const t=dyTiendas.get(p.tienda_id);
  const nombreTienda=String(t?.nombre_comercial||t?.nombre||'').trim();
@@ -572,8 +573,8 @@ function dyAbrirWhatsAppCliente(p){
  const tel=dyWaTelefonoCliente(p.telefono_cliente);
  const ov=document.createElement('div');ov.id='dyWaClienteOv';ov.className='dy-ov';
  ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
- const sh=document.createElement('div');sh.className='dy-sh';
- sh.style.maxHeight='90vh';
+ const sh=document.createElement('section');sh.className='dy-sh';
+ sh.style.maxHeight='90vh';sh.style.paddingBottom='max(22px, env(safe-area-inset-bottom))';
  const h=document.createElement('h3');h.textContent='WhatsApp del cliente';
  const detalle=document.createElement('p');detalle.className='dy-sub';
  detalle.textContent=(p.nombre_cliente||'Cliente')+' · '+(nombreTienda||'Tienda no identificada')+' · Pedido N.º '+(p.numero_general??'—');
@@ -585,8 +586,9 @@ function dyAbrirWhatsAppCliente(p){
  const nota=document.createElement('p');nota.className='dy-sub';nota.textContent='WhatsApp se abrirá con el texto preparado. El motorista confirma el envío desde WhatsApp.';
  const error=document.createElement('p');error.className='dy-err';error.setAttribute('role','alert');
  if(!tel)error.textContent='Este cliente no tiene un número de WhatsApp válido. Revisá el teléfono del pedido antes de continuar.';
- const btn=document.createElement('button');btn.type='button';btn.className='dy-big';btn.style.background='#128C4A';btn.textContent='Abrir WhatsApp';
- btn.disabled=!tel;
+ const btn=document.createElement('a');btn.className='dy-big';btn.style.cssText='background:#128C4A;display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:12px;box-sizing:border-box';btn.textContent='📲 Abrir WhatsApp';
+ btn.target='_blank';btn.rel='noopener noreferrer';
+ if(!tel){btn.removeAttribute('href');btn.setAttribute('aria-disabled','true');btn.style.opacity='.55'}
  const cancel=document.createElement('button');cancel.type='button';cancel.className='dy-cancel';cancel.textContent='Cancelar';
  const cerrar=()=>ov.remove();
  cancel.onclick=cerrar;ov.onclick=e=>{if(e.target===ov)cerrar()};
@@ -595,17 +597,23 @@ function dyAbrirWhatsAppCliente(p){
    area.focus();
  };
  selector.value='entrega';area.value=dyWaTextoCliente('entrega',p,nombreTienda,nombreMoto);
- btn.onclick=()=>{
-   if(btn.disabled)return;
-   const text=area.value.trim();if(!text){error.textContent='Escribí un mensaje para continuar.';return}
-   btn.disabled=true;
-   const url='https://wa.me/'+tel+'?text='+encodeURIComponent(text);
-   const ventana=window.open(url,'_blank');
-   if(ventana)ventana.opener=null;
-   if(!ventana){const enlace=document.createElement('a');enlace.href=url;enlace.target='_blank';enlace.rel='noopener';enlace.textContent='Tocar para abrir WhatsApp';enlace.style.display='block';enlace.style.marginTop='12px';enlace.style.color='#128C4A';sh.append(enlace)}
-   else cerrar();
-   btn.disabled=false;
+ // El mensaje se genera solo con datos reales y se puede editar antes de enviar.
+ const actualizarEnlace=()=>{
+   const texto=area.value.trim();
+   if(!tel||!texto){btn.removeAttribute('href');btn.setAttribute('aria-disabled','true');btn.style.opacity='.55';return}
+   btn.href='https://api.whatsapp.com/send?phone='+tel+'&text='+encodeURIComponent(texto);
+   btn.removeAttribute('aria-disabled');btn.style.opacity='1';
  };
+ btn.addEventListener('click',e=>{
+   actualizarEnlace();
+   if(!btn.href||btn.getAttribute('aria-disabled')==='true'){
+     e.preventDefault();error.textContent=!tel?'Número de WhatsApp inválido. Corregí el teléfono del cliente.':'Escribí un mensaje para continuar.';return;
+   }
+   // Enlace abierto desde gesto del usuario; sin popup asíncrono ni registrar un envío falso.
+   error.textContent='';
+ });
+ area.addEventListener('input',actualizarEnlace);
+ actualizarEnlace();
  sh.append(h,detalle,label,selector,editarLabel,area,nota,error,btn,cancel);ov.append(sh);document.body.append(ov);
 }
 
