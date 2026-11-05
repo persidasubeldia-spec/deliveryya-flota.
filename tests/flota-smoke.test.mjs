@@ -99,3 +99,12 @@ test('Rendición oficial separa motociclista, tienda y administración',()=>{
   assert.ok(!tiendaPdf.includes(interno),'No exponer '+interno+' en informe a tienda');
  }
 });
+
+test('Finanzas no cuenta rechazos impagos como comisiones realizadas',()=>{
+ assert.ok(central.includes("const entregasCobradas=m.filter(mv=>x.porPedido.get(mv.pedido_id)?.estado==='entregado'"));
+ assert.ok(central.includes("const pendientesRechazo=m.filter(mv=>mv.es_rechazo_facturable"));
+ assert.ok(central.includes("cobrada('comision_empresa')"));
+ assert.ok(central.includes("cobrada('comision_motorista')"));
+ assert.ok(central.includes("detalleMovimiento(entregasCobradas,'empresa')"));
+ assert.ok(central.includes("detalleMovimiento(entregasCobradas,'motos')"));
+});
