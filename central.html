@@ -933,17 +933,18 @@ const rdGs=n=>'Gs. '+Math.round(Number(n)||0).toLocaleString('es-PY');
 let rdEstado={fecha:null,vista:'delivery',datos:null};
 async function rdCargar(fecha){
  const E=account.empresa_id,ini=fecha+'T00:00:00-03:00',fin=new Date(Date.parse(ini)+86400000).toISOString();
- const [mv,ci,re,aj,ledger]=await Promise.all([
+ const [mv,ci,re,aj,ledger,reprogramados]=await Promise.all([
   client.from('movimientos_financieros').select('*').eq('empresa_id',E).gte('created_at',ini).lt('created_at',fin).limit(10000),
   client.from('flota_cierres_motoristas').select('*').eq('empresa_id',E).eq('fecha',fecha),
   client.from('flota_rechazos_detalle').select('*').eq('empresa_id',E).limit(10000),
   client.rpc('flota_resumen_ajustes_tienda',{p_fecha:fecha}),
-  client.rpc('flota_saldos_rechazos_por_tienda')]);
- const err=mv.error||ci.error||re.error||aj.error||ledger.error;if(err)throw err;
+  client.rpc('flota_saldos_rechazos_por_tienda'),
+  client.rpc('flota_historial_reprogramados_fecha',{p_fecha:fecha})]);
+ const err=mv.error||ci.error||re.error||aj.error||ledger.error||reprogramados.error;if(err)throw err;
  try{orders=await cargarTodosLosPedidos(E)}catch(_){}
  if((mv.data||[]).length>=10000)throw Error('Movimientos del día exceden el límite de consulta; evitar cifras incompletas.');
  const movs=mv.data||[],porPedido=new Map(orders.map(o=>[o.id,o])),rech=new Map((re.data||[]).map(r=>[r.pedido_id,r]));
- return {fecha,movs,cierres:ci.data||[],porPedido,rech,compensaciones:aj.data?.compensaciones||[],pagos:aj.data?.pagos||[],rechazosDeuda:ledger.data||[]};
+ return {fecha,movs,cierres:ci.data||[],porPedido,rech,compensaciones:aj.data?.compensaciones||[],pagos:aj.data?.pagos||[],rechazosDeuda:ledger.data||[],reprogramados:reprogramados.data||[]};
 }
 // Lógica financiera por pedido, desde la mirada de la tienda (misma regla que reporte-tienda):
 //  entregado + pendiente       → la flota cobró mercadería+envío: debe la MERCADERÍA a la tienda
@@ -965,7 +966,7 @@ function rdTiendas(d){
  const out=new Map();
  const asegurar=(id)=>{
   if(out.has(id))return out.get(id);
-  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech};
+  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech,pasados:[]};
   out.set(id,t);return t;
  };
  // La rendición financiera se mantiene exclusivamente sobre movimientos reales.
@@ -981,9 +982,10 @@ function rdTiendas(d){
  for(const p of d.porPedido.values()){
   if(!p.tienda_id)continue;
   const fechaCarga=p.created_at?diaPY(p.created_at):'',fechaRuta=routes.find(r=>r.id===p.ruta_general_id)?.fecha||'';
-  if(fechaCarga!==d.fecha&&fechaRuta!==d.fecha)continue;
+  if(fechaRuta!==d.fecha&&(p.ruta_general_id||fechaCarga!==d.fecha))continue;
   const t=asegurar(p.tienda_id);t.pedidos.push(p);
  }
+ for(const evento of d.reprogramados||[]){if(evento.tienda_id)asegurar(evento.tienda_id).pasados.push(evento)}
  for(const t of out.values()){
   t.filas.sort((a,b)=>String(a.p.turno).localeCompare(String(b.p.turno))||(a.p.numero_general??9999)-(b.p.numero_general??9999));
   t.pedidos.sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999)||String(a.created_at).localeCompare(String(b.created_at)));
@@ -1093,10 +1095,11 @@ async function dyRendiciones(){
    body.innerHTML='<div class="rd-kpis">'+totales.map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
    '<details class="rd-card" style="border-left:4px solid #d97706"><summary style="cursor:pointer;font-weight:800">⚠️ Rechazos por recuperar de tiendas · '+money(totalDeuda)+' ('+deudas.length+' pedidos)</summary><p class="muted">Control interno de rechazos de todas las fechas. No se descuentan de dos jornadas: cada cargo solo se confirma una vez, al conciliar la rendición. Los pendientes de otros días se muestran como deuda, sin alterar automáticamente la caja de hoy.</p>'+(deudas.length?'<div class="scroll"><table><thead><tr><th>Tienda</th><th>Cliente</th><th>Fecha original</th><th>Importe pendiente</th></tr></thead><tbody>'+deudas.map(x=>'<tr><td>'+escapeHtml(stores.find(t=>t.id===x.tienda_id)?.nombre_comercial||'Tienda')+'</td><td>'+escapeHtml(x.nombre_cliente)+'</td><td>'+escapeHtml(x.fecha_ruta||'—')+'</td><td>'+money(x.saldo_pendiente)+'</td></tr>').join('')+'</tbody></table></div>':'<p>Todos los rechazos a cargo de tiendas están conciliados.</p>')+'</details>'+
    (ts.length?ts.map((t,i)=>'<div class="rd-card"><h3>'+escapeHtml(t.tienda.codigo||'')+' · '+escapeHtml(t.tienda.nombre_comercial||'')+'</h3>'+
-   '<div class="muted">'+t.pedidos.length+' pedidos del día · ✅ '+t.pedidos.filter(p=>p.estado==='entregado').length+' entregados · ❌ '+t.pedidos.filter(p=>p.estado==='rechazado').length+' rechazados</div>'+
+   '<div class="muted">'+t.pedidos.length+' pedidos activos de la fecha · ✅ '+t.pedidos.filter(p=>p.estado==='entregado').length+' entregados · ❌ '+t.pedidos.filter(p=>p.estado==='rechazado').length+' rechazados · 📅 '+t.pasados.length+' pasados a mañana (fuera de la ruta)</div>'+
    '<div class="rd-nums"><div><small>Mercadería correspondiente</small><b>'+money(t.merc)+'</b></div><div><small>Envíos pagados a la tienda por el cliente</small><b>'+money(t.debe)+'</b></div>'+
    '<div><small>Rechazos descontados directamente</small><b>'+money(t.cargosPendientes)+'</b></div><div><small>Compensaciones confirmadas</small><b>'+money(t.compensado)+'</b></div>'+
    '<div><small>Pagos a tienda confirmados</small><b>'+money(t.pagado)+'</b></div></div>'+
+   '<details style="margin:10px 0;padding:10px;border:1px solid #bfdbfe;border-radius:9px"><summary style="cursor:pointer;font-weight:800">📅 '+t.pasados.length+' pedido(s) pasados a mañana · ver clientes</summary><p class="muted">Trasladados desde '+escapeHtml(d.fecha)+'. No figuran como pendientes activos en el mapa anterior, ni generan cobro por el traslado.</p>'+(t.pasados.length?'<div class="scroll"><table><thead><tr><th>Cliente</th><th>De quién</th><th>Fecha destino</th></tr></thead><tbody>'+t.pasados.map(z=>'<tr><td>'+escapeHtml(z.cliente)+'</td><td>'+escapeHtml(z.motorista_anterior||'Sin asignar')+'</td><td>'+escapeHtml(z.fecha_destino)+'</td></tr>').join('')+'</tbody></table></div>':'<p>No hubo traslados.</p>')+'</details>'+ 
    '<div class="rd-neto'+(t.neto<0?' neg':'')+'">'+(t.neto>=0?'Neto calculado a favor de la tienda: '+money(t.neto):'Importe calculado a favor de la flota: '+money(-t.neto))+'</div>'+
    '<div class="muted" style="margin:8px 0">Saldo después de pagos: <b>'+money(t.saldo)+'</b> · '+(t.saldo===0&&t.pagado>0?'Con pago registrado':'PROVISIONAL / NO LIQUIDADO')+'</div>'+
    '<div class="rd-acc"><button class="rd-pri" data-rdshare="'+i+'">📤 Enviar PDF a tienda</button><button data-rdpdf="'+i+'">📄 Descargar PDF</button><button data-rdver="'+i+'">👁 Ver detalle</button>'+
@@ -1284,6 +1287,7 @@ async function rdPdf(t,fecha){
  const movPorPedido=new Map();
  for(const {p,m} of t.filas){if(!movPorPedido.has(p.id))movPorPedido.set(p.id,[]);movPorPedido.get(p.id).push(m)}
  const conteo={};for(const p of unicos)conteo[p.estado]=(conteo[p.estado]||0)+1;
+ const pasados=t.pasados||[];
  const conMovimiento=unicos.filter(p=>movPorPedido.has(p.id)).length;
  const sinMovimiento=unicos.filter(p=>!movPorPedido.has(p.id));
  const turnoTexto=Object.entries(t.turnos||{}).map(([v,n])=>(RD_TURNO[v]||v)+' ('+n+')').join(' · ')||'Sin turnos facturados';
@@ -1301,7 +1305,7 @@ async function rdPdf(t,fecha){
    txt('Fecha operativa: '+fechaTexto,M,31,9,true);
    txt('Turnos con movimiento: '+turnoTexto,M+70,31,8);
    txt('Generado: '+generado,W-100,31,8);
-   txt('Resumen operativo: '+unicos.length+' pedidos · Informe '+refInforme+' · '+(esLiquidada?'CON PAGO REGISTRADO':'PROVISIONAL'),M,40,10,true);
+   txt('En ruta: '+unicos.length+' · Pasados a mañana: '+pasados.length+' · '+refInforme+' · '+(esLiquidada?'PAGO REGISTRADO':'PROVISIONAL'),M,40,9,true);
   }else{
    txt('Fecha: '+fechaTexto+'  ·  '+codigo+' '+nombre,M,30,8);
   }
@@ -1358,6 +1362,7 @@ async function rdPdf(t,fecha){
   }
  });
  let y=(doc.lastAutoTable?.finalY||74)+8;
+ if(pasados.length){doc.addPage();encabezado(false);doc.autoTable({startY:42,margin:{left:M,right:M,bottom:17},head:[['PEDIDOS PASADOS A MAÑANA · NO COBRADOS POR REPROGRAMACIÓN','FECHA DESTINO','GESTIONADO POR']],body:pasados.map(z=>[z.cliente,z.fecha_destino,z.motorista_anterior||'Central']),theme:'grid',styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[30,64,175]}});y=(doc.lastAutoTable?.finalY||42)+10;}
  const minimo=98;
  if(y+minimo>H-16){doc.addPage();encabezado(false);y=42}
  txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
