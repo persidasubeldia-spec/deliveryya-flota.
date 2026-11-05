@@ -1756,6 +1756,33 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  setInterval(()=>{if($('dyDesp')&&!document.hidden)dyActualizarOrdenesMoto(st.fecha).then(()=>{if($('dyDesp'))refrescar()})},20000);
  let canal=null,tRec=null;setInterval(()=>{try{if(canal||typeof account==='undefined'||!account||!account.empresa_id)return;
   canal=client.channel('dy-despacho-'+account.empresa_id).on('postgres_changes',{event:'*',schema:'public',table:'pedidos',filter:'empresa_id=eq.'+account.empresa_id},()=>{clearTimeout(tRec);tRec=setTimeout(()=>{if($$('dyDesp')&&$$('routeReload'))Promise.resolve($$('routeReload').onclick()).then(()=>refrescar()).catch(()=>{})},700)}).subscribe()}catch(_){canal=null}},2000);
+ // Los colores de motos se actualizan sin recargar pedidos ni alterar el zoom del mapa.
+ let canalColores=null,comprobandoColores=false;
+ async function actualizarColoresMoto(){
+  if(comprobandoColores||document.hidden||!account?.empresa_id)return;
+  comprobandoColores=true;
+  try{
+   const {data,error}=await client.from('motoristas').select('id,color_identificador').eq('empresa_id',account.empresa_id);
+   if(error||!data)return;
+   let cambio=false;
+   for(const item of data){
+    const actual=drivers.find(d=>d.id===item.id);
+    if(actual&&actual.color_identificador!==item.color_identificador){
+      actual.color_identificador=item.color_identificador;
+      cambio=true;
+    }
+   }
+   if(cambio&&$('dyDesp'))refrescar();
+  }catch(e){console.warn('Colores de motos',e)}
+  finally{comprobandoColores=false}
+ }
+ setInterval(()=>{if($('dyDesp'))actualizarColoresMoto()},30000);
+ setInterval(()=>{try{
+  if(canalColores||!account?.empresa_id)return;
+  canalColores=client.channel('dy-colores-motos-'+account.empresa_id)
+   .on('postgres_changes',{event:'UPDATE',schema:'public',table:'motoristas',filter:'empresa_id=eq.'+account.empresa_id},actualizarColoresMoto)
+   .subscribe();
+ }catch(e){canalColores=null}},3000);
  window.dyDespacho={st,refrescar,mejorar,cercania};
 })();
 </script>
