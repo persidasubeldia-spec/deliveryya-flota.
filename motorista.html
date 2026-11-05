@@ -588,7 +588,8 @@ function dyAbrirWhatsAppCliente(p){
    const text=area.value.trim();if(!text){error.textContent='Escribí un mensaje para continuar.';return}
    btn.disabled=true;
    const url='https://wa.me/'+tel+'?text='+encodeURIComponent(text);
-   const ventana=window.open(url,'_blank','noopener');
+   const ventana=window.open(url,'_blank');
+   if(ventana)ventana.opener=null;
    if(!ventana){const enlace=document.createElement('a');enlace.href=url;enlace.target='_blank';enlace.rel='noopener';enlace.textContent='Tocar para abrir WhatsApp';enlace.style.display='block';enlace.style.marginTop='12px';enlace.style.color='#128C4A';sh.append(enlace)}
    else cerrar();
    btn.disabled=false;
