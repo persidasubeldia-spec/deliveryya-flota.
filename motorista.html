@@ -227,6 +227,7 @@ async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos'
  dyTodos=(data||[]).filter(p=>DY_ACT.includes(p.estado)||Date.now()-Date.parse(p.updated_at||0)<14*864e5).map(p=>({...p,_fecha_operativa:fechaPedido(p)}));
  const pedidosJornada=(data||[]).filter(p=>fechaPedido(p)===fechaVista).map(p=>({...p,_fecha_operativa:fechaPedido(p)}));
  const pedidosHoy=(data||[]).filter(p=>fechaPedido(p)===hoyOperativo);
+ dyCajaPedidos=(data||[]).map(p=>({...p,_fecha_operativa:fechaPedido(p)}));
  // Ganancias calculadas dentro de Supabase: no se envían porcentajes ni margen empresarial.
  const ganRes=await sb.rpc('motorista_mis_ganancias_por_fecha',{p_fecha:fechaVista});
  dyGanancias=new Map((ganRes.data||[]).map(x=>[x.pedido_id,x]));
@@ -353,7 +354,7 @@ try{
 finally{btn.disabled=false;}
 };
 const [movRes,closeRes,rechRes]=await Promise.all([sb.from('movimientos_financieros').select('id,pedido_id,motorista_id,created_at,comision_motorista,efectivo_cobrado,transferencia_cobrada,liquidado').eq('motorista_id',moto.id),sb.from('flota_cierres_motoristas').select('id,fecha,estado,efectivo_declarado,transferencia_declarada,diferencia,confirmado_por,confirmed_at,created_at').eq('motorista_id',moto.id).order('created_at',{ascending:false}).limit(12),sb.from('flota_rechazos_detalle').select('pedido_id,importe_cobrado,importe_pendiente,medio_cobro,motivo,responsable_pago').eq('motorista_id',moto.id)]);
-dyDatos.mov=movRes.data||[];dyDatos.cierres=closeRes.data||[];dyDatos.rech=rechRes.data||[];if(movRes.error){$('cashSummary').textContent=movRes.error.message}else dyPintarCaja(aHoy);setTimeout(dyMisRutas,0);
+dyDatos.mov=movRes.data||[];dyDatos.cierres=closeRes.data||[];dyDatos.rech=rechRes.data||[];if(movRes.error){$('cashSummary').textContent=movRes.error.message}else dyPintarCaja(aHoy);dyPintarDetalleCaja();setTimeout(dyMisRutas,0);
 
 {const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<details class="card dy-secondary"><summary>🧭 Abrir ruta completa en Google Maps (opcional)</summary><div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:12px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div></details>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.hidden=pend.length<2||fechaVista!==hoyOperativo;const mainMap=$('map').closest('.card');mainMap.before(ow);$('orders').after(box)}}
 $('app').classList.toggle('dy-cal-readonly',fechaVista!==hoyOperativo);
@@ -554,6 +555,62 @@ const dyModal={pendiente:'mercadería + envío',producto_pagado:'solo envío',to
 const dyEst={entregado:'✅ Entregado',rechazado:'❌ Rechazado',no_responde:'📵 No responde',no_recibio:'🚪 No recibió',pasa_manana:'📅 Pasa mañana',pendiente:'Pendiente',cancelado:'Cancelado'};
 let dyDatos={mov:[],rech:[],cierres:[],jefe:null,empresa:''};
 let dyGanancias=new Map(),dyGananciaError=false;
+let dyCajaPedidos=[],dyCajaFecha=null,dyCajaGanancias=new Map(),dyCajaError='',dyCajaSolicitud=0;
+async function dyPintarDetalleCaja(){
+ const fecha=dyCajaFecha||dyHoyAsu(),solicitud=++dyCajaSolicitud;
+ let cont=document.getElementById('dyDetalleGananciasCaja');
+ if(!cont){cont=document.createElement('section');cont.id='dyDetalleGananciasCaja';cont.className='dy-caja-detalle';$('cashSummary').after(cont)}
+ cont.innerHTML='<div class="dy-caja-titulo"><strong>🏍️ Detalle de mis ganancias</strong><span class="muted">Cargando…</span></div>';
+ let resultado;
+ try{resultado=await sb.rpc('motorista_mis_ganancias_por_fecha',{p_fecha:fecha})}
+ catch(e){resultado={error:e,data:null}}
+ if(solicitud!==dyCajaSolicitud)return;
+ dyCajaError=resultado.error?.message||'';
+ dyCajaGanancias=new Map((resultado.data||[]).map(x=>[x.pedido_id,x]));
+ const pedidos=dyCajaPedidos.filter(p=>p._fecha_operativa===fecha).sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999)||String(a.created_at).localeCompare(String(b.created_at)));
+ const resumen=pedidos.reduce((acc,p)=>{
+   const m=dyDatos.mov.find(x=>x.pedido_id===p.id),f=dyCajaGanancias.get(p.id);
+   if(m){acc.ef+=Number(m.efectivo_cobrado||0);acc.tr+=Number(m.transferencia_cobrada||0);acc.confirmada+=Number(f?.ganancia_confirmada??m.comision_motorista??0)}
+   if(['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&!dyNoMeFui(p)&&f?.ganancia_prevista!=null)acc.prevista+=Number(f.ganancia_prevista);
+   return acc;
+ },{ef:0,tr:0,confirmada:0,prevista:0});
+ const linea=p=>{
+  const mov=dyDatos.mov.find(x=>x.pedido_id===p.id);
+  const f=dyCajaGanancias.get(p.id),sinVisita=dyNoMeFui(p),terminado=['entregado','rechazado'].includes(p.estado);
+  const cobro=Number(mov?.efectivo_cobrado||0)+Number(mov?.transferencia_cobrada||0);
+  const g=sinVisita?0:terminado?(f?.ganancia_confirmada??mov?.comision_motorista??null):p.estado==='cancelado'?0:f?.ganancia_prevista;
+  const estado=sinVisita?'🚫 No me fui':({entregado:'✅ Entregado',rechazado:'❌ Rechazado',pendiente:'⏳ Pendiente',no_responde:'📵 No responde',no_recibio:'🚪 No recibió',pasa_manana:'📅 Pasa mañana',cancelado:'Cancelado'}[p.estado]||p.estado);
+  const medio=mov?(Number(mov.efectivo_cobrado||0)>0?'Efectivo':Number(mov.transferencia_cobrada||0)>0?'Transferencia':'Sin cobro al motorista'):'Sin cobro registrado';
+  const tituloGanancia=terminado?'Mi ganancia confirmada':sinVisita||p.estado==='cancelado'?'Mi ganancia':'Mi ganancia prevista';
+  const tienda=dyTiendas.get(p.tienda_id);
+  const tiendaNombre=tienda?.nombre_comercial||tienda?.nombre||'';
+  const cobroEtiqueta=mov?'Cobrado al cliente':'Cobrado al cliente';
+  const pendiente=(!mov&&!sinVisita&&!['cancelado'].includes(p.estado))?'<div class="dy-caja-linea"><span>Por cobrar al entregar</span><b>'+money(dyCobro(p))+'</b></div>':'';
+  const advertencia=terminado&&!mov?'<div class="dy-caja-alerta">⚠️ Falta el movimiento financiero confirmado; revisar en Central.</div>':'';
+  return '<article class="dy-caja-cliente"><div class="dy-caja-cliente-head"><div><strong>'+safe(p.nombre_cliente||'Cliente')+'</strong><small>'+(tiendaNombre?safe(tiendaNombre)+' · ':'')+'N.º '+safe(p.numero_general??'—')+'</small></div><span class="dy-caja-estado">'+safe(estado)+'</span></div>'
+  +'<div class="dy-caja-linea"><span>'+cobroEtiqueta+'</span><b>'+money(cobro)+'</b></div>'
+  +(mov?'<div class="dy-caja-linea"><span>Medio de cobro</span><span>'+medio+'</span></div>':'')
+  +pendiente
+  +'<div class="dy-caja-linea dy-caja-ganancia"><span>🏍️ '+tituloGanancia+'</span><b>'+(g==null?'No disponible':money(Number(g)))+'</b></div>'
+  +(sinVisita?'<small class="dy-caja-nota">'+safe(p.motivo_incidencia||'')+'</small>':'')+advertencia+'</article>';
+ };
+ const cuadro=fecha===dyHoyAsu()&&!dyCajaError?'':null;
+ const totalDia=dyDatos.mov.filter(x=>pedidos.some(p=>p.id===x.pedido_id));
+ const todosConMovimientos=totalDia.length;
+ const aviso=dyCajaError?'<p class="dy-caja-alerta">No se pudieron consultar las ganancias: '+safe(dyCajaError)+'. No se muestran importes estimados como confirmados.</p>':'';
+ cont.innerHTML='<div class="dy-caja-titulo"><strong>🏍️ Detalle de mis ganancias</strong><label>Fecha <input type="date" id="dyCajaFecha" value="'+safe(fecha)+'" max="'+dyAgregarDiasMoto(dyHoyAsu(),30)+'" aria-label="Fecha del detalle de caja"></label></div>'
+  +'<div class="dy-caja-resumen"><div><small>✅ Ganancia confirmada</small><strong>'+money(resumen.confirmada)+'</strong></div><div><small>⏳ Ganancia prevista</small><strong>'+money(resumen.prevista)+'</strong></div></div>'
+  +aviso
+  +'<p class="dy-caja-nota">Cobrado = dinero recibido por el motorista. Los pedidos pendientes muestran por cobrar aparte. Los importes previstos no forman parte de la caja confirmada.</p>'
+  +(pedidos.length?pedidos.map(linea).join(''):'<p class="muted">No hay pedidos asignados para esta fecha.</p>')
+  +'<div class="dy-caja-pie"><div><span>💵 Efectivo registrado</span><b>'+money(resumen.ef)+'</b></div><div><span>🏦 Transferencias registradas</span><b>'+money(resumen.tr)+'</b></div><div><span>🏍️ Ganancia confirmada</span><b>'+money(resumen.confirmada)+'</b></div></div>'
+  +(fecha!==dyHoyAsu()?'<p class="dy-caja-nota">El desglose corresponde al '+safe(fecha)+'. Los indicadores de rendición superiores corresponden a la caja de hoy; no se modificaron los cierres históricos.</p>':'');
+ document.getElementById('dyCajaFecha').onchange=e=>{
+  const nueva=e.target.value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(nueva))return;
+  dyCajaFecha=nueva;dyPintarDetalleCaja();
+ };
+}
 function dyMiGanancia(p){
  const v=dyGanancias.get(p.id);
  const noFui=dyNoMeFui(p),cerrado=['entregado','rechazado','cancelado'].includes(p.estado);
@@ -656,15 +713,12 @@ function dyAbrirWhatsAppCliente(p){
 function dyTarjetas(a){
  const act=a.filter(p=>DY_ACT.includes(p.estado)&&!dyNoMeFui(p)),sinSalida=a.filter(dyNoMeFui),hechos=a.filter(p=>!DY_ACT.includes(p.estado));
  const total=a.length,ok=hechos.length,pct=total?Math.round(ok*100/total):0;
- const confirmada=a.reduce((s,p)=>{const g=dyMiGanancia(p);return s+(['entregado','rechazado'].includes(p.estado)&&g.importe!=null?g.importe:0)},0);
- const prevista=act.reduce((s,p)=>{const g=dyMiGanancia(p);return s+(g.importe!=null?g.importe:0)},0);
- const gananciasResumen='<div class="dy-g-resumen"><div><small>🏍️ Ganancia confirmada</small><b>'+money(confirmada)+'</b></div><div><small>⏳ Ganancia prevista</small><b>'+money(prevista)+'</b></div></div>'+(dyGananciaError?'<p class="muted">No se pudieron actualizar las ganancias. Revisá conexión.</p>':'');
- $('metrics').innerHTML='<div class="dy-mini-status">📦 <strong>'+act.length+'</strong> pendientes · ✅ <strong>'+a.filter(p=>p.estado==='entregado').length+'</strong> entregados · ⚠️ <strong>'+act.filter(p=>p.estado!=='pendiente').length+'</strong> incidencias · 🚫 <strong>'+sinSalida.length+'</strong> no me fui</div>'+gananciasResumen;
+ $('metrics').innerHTML='<div class="dy-mini-status">📦 <strong>'+act.length+'</strong> pendientes · ✅ <strong>'+a.filter(p=>p.estado==='entregado').length+'</strong> entregados · ⚠️ <strong>'+act.filter(p=>p.estado!=='pendiente').length+'</strong> incidencias · 🚫 <strong>'+sinSalida.length+'</strong> no me fui</div>';
  const tarjeta=(p,i)=>{const c=dyCobro(p),num=safe(window.dyMotoOrdenLocal?.get(p.id)??i+1),nav=p.lat!=null&&p.lng!=null?'<a class="dy-i" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(p.lat+','+p.lng)+'">🧭 Ir</a>':'';
-  const ed=window.__dyEditados&&window.__dyEditados.has(p.id);return '<div class="card dy-ped'+(i===0?' dy-next':'')+(ed?' dy-edit':'')+'">'+(ed?'<div class="dy-tag" style="background:#f5a000;color:#1d1300">✏️ MODIFICADO POR LA CENTRAL · revisá cobro y datos</div>':'')+''+(i===0?'<div class="dy-tag">PRÓXIMA ENTREGA</div>':'')+'<div class="dy-top"><span class="dy-num" title="Orden personal">'+num+'</span><div class="dy-main"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">Parada '+num+' · pedido Central N.º '+safe(p.numero_general??'—')+'</div><div class="muted">'+safe(p.direccion_cliente)+(p.referencias?' · '+safe(p.referencias):'')+'</div>'+dyInfoPedido(p)+(p.estado!=='pendiente'?'<div class="dy-inc">'+(dyEst[p.estado]||safe(p.estado))+(p.motivo_incidencia?' · '+safe(p.motivo_incidencia):'')+'</div>':'')+'</div></div><div class="dy-cobro'+(c?'':' dy-pagado')+'">'+(c?'💵 Cobrar <b>'+money(c)+'</b> <small>('+dyModal[p.modalidad_pago]+')</small>':'✔ Ya pagado · no cobrar')+'</div>'+dyMiGananciaHtml(p)+'<div class="dy-ic">'+nav+'<a class="dy-i" href="tel:'+encodeURIComponent(p.telefono_cliente)+'">📞 Llamar</a><button type="button" class="dy-i dy-whatsapp-cliente" data-wa-cliente="'+safe(p.id)+'" aria-label="WhatsApp del cliente"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg> <span>WhatsApp</span></button>'+(DY_ACT.includes(p.estado)?'<button class="dy-i" data-edit-operativo="'+safe(p.id)+'" title="Editar importes y datos">✏️ Editar</button>':'')+'</div><button type="button" class="dy-avisar" data-avisar="'+safe(p.id)+'">📢 Avisar a la tienda</button><div class="dy-acc"><button class="dy-ok" data-complete="'+safe(p.id)+'">✅ Entregado</button><button class="dy-no" data-reject="'+safe(p.id)+'" aria-label="Rechazado">❌</button><button type="button" class="dy-no-me-fui" data-no-me-fui="'+safe(p.id)+'" aria-label="No me fui">🚫 No me fui</button><button class="dy-warn" data-incident="'+safe(p.id)+'" aria-label="Incidencia">⚠️</button></div></div>'};
- const linea=p=>{const m=dyDatos.mov.find(x=>x.pedido_id===p.id),cob=m?Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0):0,g=dyMiGanancia(p);
+  const ed=window.__dyEditados&&window.__dyEditados.has(p.id);return '<div class="card dy-ped'+(i===0?' dy-next':'')+(ed?' dy-edit':'')+'">'+(ed?'<div class="dy-tag" style="background:#f5a000;color:#1d1300">✏️ MODIFICADO POR LA CENTRAL · revisá cobro y datos</div>':'')+''+(i===0?'<div class="dy-tag">PRÓXIMA ENTREGA</div>':'')+'<div class="dy-top"><span class="dy-num" title="Orden personal">'+num+'</span><div class="dy-main"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">Parada '+num+' · pedido Central N.º '+safe(p.numero_general??'—')+'</div><div class="muted">'+safe(p.direccion_cliente)+(p.referencias?' · '+safe(p.referencias):'')+'</div>'+dyInfoPedido(p)+(p.estado!=='pendiente'?'<div class="dy-inc">'+(dyEst[p.estado]||safe(p.estado))+(p.motivo_incidencia?' · '+safe(p.motivo_incidencia):'')+'</div>':'')+'</div></div><div class="dy-cobro'+(c?'':' dy-pagado')+'">'+(c?'💵 Cobrar <b>'+money(c)+'</b> <small>('+dyModal[p.modalidad_pago]+')</small>':'✔ Ya pagado · no cobrar')+'</div><div class="dy-ic">'+nav+'<a class="dy-i" href="tel:'+encodeURIComponent(p.telefono_cliente)+'">📞 Llamar</a><button type="button" class="dy-i dy-whatsapp-cliente" data-wa-cliente="'+safe(p.id)+'" aria-label="WhatsApp del cliente"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg> <span>WhatsApp</span></button>'+(DY_ACT.includes(p.estado)?'<button class="dy-i" data-edit-operativo="'+safe(p.id)+'" title="Editar importes y datos">✏️ Editar</button>':'')+'</div><button type="button" class="dy-avisar" data-avisar="'+safe(p.id)+'">📢 Avisar a la tienda</button><div class="dy-acc"><button class="dy-ok" data-complete="'+safe(p.id)+'">✅ Entregado</button><button class="dy-no" data-reject="'+safe(p.id)+'" aria-label="Rechazado">❌ Rechazado</button><button type="button" class="dy-no-me-fui" data-no-me-fui="'+safe(p.id)+'" aria-label="No me fui">🚫 No me fui</button><button class="dy-warn" data-incident="'+safe(p.id)+'" aria-label="Incidencia">⚠️ Incidencia</button></div></div>'};
+ const linea=p=>{const m=dyDatos.mov.find(x=>x.pedido_id===p.id),cob=m?Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0):0;
   const accion=(p.estado==='entregado'||p.estado==='rechazado')?'<button type="button" class="dy-undo-entrega" data-undo-pedido="'+safe(p.id)+'" aria-label="Deshacer '+(p.estado==='entregado'?'entrega':'rechazo')+' de '+safe(p.nombre_cliente)+'">↶ Deshacer '+(p.estado==='entregado'?'entregado':'rechazo')+'</button>':'';
-  return '<div class="dy-done dy-done-correccion"><div class="dy-done-info"><span>'+(p.estado==='entregado'?'✅':'❌')+' N.º '+safe(p.numero_general??'—')+' · '+safe(p.nombre_cliente)+'</span><b>'+(cob?money(cob):p.estado==='entregado'?'pagado':'—')+'</b></div><div class="dy-done-ganancia">🏍️ Mi ganancia: <b>'+(g.importe==null?'No disponible':money(g.importe))+'</b></div>'+accion+'</div>';
+  return '<div class="dy-done dy-done-correccion"><div class="dy-done-info"><span>'+(p.estado==='entregado'?'✅':'❌')+' N.º '+safe(p.numero_general??'—')+' · '+safe(p.nombre_cliente)+'</span><b>'+(cob?money(cob):p.estado==='entregado'?'pagado':'—')+'</b></div>'+accion+'</div>';
  };
  return (act.length?'<h3 class="dy-h">📦 Entregas pendientes ('+act.length+')</h3>'+act.map(tarjeta).join(''):(total?'<div class="card dy-fin">✅ No tenés entregas pendientes para esta fecha. Revisá Caja cuando termines tu turno.</div>':'<p class="muted">No hay pedidos asignados para hoy.</p>'))+
  (sinSalida.length?'<details class="card dy-terminados" open><summary>🚫 No me fui ('+sinSalida.length+') · Sin cobro ni comisión</summary>'+sinSalida.map(p=>'<div class="dy-done" style="border-left:4px solid #64748b;padding:10px"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">'+safe(p.motivo_incidencia||'No se realizó la visita')+'</div><b>₲ 0 cobrado · ₲ 0 comisión</b></div>').join('')+'</details>':'')+
