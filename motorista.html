@@ -223,16 +223,18 @@ async function load(){if(!moto)return;const {data,error}=await sb.from('pedidos'
  }
  const fechaPedido=p=>p.ruta_general_id?(fechas.get(p.ruta_general_id)||''):dyFechaAsu(p.created_at);
  const hoyOperativo=dyHoyAsu();
+ const fechaVista=dyFechaRutaSeleccionada||hoyOperativo;
  dyTodos=(data||[]).filter(p=>DY_ACT.includes(p.estado)||Date.now()-Date.parse(p.updated_at||0)<14*864e5).map(p=>({...p,_fecha_operativa:fechaPedido(p)}));
- const pedidosJornada=(data||[]).filter(p=>fechaPedido(p)===hoyOperativo);
+ const pedidosJornada=(data||[]).filter(p=>fechaPedido(p)===fechaVista);
+ const pedidosHoy=(data||[]).filter(p=>fechaPedido(p)===hoyOperativo);
  const activosAnteriores=(data||[]).filter(p=>DY_ACT.includes(p.estado)&&fechaPedido(p)!==hoyOperativo);
-{const falt=(data||[]).map(p=>p.tienda_id).filter(t=>t&&!dyTiendas.has(t)&&!dyTiendasPedidas.has(t));if(falt.length){falt.forEach(t=>dyTiendasPedidas.add(t));await dyCargarTiendas()}}let a=dyFiltrarPedidos(pedidosJornada);try{window.dyAvisoEdicion&&window.dyAvisoEdicion(data||[])}catch(_){}dyPestanas();
+{const falt=(data||[]).map(p=>p.tienda_id).filter(t=>t&&!dyTiendas.has(t)&&!dyTiendasPedidas.has(t));if(falt.length){falt.forEach(t=>dyTiendasPedidas.add(t));await dyCargarTiendas()}}let a=dyFiltrarPedidos(pedidosJornada);const aHoy=dyFiltrarPedidos(pedidosHoy);try{window.dyAvisoEdicion&&window.dyAvisoEdicion(data||[])}catch(_){}dyPestanas();dyActualizarCalendarioMoto();
  const dyMapaPrimero=$('map')?.closest('.card'),dyOptPrimero=$('dyOptWrap');if(dyMapaPrimero){if(dyOptPrimero)$('name').after(dyOptPrimero,dyMapaPrimero);else $('name').after(dyMapaPrimero)}
  let avisoAnterior=$('dyPreviosMoto');
  if(!avisoAnterior){avisoAnterior=document.createElement('div');avisoAnterior.id='dyPreviosMoto';avisoAnterior.className='notice t-entregas';$('orders').before(avisoAnterior)}
- avisoAnterior.hidden=!activosAnteriores.length;
+ avisoAnterior.hidden=fechaVista!==hoyOperativo||!activosAnteriores.length;
  if(activosAnteriores.length)avisoAnterior.textContent='⚠ '+activosAnteriores.length+' pedido(s) pendientes de otras fechas. Pedí a la Central que los reprograme para trabajar hoy; no se agregaron automáticamente a tu ruta.';
- const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',today);
+ const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});const orderResult=await sb.from('motorista_ordenes_pedidos').select('pedido_id,posicion').eq('motorista_id',moto.id).eq('fecha',fechaVista);
 // Orden personal persistido: independiente del N.º general de la Central.
 const indexes=new Map((orderResult.data||[]).map(x=>[x.pedido_id,x.posicion]));
 a.sort((x,y)=>{const xa=DY_ACT.includes(x.estado),ya=DY_ACT.includes(y.estado);
@@ -243,7 +245,7 @@ const conGps=ordenActivos.filter(p=>p.lat!=null&&p.lng!=null&&Number.isFinite(Nu
 const idsActivos=new Set(conGps.map(p=>p.id));
 // Recuperar la geometría vial CONFIRMADA desde Supabase, incluso tras cerrar/reabrir la aplicación.
 try {
- const {data:recorridos,error:recError}=await sb.rpc('motorista_recorrido_actual');
+ const {data:recorridos,error:recError}=fechaVista===hoyOperativo?await sb.rpc('motorista_recorrido_actual'):{data:[],error:null};
  if(recError)throw recError;
  const guardado=(recorridos||[])[0];
  const ids=guardado?.pedido_ids||[],geometry=guardado?.coordenadas;
@@ -256,7 +258,7 @@ try {
 window.dyMotoOrdenLocal=new Map(ordenActivos.map((p,i)=>[p.id,i+1]));
 $('optimizeMine').onclick=async()=>{
 const btn=$('optimizeMine'),msg=$('optimizeMessage');
-if(btn.disabled)return;
+if(btn.disabled||fechaVista!==hoyOperativo)return;
 const pending=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&p.lat!=null&&p.lng!=null&&Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng)));
 const missing=a.filter(p=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&(p.lat==null||p.lng==null));
 if(pending.length<2){msg.textContent='Para optimizar necesitás 2 o más entregas pendientes con GPS. La ruta guardada no cambió.';return}
@@ -347,10 +349,13 @@ try{
 finally{btn.disabled=false;}
 };
 const [movRes,closeRes,rechRes]=await Promise.all([sb.from('movimientos_financieros').select('*').eq('motorista_id',moto.id),sb.from('flota_cierres_motoristas').select('*').eq('motorista_id',moto.id).order('created_at',{ascending:false}).limit(12),sb.from('flota_rechazos_detalle').select('*').eq('motorista_id',moto.id)]);
-dyDatos.mov=movRes.data||[];dyDatos.cierres=closeRes.data||[];dyDatos.rech=rechRes.data||[];if(movRes.error){$('cashSummary').textContent=movRes.error.message}else dyPintarCaja(a);setTimeout(dyMisRutas,0);
+dyDatos.mov=movRes.data||[];dyDatos.cierres=closeRes.data||[];dyDatos.rech=rechRes.data||[];if(movRes.error){$('cashSummary').textContent=movRes.error.message}else dyPintarCaja(aHoy);setTimeout(dyMisRutas,0);
 
-{const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<details class="card dy-secondary"><summary>🧭 Abrir ruta completa en Google Maps (opcional)</summary><div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:12px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div></details>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.hidden=pend.length<2;const mainMap=$('map').closest('.card');mainMap.before(ow);$('orders').after(box)}}
-$('orders').innerHTML=dyTarjetas(a);$('orders').querySelectorAll('[data-edit-operativo]').forEach(b=>b.onclick=()=>{
+{const pend=a.filter(x=>['pendiente','no_responde','no_recibio','pasa_manana'].includes(x.estado)&&x.lat!=null&&x.lng!=null);let box=document.getElementById('rutaCompleta');if(!box){box=document.createElement('div');box.id='rutaCompleta';box.className='t-entregas';$('orders').before(box)}if(!pend.length){box.innerHTML=''}else{const pt=o=>Number(o.lat).toFixed(6)+','+Number(o.lng).toFixed(6);const links=[];for(let i=0;i<pend.length;i+=10){const t=pend.slice(i,i+10),dest=t[t.length-1],way=t.slice(0,-1);links.push({txt:pend.length>10?'Paradas '+(i+1)+'–'+(i+t.length):'Abrir mi ruta completa ('+pend.length+' paradas)',url:'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(pt(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(pt).join('|')):'')+(i>0?'&origin='+encodeURIComponent(pt(pend[i-1])):'')})}box.innerHTML='<details class="card dy-secondary"><summary>🧭 Abrir ruta completa en Google Maps (opcional)</summary><div style="display:grid;gap:8px;margin:10px 0 0">'+links.map(l=>'<a target="_blank" rel="noopener" href="'+l.url+'" style="display:block;text-align:center;padding:12px;border-radius:12px;background:#1765ba;color:#fff;font-weight:700;text-decoration:none">▶ '+safe(l.txt)+'</a>').join('')+'</div></details>'}const ow=document.getElementById('dyOptWrap');if(ow){ow.hidden=pend.length<2||fechaVista!==hoyOperativo;const mainMap=$('map').closest('.card');mainMap.before(ow);$('orders').after(box)}}
+$('app').classList.toggle('dy-cal-readonly',fechaVista!==hoyOperativo);
+$('orders').innerHTML=dyTarjetas(a);
+const diaT=$('dyFechaRutaTitulo');if(diaT)diaT.textContent=fechaVista===hoyOperativo?'Hoy':fechaVista===dyAgregarDiasMoto(hoyOperativo,1)?'Mañana':'Fecha seleccionada';
+const mapH=$('map')?.closest('.card')?.querySelector('h3');if(mapH)mapH.textContent=fechaVista===hoyOperativo?'🗺️ Mi ruta de hoy':'🗺️ Mi ruta · '+fechaVista.split('-').reverse().join('/');$('orders').querySelectorAll('[data-edit-operativo]').forEach(b=>b.onclick=()=>{
  const p=a.find(x=>x.id===b.dataset.editOperativo);if(p)dyEditarPedidoMotorista(p);
 });
 $('orders').querySelectorAll('[data-undo-pedido]').forEach(b=>b.onclick=()=>{
@@ -399,12 +404,12 @@ if(map){
  const estadoMapa=$('dyMapEstados');if(estadoMapa){const activos=points.filter(p=>DY_ACT.includes(p.estado)).length,finalizados=points.filter(p=>p.estado==='entregado').length,otros=points.filter(p=>p.estado==='rechazado').length;estadoMapa.textContent='🔵 '+activos+' por realizar · 🟢 '+finalizados+' entregados'+(otros?' · 🔴 '+otros+' rechazados':'');}
  ultimaRutaVisible=motoInicioRuta&&motoGeoRuta?[motoInicioRuta,...coords]:coords;
  dibujarRutaMoto();
- if(signature!==lastMapSignature){
-   lastMapSignature=signature;
+ if(fechaVista+'|'+signature!==lastMapSignature){
+   lastMapSignature=fechaVista+'|'+signature;
    requestAnimationFrame(()=>{encuadrarRutaMotorista();setTimeout(encuadrarRutaMotorista,250)});
  }
  if(!googleMap){$('map').style.filter='';setTimeout(()=>map.invalidateSize(),80);}
- if(!coords.length)$('mapSource').textContent=(googleMap?'Google Maps':'Mapa alternativo')+' · No hay pedidos de hoy con ubicación';
+ if(!coords.length)$('mapSource').textContent=(googleMap?'Google Maps':'Mapa alternativo')+' · No hay pedidos en esta fecha con ubicación';
 }
 }
 $('centerMotoMap').onclick=()=>{encuadrarRutaMotorista()};
@@ -491,6 +496,21 @@ function waPY(t){let d=String(t||'').replace(/\D/g,'');if(d.startsWith('595'))re
 // ===== App Delivery compacta: pestañas, tarjetas, caja y rendición directa =====
 const DY_ACT=['pendiente','no_responde','no_recibio','pasa_manana'];
 const dyHoyAsu=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
+let dyFechaRutaSeleccionada=null;
+const dyAgregarDiasMoto=(fecha,n)=>{const d=new Date(fecha+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+function dyActualizarCalendarioMoto(){
+ const date=$('dyFechaRutaInput'),title=$('dyFechaRutaTitulo'),today=dyHoyAsu();
+ const fecha=dyFechaRutaSeleccionada||today;
+ if(date){date.value=fecha;date.max=dyAgregarDiasMoto(today,30)}
+ if(title)title.textContent=fecha===today?'Hoy':fecha===dyAgregarDiasMoto(today,1)?'Mañana':'Fecha seleccionada';
+ const back=$('dyFechaRutaAnterior'),next=$('dyFechaRutaSiguiente');
+ if(next)next.disabled=fecha>=dyAgregarDiasMoto(today,30);
+}
+function dyCambiarFechaRuta(fecha){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha||'')||fecha>dyAgregarDiasMoto(dyHoyAsu(),30))return;
+ if(fecha===(dyFechaRutaSeleccionada||dyHoyAsu()))return;
+ dyFechaRutaSeleccionada=fecha;dyActualizarCalendarioMoto();load();
+}
 const dyFechaAsu=ts=>ts?new Date(ts).toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}):'';
 const dyCobro=p=>p.modalidad_pago==='todo_pagado'?0:p.modalidad_pago==='producto_pagado'?Number(p.precio_delivery||0):Number(p.precio_mercaderia||0)+Number(p.precio_delivery||0);
 const dyModal={pendiente:'mercadería + envío',producto_pagado:'solo envío',todo_pagado:'todo pagado'};
@@ -632,7 +652,18 @@ let dyPestanasListas=false;
 function dyPestanas(){
  if(dyPestanasListas)return;dyPestanasListas=true;
  const app=$('app'),mapCard=$('map').closest('.card'),cajaCard=$('cashSummary').closest('.card');
- [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));$('name').after(mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';$('orders').after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi ruta de hoy';{const l=document.createElement('p');l.id='dyMapEstados';l.className='muted';mapCard.querySelector('h3').after(l)}cajaCard.classList.add('t-caja');
+ [$('metrics'),mapCard,$('orders')].forEach(e=>e&&e.classList.add('t-entregas'));
+ const calendario=document.createElement('section');calendario.id='dyCalendarioMoto';calendario.className='t-entregas card';
+ calendario.innerHTML='<div style="font-weight:800;margin-bottom:8px;color:#17365c">📅 Consultar mis rutas por fecha</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" id="dyFechaRutaAnterior" aria-label="Día anterior">◀</button><input type="date" id="dyFechaRutaInput" aria-label="Fecha de mis rutas" style="flex:1;min-width:150px;min-height:48px;font-size:16px"><button type="button" id="dyFechaRutaSiguiente" aria-label="Día siguiente">▶</button><button type="button" id="dyFechaRutaHoy">Hoy</button><strong id="dyFechaRutaTitulo"></strong></div><p style="font-size:13px;margin:8px 0 0;color:#64748b">Podés consultar días anteriores y futuros. En otras fechas la ruta es de consulta; la caja y los cobros permanecen en la jornada actual.</p>';
+ $('name').after(calendario);
+ const cambiar=n=>dyCambiarFechaRuta(dyAgregarDiasMoto(dyFechaRutaSeleccionada||dyHoyAsu(),n));
+ $('dyFechaRutaAnterior').onclick=()=>cambiar(-1);
+ $('dyFechaRutaSiguiente').onclick=()=>cambiar(1);
+ $('dyFechaRutaHoy').onclick=()=>dyCambiarFechaRuta(dyHoyAsu());
+ $('dyFechaRutaInput').onchange=e=>dyCambiarFechaRuta(e.target.value);
+ const estilo=document.createElement('style');estilo.textContent='#dyCalendarioMoto{margin:12px 0;padding:12px;border-radius:13px}#dyCalendarioMoto button{min-height:46px;padding:10px 13px;font-weight:700}#app.dy-cal-readonly #orders .dy-acc,#app.dy-cal-readonly #orders .dy-avisar,#app.dy-cal-readonly #orders [data-edit-operativo],#app.dy-cal-readonly #orders [data-undo-pedido]{display:none!important}';
+ document.head.append(estilo);
+ $('name').after(calendario,mapCard);{const rb=document.createElement('div');rb.id='dyRutas';rb.className='t-entregas';$('orders').after(rb)}mapCard.querySelector('h3').textContent='🗺️ Mi ruta de hoy';{const l=document.createElement('p');l.id='dyMapEstados';l.className='muted';mapCard.querySelector('h3').after(l)}cajaCard.classList.add('t-caja');
  document.querySelectorAll('#app > .notice').forEach(n=>n.remove());
  cajaCard.querySelector('h3').textContent='💰 Mi caja de hoy';{const vb=document.createElement('button');vb.type='button';vb.id='dyVerificarBtn';vb.textContent='🔍 Verificar mis entregas';$('submitClose').parentElement.before(vb)}cajaCard.querySelector('p.muted').textContent='Al terminar, tocá el botón verde: se cierra tu caja y se le envía al jefe el detalle de cada cliente por WhatsApp.';
  $('cashDeclared').closest('label').firstChild.textContent='Efectivo que entregás: ';$('transferDeclared').closest('label').firstChild.textContent='Transferencias recibidas: ';
