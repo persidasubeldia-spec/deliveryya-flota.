@@ -509,7 +509,7 @@ function waPY(t){let d=String(t||'').replace(/\D/g,'');if(d.startsWith('595'))re
 // ===== App Delivery compacta: pestañas, tarjetas, caja y rendición directa =====
 const DY_ACT=['pendiente','no_responde','no_recibio','pasa_manana'];
 const dyHoyAsu=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
-let dyFechaRutaSeleccionada=null;
+let dyFechaRutaSeleccionada=(()=>{const fecha=new URLSearchParams(location.search).get('fecha');if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha||''))return null;const d=new Date(fecha+'T12:00:00Z'),limite=new Date(dyHoyAsu()+'T12:00:00Z');limite.setUTCDate(limite.getUTCDate()+30);return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===fecha&&d<=limite?fecha:null})();
 const dyAgregarDiasMoto=(fecha,n)=>{const d=new Date(fecha+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 function dyActualizarCalendarioMoto(){
  const date=$('dyFechaRutaInput'),title=$('dyFechaRutaTitulo'),today=dyHoyAsu();
