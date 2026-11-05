@@ -919,16 +919,17 @@ const rdGs=n=>'Gs. '+Math.round(Number(n)||0).toLocaleString('es-PY');
 let rdEstado={fecha:null,vista:'delivery',datos:null};
 async function rdCargar(fecha){
  const E=account.empresa_id,ini=fecha+'T00:00:00-03:00',fin=new Date(Date.parse(ini)+86400000).toISOString();
- const [mv,ci,re,aj]=await Promise.all([
+ const [mv,ci,re,aj,ledger]=await Promise.all([
   client.from('movimientos_financieros').select('*').eq('empresa_id',E).gte('created_at',ini).lt('created_at',fin).limit(10000),
   client.from('flota_cierres_motoristas').select('*').eq('empresa_id',E).eq('fecha',fecha),
   client.from('flota_rechazos_detalle').select('*').eq('empresa_id',E).limit(10000),
-  client.rpc('flota_resumen_ajustes_tienda',{p_fecha:fecha})]);
- const err=mv.error||ci.error||re.error||aj.error;if(err)throw err;
+  client.rpc('flota_resumen_ajustes_tienda',{p_fecha:fecha}),
+  client.rpc('flota_saldos_rechazos_por_tienda')]);
+ const err=mv.error||ci.error||re.error||aj.error||ledger.error;if(err)throw err;
  try{orders=await cargarTodosLosPedidos(E)}catch(_){}
  if((mv.data||[]).length>=10000)throw Error('Movimientos del día exceden el límite de consulta; evitar cifras incompletas.');
  const movs=mv.data||[],porPedido=new Map(orders.map(o=>[o.id,o])),rech=new Map((re.data||[]).map(r=>[r.pedido_id,r]));
- return {fecha,movs,cierres:ci.data||[],porPedido,rech,compensaciones:aj.data?.compensaciones||[],pagos:aj.data?.pagos||[]};
+ return {fecha,movs,cierres:ci.data||[],porPedido,rech,compensaciones:aj.data?.compensaciones||[],pagos:aj.data?.pagos||[],rechazosDeuda:ledger.data||[]};
 }
 // Lógica financiera por pedido, desde la mirada de la tienda (misma regla que reporte-tienda):
 //  entregado + pendiente       → la flota cobró mercadería+envío: debe la MERCADERÍA a la tienda
@@ -1072,10 +1073,11 @@ async function dyRendiciones(){
    body.innerHTML='<div class="rd-card"><h3>🔒 Conciliación administrativa · '+d.fecha+'</h3><p>Informe exclusivo de la Central. No compartir con tiendas.</p><div class="rd-nums">'+[['Cobros verificados',audit.totalMov],['Mercadería de tiendas',audit.ts.reduce((v,t)=>v+t.merc,0)],['Comisión de motoristas',sum('comision_motorista')],['Comisión empresa en entregas',d.movs.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado').reduce((v,m)=>v+Number(m.comision_empresa||0),0)],['Rechazos pendientes',audit.ts.reduce((v,t)=>v+t.cargosPendientes,0)]].map(([k,v])=>'<div><small>'+k+'</small><b>'+money(v)+'</b></div>').join('')+'</div><p class="'+(audit.errores.length?'rd-warn':'rd-ok')+'">'+(audit.errores.length?'⛔ Conciliación con errores: '+audit.errores.map(escapeHtml).join(' · '):'✅ Sin descuadres detectados en los movimientos verificados')+'</p><p>'+audit.avisos.map(escapeHtml).join(' · ')+'</p><button id="rdAdminPdf" '+(audit.errores.length?'disabled':'')+'>📄 Descargar PDF administrativo</button></div>';
    const btn=$('rdAdminPdf');if(btn)btn.onclick=async()=>{btn.disabled=true;try{const file=await rdPdfAdministracion(d),a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;a.click()}catch(e){alert(e.message)}finally{btn.disabled=false}};
   }else{
-   const ts=rdTiendas(d),T=k=>ts.reduce((t,x)=>t+x[k],0);
+   const ts=rdTiendas(d),T=k=>ts.reduce((t,x)=>t+x[k],0);const deudas=(d.rechazosDeuda||[]).filter(x=>Number(x.saldo_pendiente)>0),totalDeuda=deudas.reduce((v,x)=>v+Number(x.saldo_pendiente||0),0);
    const puedeConfirmar=account.rol==='propietario'||account.puede_confirmar_rendiciones;
    const totales=[['🛍️ Mercadería a favor de tiendas',T('merc')],['🚚 Envíos que debe la tienda',T('debe')],['⚠️ Rechazos descontados del neto',T('cargosPendientes')],['⚖️ Compensaciones confirmadas',T('compensado')],['📋 Neto calculado a tiendas',T('neto')],['✅ Pagos registrados',T('pagado')],['📌 Saldo de tiendas',T('saldo')]];
    body.innerHTML='<div class="rd-kpis">'+totales.map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
+   '<details class="rd-card" style="border-left:4px solid #d97706"><summary style="cursor:pointer;font-weight:800">⚠️ Rechazos por recuperar de tiendas · '+money(totalDeuda)+' ('+deudas.length+' pedidos)</summary><p class="muted">Control interno de rechazos de todas las fechas. No se descuentan de dos jornadas: cada cargo solo se confirma una vez, al conciliar la rendición. Los pendientes de otros días se muestran como deuda, sin alterar automáticamente la caja de hoy.</p>'+(deudas.length?'<div class="scroll"><table><thead><tr><th>Tienda</th><th>Cliente</th><th>Fecha original</th><th>Importe pendiente</th></tr></thead><tbody>'+deudas.map(x=>'<tr><td>'+escapeHtml(stores.find(t=>t.id===x.tienda_id)?.nombre_comercial||'Tienda')+'</td><td>'+escapeHtml(x.nombre_cliente)+'</td><td>'+escapeHtml(x.fecha_ruta||'—')+'</td><td>'+money(x.saldo_pendiente)+'</td></tr>').join('')+'</tbody></table></div>':'<p>Todos los rechazos a cargo de tiendas están conciliados.</p>')+'</details>'+
    (ts.length?ts.map((t,i)=>'<div class="rd-card"><h3>'+escapeHtml(t.tienda.codigo||'')+' · '+escapeHtml(t.tienda.nombre_comercial||'')+'</h3>'+
    '<div class="muted">'+t.pedidos.length+' pedidos del día · ✅ '+t.pedidos.filter(p=>p.estado==='entregado').length+' entregados · ❌ '+t.pedidos.filter(p=>p.estado==='rechazado').length+' rechazados</div>'+
    '<div class="rd-nums"><div><small>Mercadería correspondiente</small><b>'+money(t.merc)+'</b></div><div><small>Envíos pagados a la tienda por el cliente</small><b>'+money(t.debe)+'</b></div>'+
