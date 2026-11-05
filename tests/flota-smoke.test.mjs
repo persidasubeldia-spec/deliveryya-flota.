@@ -120,3 +120,12 @@ test('Rechazos de tienda se descuentan automáticamente sin duplicar compensacio
  assert.ok(central.includes("Rechazos a cargo de tienda descontados (-)"));
  assert.ok(central.includes("Rechazos descontados directamente"));
 });
+
+test('Pasa mañana traslada inmediatamente y muestra procedencia en Central',()=>{
+ assert.ok(motorista.includes("sb.rpc('motorista_pasar_pedido_manana'"),'Motorista debe llamar RPC de reprogramación');
+ assert.ok(motorista.includes('p_version:p.version_edicion'),'Debe enviar versión para evitar dobles traslados');
+ assert.ok(motorista.includes('Confirmar y pasar a mañana'),'El botón debe anunciar el traslado');
+ assert.ok(motorista.includes('Ya no forma parte de tu ruta de hoy'),'El motorista debe recibir confirmación');
+ assert.ok(central.includes('📅 Reprogramado desde'),'Central debe mostrar origen');
+ assert.ok(central.includes('motivo_incidencia'),'Central debe conservar motivo en etiqueta');
+});
