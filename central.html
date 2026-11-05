@@ -1718,7 +1718,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    msg('✅ '+data.total+' pedido(s) liberado(s) y verificados. Listos para asignar.','ok');
   }catch(e){await $('routeReload').onclick();msg('No se liberaron los pedidos: '+(e.message||e),'err')}
  }
- function asignar(conWa){
+ async function asignar(conWa){
   if(!editable())return;
   const d=drivers.find(x=>x.id===st.moto&&x.activo);
   const marcados=paradas().filter(o=>st.sel.has(o.id));
