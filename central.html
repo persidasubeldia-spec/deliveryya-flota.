@@ -941,7 +941,7 @@ function rdLineaTienda(m,p,r){
  const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(m.monto_delivery||0):0;
  let debeTienda=0,nota='';
  if(ent&&p.modalidad_pago==='todo_pagado'){debeTienda=Number(m.monto_delivery||0);nota='Envío ya cobrado por la tienda'}
- else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: cargo de tienda pendiente de conciliación, NO descontado automáticamente'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
+ else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: envío a cargo de tienda, descontado directamente de la rendición (sin cobro del cliente)'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
  else if(ent&&p.modalidad_pago==='pendiente')nota='Cobrado '+(Number(m.transferencia_cobrada||0)?'por transferencia':'en efectivo');
  else if(ent)nota='Producto pagado: solo envío';
  return {merc,envCliente,debeTienda,nota,rej,ent};
@@ -976,7 +976,9 @@ function rdTiendas(d){
   for(const p of rjs){const r=d.rech.get(p.id);if(r?.responsable_pago==='tienda'&&Number(r.importe_pendiente)>0&&!d.compensaciones.some(c=>c.pedido_id===p.id))t.cargosPendientes+=Number(r.importe_pendiente)}
   t.compensado=d.compensaciones.filter(c=>c.tienda_id===t.tienda.id).reduce((v,c)=>v+Number(c.importe||0),0);
   t.pagado=d.pagos.filter(p=>p.tienda_id===t.tienda.id).reduce((v,p)=>v+Number(p.importe||0),0);
-  t.neto=t.merc-t.debe-t.compensado;
+  // Rechazos a cargo de tienda se descuentan automáticamente del neto.
+  // Una compensación explícita reemplaza el cargo pendiente, evitando dobles descuentos.
+  t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado;
   t.saldo=t.neto-t.pagado;
  }
  return [...out.values()].sort((a,b)=>String(a.tienda.codigo).localeCompare(String(b.tienda.codigo),'es',{numeric:true}));
@@ -1019,7 +1021,7 @@ function rdAuditar(d){
  if(d.movs.some(m=>m.liquidado)&&d.cierres.some(c=>c.estado!=='confirmada'))
   avisos.push('Hay movimientos marcados liquidados y cierres aún no confirmados');
  if(d.pagos?.length===0)avisos.push('No hay pagos a tiendas registrados como confirmados para esta fecha');
- if(ts.some(t=>t.cargosPendientes>0))avisos.push('Hay cargos por rechazos pendientes; no se descontaron del saldo de las tiendas');
+ if(ts.some(t=>t.cargosPendientes>0))avisos.push('Los rechazos a cargo de tienda se descuentan del neto calculado, aunque la rendición no esté liquidada');
  return {errores:[...new Set(errores)],avisos,ts,motos,totalMov,totalDistribucion};
 }
 async function rdPdfAdministracion(d){
@@ -1073,12 +1075,12 @@ async function dyRendiciones(){
   }else{
    const ts=rdTiendas(d),T=k=>ts.reduce((t,x)=>t+x[k],0);
    const puedeConfirmar=account.rol==='propietario'||account.puede_confirmar_rendiciones;
-   const totales=[['🛍️ Mercadería a favor de tiendas',T('merc')],['🚚 Envíos que debe la tienda',T('debe')],['⚠️ Rechazos sin compensar',T('cargosPendientes')],['⚖️ Compensaciones confirmadas',T('compensado')],['📋 Neto calculado a tiendas',T('neto')],['✅ Pagos registrados',T('pagado')],['📌 Saldo de tiendas',T('saldo')]];
+   const totales=[['🛍️ Mercadería a favor de tiendas',T('merc')],['🚚 Envíos que debe la tienda',T('debe')],['⚠️ Rechazos descontados del neto',T('cargosPendientes')],['⚖️ Compensaciones confirmadas',T('compensado')],['📋 Neto calculado a tiendas',T('neto')],['✅ Pagos registrados',T('pagado')],['📌 Saldo de tiendas',T('saldo')]];
    body.innerHTML='<div class="rd-kpis">'+totales.map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
    (ts.length?ts.map((t,i)=>'<div class="rd-card"><h3>'+escapeHtml(t.tienda.codigo||'')+' · '+escapeHtml(t.tienda.nombre_comercial||'')+'</h3>'+
    '<div class="muted">'+t.pedidos.length+' pedidos del día · ✅ '+t.pedidos.filter(p=>p.estado==='entregado').length+' entregados · ❌ '+t.pedidos.filter(p=>p.estado==='rechazado').length+' rechazados</div>'+
    '<div class="rd-nums"><div><small>Mercadería correspondiente</small><b>'+money(t.merc)+'</b></div><div><small>Envíos pagados a la tienda por el cliente</small><b>'+money(t.debe)+'</b></div>'+
-   '<div><small>Rechazos pendientes (no descontados)</small><b>'+money(t.cargosPendientes)+'</b></div><div><small>Compensaciones confirmadas</small><b>'+money(t.compensado)+'</b></div>'+
+   '<div><small>Rechazos descontados directamente</small><b>'+money(t.cargosPendientes)+'</b></div><div><small>Compensaciones confirmadas</small><b>'+money(t.compensado)+'</b></div>'+
    '<div><small>Pagos a tienda confirmados</small><b>'+money(t.pagado)+'</b></div></div>'+
    '<div class="rd-neto'+(t.neto<0?' neg':'')+'">'+(t.neto>=0?'Neto calculado a favor de la tienda: '+money(t.neto):'Importe calculado a favor de la flota: '+money(-t.neto))+'</div>'+
    '<div class="muted" style="margin:8px 0">Saldo después de pagos: <b>'+money(t.saldo)+'</b> · '+(t.saldo===0&&t.pagado>0?'Con pago registrado':'PROVISIONAL / NO LIQUIDADO')+'</div>'+
@@ -1133,7 +1135,7 @@ async function dyRendiciones(){
      }catch(e){alert('No se compensó el rechazo: '+e.message)}finally{b.disabled=false}
    });
    body.querySelectorAll('[data-rdpdf]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const f=await rdPdf(ts[b.dataset.rdpdf],d.fecha);const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click()}catch(e){alert('No se generó el PDF: '+e.message)}b.disabled=false});
-   body.querySelectorAll('[data-rdshare]').forEach(b=>b.onclick=async()=>{b.disabled=true;const t=ts[b.dataset.rdshare];try{const f=await rdPdf(t,d.fecha);const txt='Rendición '+(t.tienda.codigo||'')+' · '+t.tienda.nombre_comercial+' · '+d.fecha.split('-').reverse().join('/')+'\n'+(t.neto>=0?'Neto calculado a favor de tienda: ':'Neto calculado a favor de flota: ')+money(Math.abs(t.neto))+'\nPago confirmado: '+money(t.pagado)+' · Saldo: '+money(t.saldo)+'\nRechazos pendientes no compensados: '+money(t.cargosPendientes)+'\nDetalle en PDF. No es constancia de pago.';
+   body.querySelectorAll('[data-rdshare]').forEach(b=>b.onclick=async()=>{b.disabled=true;const t=ts[b.dataset.rdshare];try{const f=await rdPdf(t,d.fecha);const txt='Rendición '+(t.tienda.codigo||'')+' · '+t.tienda.nombre_comercial+' · '+d.fecha.split('-').reverse().join('/')+'\n'+(t.neto>=0?'Neto calculado a favor de tienda: ':'Neto calculado a favor de flota: ')+money(Math.abs(t.neto))+'\nPago confirmado: '+money(t.pagado)+' · Saldo: '+money(t.saldo)+'\nRechazos descontados de la rendición: '+money(t.cargosPendientes)+'\nDetalle en PDF. No es constancia de pago.';
      if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:f.name,text:txt})}
      else{const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click();const dg=String(t.tienda.telefono||'').replace(/\D/g,''),ph=dg?(dg.startsWith('595')?dg:'595'+dg.replace(/^0/,'')):'';window.open('https://api.whatsapp.com/send?'+(ph?'phone='+ph+'&':'')+'text='+encodeURIComponent(txt+'\n(adjuntá el PDF descargado)'),'_blank')}}catch(e){if(e.name!=='AbortError')alert('No se pudo enviar: '+e.message)}b.disabled=false});
   }
@@ -1218,7 +1220,7 @@ async function rdPdf(t,fecha){
  const fechaTexto=fecha.split('-').reverse().join('/');
  const nombre=String(t.tienda.nombre_comercial||'Tienda'),codigo=String(t.tienda.codigo||'—');
  const refInforme='TDA-'+fecha.replaceAll('-','')+'-'+codigo.replace(/[^a-z0-9]/gi,'');
- const esLiquidada=t.saldo===0&&t.pagado>0&&t.cargosPendientes===0;
+ const esLiquidada=t.saldo===0&&t.pagado>0;
  const tonos={
   entregado:{nombre:'Entregado',rgb:[228,249,233],color:[26,112,58]},
   rechazado:{nombre:'Rechazado',rgb:[253,232,232],color:[158,35,42]},
@@ -1327,7 +1329,7 @@ async function rdPdf(t,fecha){
   ['Mercaderia cobrada para la tienda (+)',t.merc],
   ['Envíos pagados a la tienda por cliente (cargo a tienda)',t.debe],
   ['Compensaciones de rechazo confirmadas (-)',t.compensado],
-  ['Rechazos a cargo de tienda sin compensar (INFORMATIVO)',t.cargosPendientes],
+  ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
