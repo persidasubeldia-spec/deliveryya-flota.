@@ -735,19 +735,18 @@ function dyResumenCaja(a){
 }
 function dyPintarCaja(a){
  const r=dyResumenCaja(a);
- $('cashSummary').innerHTML=[['💵 Efectivo cobrado',r.ef],['🏦 Transferencias',r.tr],['🏍️ Mi ganancia',r.comM],['🤝 Entrego al jefe',r.rendir]].map(([n,v],i)=>'<div class="dy-kpi'+(i===3?' dy-kpi-main':'')+'"><small>'+n+'</small><div class="number">'+money(v)+'</div></div>').join('');
+ $('cashSummary').innerHTML=[['💵 Total recaudado en efectivo',r.ef],['🏍️ Mi ganancia total',r.comM],['🤝 Entrego al jefe',r.rendir]].map(([n,v],i)=>'<div class="dy-kpi'+(i===2?' dy-kpi-main':'')+'"><small>'+n+'</small><div class="number">'+money(v)+'</div></div>').join('')+(r.tr?'<p class="muted" style="grid-column:1/-1;margin:4px 0">🏦 Transferencias registradas aparte: <b>'+money(r.tr)+'</b> (no son efectivo para entregar).</p>':'');
  // Mostrar la resta exacta detrás de la cifra, sin alterar el cierre ni sumar
  // el costo del envío dos veces (ya forma parte de lo cobrado).
  let desglose=document.getElementById('dyDesgloseRendicion');
  if(!desglose){desglose=document.createElement('div');desglose.id='dyDesgloseRendicion';desglose.style.cssText='margin:12px 0 18px;padding:14px;border:1px solid #d6e2ef;border-radius:12px;background:#f7faff;color:#173152;font-size:15px;line-height:1.6';$('cashSummary').after(desglose)}
- const modo=r.retiene?'La ganancia total registrada se resta una sola vez del efectivo cobrado. Incluye comisiones por rechazos reconocidos, incluso cuando el envío aún no fue pagado.':'Este motorista está configurado para rendir el efectivo completo; su ganancia se paga por separado.';
- const faltaRetener=Math.max(0,r.comM-r.retenido);
+ const retenido=r.retenido,porCompensar=Math.max(0,r.comM-retenido);
  desglose.innerHTML='<strong>🧮 ¿Cuánto dinero entrego?</strong>'
-  +'<div style="display:flex;justify-content:space-between;gap:12px"><span>💵 Total cobrado en efectivo</span><b>'+money(r.ef)+'</b></div>'
-  +'<div style="display:flex;justify-content:space-between;gap:12px"><span>− Mi ganancia descontada</span><b>− '+money(r.retenido)+'</b></div>'
-  +'<div style="border-top:1px solid #c8d7e7;margin-top:7px;padding-top:7px;display:flex;justify-content:space-between;gap:12px"><strong>🤝 Efectivo que entrego al jefe</strong><strong>'+money(r.rendir)+'</strong></div>'
-  +(faltaRetener?'<div style="font-size:13px;margin-top:6px">Ganancia pendiente de liquidar (efectivo insuficiente): '+money(faltaRetener)+' (debe revisarse antes del cierre).</div>':'')
-  +'<p style="font-size:13px;margin:8px 0 0">'+modo+' Las transferencias ('+money(r.tr)+') se registran por separado. No se descuenta dos veces el precio del envío.</p>';
+  +'<div style="display:flex;justify-content:space-between;gap:12px"><span>💵 Efectivo cobrado</span><b>'+money(r.ef)+'</b></div>'
+  +'<div style="display:flex;justify-content:space-between;gap:12px"><span>− Mi ganancia</span><b>− '+money(retenido)+'</b></div>'
+  +'<div style="border-top:1px solid #c8d7e7;margin-top:7px;padding-top:7px;display:flex;justify-content:space-between;gap:12px"><strong>🤝 Entrego al jefe</strong><strong>'+money(r.rendir)+'</strong></div>'
+  +(porCompensar?'<p style="font-size:13px;margin:8px 0 0;color:#9a3412">⚠️ Falta compensar '+money(porCompensar)+' de tu ganancia porque recaudaste menos efectivo. Central debe registrar ese saldo; no se descuenta dos veces.</p>':'')
+  +(r.tr?'<p style="font-size:12px;margin:6px 0 0">🏦 Transferencias registradas: '+money(r.tr)+'; se rinden por separado.</p>':'');
  const corregible=!!r.cierre&&r.cierre.estado!=='confirmada'&&!r.cierre.confirmed_at&&(!r.cierre.confirmado_por||r.cierre.confirmado_por===moto.usuario_id);
  if(!r.cierre||corregible){if(!$('cashDeclared').dataset.tocado){$('cashDeclared').value=r.rendir;$('transferDeclared').value=r.tr}}
  ['cashDeclared','transferDeclared'].forEach(id=>{$(id).oninput=()=>{$(id).dataset.tocado='1'}});
