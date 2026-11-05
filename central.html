@@ -1480,18 +1480,18 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $('dyDTodos').onclick=()=>{st.sel.clear();libres.forEach(o=>st.sel.add(o.id));refrescar()};$('dyDAsignados').onclick=()=>{if(!st.moto){msg('Primero elegí un motorista en las tarjetas de abajo.','err');return}st.sel.clear();vistos.filter(o=>reenviable(o)&&o.motorista_id===st.moto).forEach(o=>st.sel.add(o.id));refrescar();if(!st.sel.size)msg('No hay pedidos activos de esta moto en el filtro actual. Elegí Todos.','err')};$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
   barra(ps);dibujar(ps);st.firma=firma()}
- function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const historicosMarcados=selOs.filter(historicoElegible);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const act=drivers.filter(d=>d.activo);
+ function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const historicosMarcados=selOs.filter(historicoElegible);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const transferibles=selOs.filter(o=>reenviable(o)&&o.motorista_id!==st.moto&&!!st.moto);const act=drivers.filter(d=>d.activo);
   if(st.moto&&!act.some(d=>d.id===st.moto))st.moto=null;
   const nums=selOs.map(o=>o.numero_general??'nuevo');const k=largo(selOs.filter(gps),null);
   el.classList.toggle('dy-sin-seleccion',!selOs.length&&!st.moto);
   el.innerHTML='<div class="r1"><div class="cnt">'+(selOs.length?'✅ '+selOs.length+' marcado(s): '+libresMarcados.length+' nuevos sin asignar, '+reenviarMarcados.length+' de la moto seleccionada'+(ajenosMarcados.length?' · '+ajenosMarcados.length+' de otras motos':'')+' <small>N.º Central '+nums.join(', ')+'</small>':(editable()?'Marcá pedidos y elegí la moto para asignar':'Historial del '+st.fecha+' · consulta sin modificaciones'))+'</div></div>'
   +'<div class="motos">'+act.map(d=>{const n=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&tur(o)===st.turno&&!FIN.includes(o.estado)).length;return '<button type="button" class="moto '+(st.moto===d.id?'on':'')+'" data-moto="'+esc(d.id)+'"><span class="dot" style="background:'+colorMoto(d.id)+'"></span>'+esc(d.nombre)+' <small>'+n+'</small></button>'}).join('')+'</div>'
-  +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>✅ Asignar '+libresMarcados.length+' ahora</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
+  +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>✅ Asignar '+libresMarcados.length+' ahora</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&transferibles.length?'<button type="button" class="a2" id="dyDReasignar">🔁 Reasignar '+transferibles.length+' a esta moto</button>':'')+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
   +(!editable()&&historicosMarcados.length?'<div class="acc" style="margin-top:8px;flex-wrap:wrap"><button type="button" class="a2" id="dyDHistoricoEnviar" '+(st.moto&&historicosMarcados.length===selOs.length?'':'disabled')+'>📲 Reprogramar '+historicosMarcados.length+' para hoy y enviar a la moto</button></div><div class="sub" style="margin-top:6px">Solo pedidos históricos pendientes, sin asignación y sin cobros. Requiere confirmación y registra auditoría.</div>':'')
   +(st.ultimo?'<div class="post">'+st.ultimo+'</div>':'');
   el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{const elegido=b.dataset.moto;st.moto=elegido;st.ultimo=null;st.fit=false;const marcados=paradas().filter(o=>st.sel.has(o.id));barra(paradas());dibujar(paradas());if(editable()&&marcados.some(libre)&&marcados.every(o=>libre(o)||(reenviable(o)&&o.motorista_id===elegido)))asignar(false)});
   const h=$('dyDHistoricoEnviar');if(h)h.onclick=()=>reprogramarHistoricos();
-  const a=$('dyDAsig'),w=$('dyDAsigW'),r=$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);
+  const a=$('dyDAsig'),w=$('dyDAsigW'),r=$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);const reas=$('dyDReasignar');if(reas)reas.onclick=()=>reasignarSeleccionados();
   if(r)r.onclick=()=>{const d=drivers.find(x=>x.id===st.moto&&x.activo);const seleccion=paradas().filter(o=>st.sel.has(o.id));const suyos=seleccion.filter(o=>reenviable(o)&&o.motorista_id===d?.id);if(!d||!suyos.length){msg('No hay pedidos marcados asignados a esta moto.','err');return}const excluidos=seleccion.length-suyos.length;if(excluidos&&!confirm('Se enviarán '+suyos.length+' pedidos de '+d.nombre+'. Los otros '+excluidos+' marcados no le pertenecen y NO se enviarán. ¿Continuar?'))return;window.open(waUrl(d,new Set(suyos.map(o=>o.id))),'_blank','noopener');msg('Preparado WhatsApp con '+suyos.length+' pedido(s) de '+d.nombre+(excluidos?' · '+excluidos+' excluidos':'')+'. No se cambiaron las asignaciones.','ok')}}
  const NT={manana:'🌅 Mañana',tarde:'🌇 Tarde',sin_definir:'Sin turno'};
  function otrosHtml(){const ot=orders.filter(o=>esFecha(o)&&tur(o)!==st.turno&&o.estado==='pendiente'&&!o.motorista_id);if(!ot.length)return '';const pod=['manana','tarde'].includes(st.turno);
@@ -1639,6 +1639,29 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
     refrescar();msg('✅ Se guardaron '+numero+' asignaciones. Si WhatsApp no abrió, comprobá el bloqueo de ventanas emergentes.','ok');
   }catch(e){await $('routeReload').onclick().catch(()=>{});refrescar();msg('⚠️ No se completó o verificó la reprogramación: '+(e.message||e),'err')}
   finally{if(boton)boton.disabled=false}
+ }
+ async function reasignarSeleccionados(){
+  if(!editable()||!st.moto)return;
+  const destino=drivers.find(x=>x.id===st.moto&&x.activo);
+  const lista=paradas().filter(o=>st.sel.has(o.id)&&reenviable(o)&&o.motorista_id!==st.moto);
+  if(!destino||!lista.length){msg('Marcá pedidos de otra moto y elegí el motorista destino.','err');return}
+  if(!confirm('¿Mover '+lista.length+' pedido(s) a '+destino.nombre+'? Se quitarán de la moto anterior, sin duplicarlos. La caja y las entregas finalizadas no se modifican.'))return;
+  const btn=$('dyDReasignar');if(btn)btn.disabled=true;
+  const ids=lista.map(o=>o.id),versiones=Object.fromEntries(lista.map(o=>[o.id,Number(o.version_edicion)||0]));
+  try{
+    const {error}=await client.rpc('flota_reasignar_lote_seguro',{p_pedidos:ids,p_motorista_destino:destino.id,p_versiones:versiones});
+    if(error)throw error;
+    const check=await client.from('pedidos').select('id,motorista_id,estado').in('id',ids);
+    if(check.error)throw check.error;
+    if((check.data||[]).length!==ids.length||(check.data||[]).some(o=>o.motorista_id!==destino.id))throw Error('No se pudo verificar todo el traslado. Actualizá Central antes de repetir.');
+    st.sel.clear();st.fit=false;
+    await $('routeReload').onclick();
+    st.ultimo='✅ '+lista.length+' pedido(s) reasignados a '+esc(destino.nombre)+'. Las rutas anteriores se actualizarán automáticamente.';
+    refrescar();msg('Reasignación verificada.','ok');
+  }catch(e){
+    try{await $('routeReload').onclick()}catch(_){}
+    refrescar();msg('No se completó la reasignación: '+(e.message||e),'err');
+  }finally{if(btn)btn.disabled=false}
  }
  async function asignar(conWa){
   if(!editable())return;
