@@ -1393,11 +1393,13 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
 // el jefe marca casilleros, ve el tramo en el mapa, elige moto, asigna y manda WhatsApp.
 // Solo usa funciones existentes del servidor (crear ruta, reorganizar, confirmar/anexar, asignar lote).
 (function(){
- const st={fecha:new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}),turno:null,filtro:'pendientes',busqueda:'',origen:null,manual:false,sel:new Set(),moto:null,map:null,g:false,objs:[],fit:false,ultimo:null,firma:''};
+ const st={fecha:new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'}),turno:null,filtro:'pendientes',busqueda:'',origen:null,manual:false,sel:new Set(),moto:null,map:null,g:false,objs:[],fit:false,ultimo:null,firma:'',fechaProgramada:null,turnoProgramado:'manana'};
  const PAL=['#1765ba','#e8590c','#2b8a3e','#ae3ec9','#c92a2a','#0b7285','#5c940d','#d6336c','#f08c00','#364fc7'];
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const $$=id=>document.getElementById(id);
  const hoy=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
+ const addDias=(fecha,n)=>{const d=new Date(fecha+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+ const fechaLimite=()=>addDias(hoy(),14);
  const km=(a,b)=>{const R=6371,x=(b.lat-a.lat)*Math.PI/180,y=(b.lng-a.lng)*Math.PI/180,h=Math.sin(x/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
  const P=o=>({lat:Number(o.lat),lng:Number(o.lng)});
  const gps=o=>o&&o.lat!=null&&o.lng!=null&&Number.isFinite(Number(o.lat))&&Number.isFinite(Number(o.lng));
@@ -1406,7 +1408,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  const fechaOperativa=o=>routes.find(x=>x.id===o.ruta_general_id)?.fecha||fechaCarga(o);
  const esFecha=o=>!!o&&fechaOperativa(o)===st.fecha;
  const editable=()=>st.fecha===hoy();
- function escogerFecha(f){if(!/^\d{4}-\d{2}-\d{2}$/.test(f)||f>hoy())return;st.fecha=f;filtroDia=f;st.sel.clear();st.moto=null;st.origen=null;st.ultimo=null;st.fit=false;dyActualizarOrdenesMoto(f).then(()=>{if(st.fecha===f)pintar()});pintar()}
+ function escogerFecha(f){if(!/^\d{4}-\d{2}-\d{2}$/.test(f)||f>fechaLimite())return;st.fecha=f;filtroDia=f;st.sel.clear();st.moto=null;st.origen=null;st.ultimo=null;st.fit=false;dyActualizarOrdenesMoto(f).then(()=>{if(st.fecha===f)pintar()});pintar()}
  function moverFecha(paso){const d=new Date(st.fecha+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+paso);escogerFecha(d.toISOString().slice(0,10))}
 
  const FIN=['entregado','rechazado','cancelado'];
@@ -1446,7 +1448,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function pintar(){const box=$$('dyDesp');if(!box)return;
   const cM=contar('manana'),cT=contar('tarde'),cS=contar('sin_definir');
   if(!st.turno)st.turno=cM||cT?(cM>=cT?'manana':'tarde'):(new Date().getHours()<12?'manana':'tarde');
-  box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+hoy()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=hoy()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button></div></div>'
+  box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+fechaLimite()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=fechaLimite()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button></div></div>'
   +(editable()?'<p class="sub">Para repartir: marcá pedidos nuevos y tocá la moto para agregarlos directamente. Optimizar es opcional.</p>':'<div class="dy-readonly">📅 Historial: podés seleccionar pedidos pendientes SIN MOTORISTA y reprogramarlos para hoy. Los entregados, cobrados o asignados permanecen protegidos.</div>')
   +'<div class="fila" id="dyDT">'+[['manana','🌅 Mañana',cM],['tarde','🌇 Tarde',cT]].concat(cS?[['sin_definir','Sin turno',cS]]:[]).map(([v,l,c])=>'<button type="button" class="chip '+(st.turno===v?'on':'')+'" data-t="'+v+'">'+l+' <small>'+c+' sin asignar</small></button>').join('')
   +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
@@ -1481,18 +1483,19 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $('dyDTodos').onclick=()=>{st.sel.clear();libres.forEach(o=>st.sel.add(o.id));refrescar()};$('dyDAsignados').onclick=()=>{if(!st.moto){msg('Primero elegí un motorista en las tarjetas de abajo.','err');return}st.sel.clear();vistos.filter(o=>reenviable(o)&&o.motorista_id===st.moto).forEach(o=>st.sel.add(o.id));refrescar();if(!st.sel.size)msg('No hay pedidos activos de esta moto en el filtro actual. Elegí Todos.','err')};$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
   barra(ps);dibujar(ps);st.firma=firma()}
- function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const historicosMarcados=selOs.filter(historicoElegible);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const transferibles=selOs.filter(o=>transferible(o)&&o.motorista_id!==st.moto&&!!st.moto);const act=drivers.filter(d=>d.activo);
+ function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const historicosMarcados=selOs.filter(historicoElegible);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const transferibles=selOs.filter(o=>transferible(o)&&o.motorista_id!==st.moto&&!!st.moto);const programables=selOs.filter(o=>transferible(o));const act=drivers.filter(d=>d.activo);
   if(st.moto&&!act.some(d=>d.id===st.moto))st.moto=null;
   const nums=selOs.map(o=>o.numero_general??'nuevo');const k=largo(selOs.filter(gps),null);
   el.classList.toggle('dy-sin-seleccion',!selOs.length&&!st.moto);
   el.innerHTML='<div class="r1"><div class="cnt">'+(selOs.length?'✅ '+selOs.length+' marcado(s): '+libresMarcados.length+' nuevos sin asignar, '+reenviarMarcados.length+' de la moto seleccionada'+(ajenosMarcados.length?' · '+ajenosMarcados.length+' de otras motos':'')+' <small>N.º Central '+nums.join(', ')+'</small>':(editable()?'Marcá pedidos y elegí la moto para asignar':'Historial del '+st.fecha+' · consulta sin modificaciones'))+'</div></div>'
   +'<div class="motos">'+act.map(d=>{const n=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&tur(o)===st.turno&&!FIN.includes(o.estado)).length;return '<button type="button" class="moto '+(st.moto===d.id?'on':'')+'" data-moto="'+esc(d.id)+'"><span class="dot" style="background:'+colorMoto(d.id)+'"></span>'+esc(d.nombre)+' <small>'+n+'</small></button>'}).join('')+'</div>'
   +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>✅ Asignar '+libresMarcados.length+' ahora</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(st.moto&&transferibles.length?'<button type="button" class="a2" id="dyDReasignar">🔁 Reasignar '+transferibles.length+' a esta moto</button>':'')+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
+  +(st.moto&&programables.length&&st.fecha<=hoy()?'<div class="acc" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label style="font-weight:700">📅 Nueva fecha <input type="date" id="dyDProgramarFecha" min="'+hoy()+'" max="'+fechaLimite()+'" value="'+(st.fechaProgramada&&st.fechaProgramada>=hoy()?st.fechaProgramada:addDias(hoy(),1))+'" style="margin-left:5px"></label><label style="font-weight:700">Turno <select id="dyDProgramarTurno"><option value="manana" '+(st.turnoProgramado==='manana'?'selected':'')+'>Mañana</option><option value="tarde" '+(st.turnoProgramado==='tarde'?'selected':'')+'>Tarde</option></select></label><button type="button" class="a2" id="dyDProgramar">📅 Pasar '+programables.length+' pedido(s) a la nueva fecha con '+esc(drivers.find(x=>x.id===st.moto)?.nombre||'motorista')+'</button></div>':'')
   +(!editable()&&historicosMarcados.length?'<div class="acc" style="margin-top:8px;flex-wrap:wrap"><button type="button" class="a2" id="dyDHistoricoEnviar" '+(st.moto&&historicosMarcados.length===selOs.length?'':'disabled')+'>📲 Reprogramar '+historicosMarcados.length+' para hoy y enviar a la moto</button></div><div class="sub" style="margin-top:6px">Solo pedidos históricos pendientes, sin asignación y sin cobros. Requiere confirmación y registra auditoría.</div>':'')
   +(st.ultimo?'<div class="post">'+st.ultimo+'</div>':'');
   el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{const elegido=b.dataset.moto;st.moto=elegido;st.ultimo=null;st.fit=false;const marcados=paradas().filter(o=>st.sel.has(o.id));barra(paradas());dibujar(paradas());if(editable()&&marcados.some(libre)&&marcados.every(o=>libre(o)||(reenviable(o)&&o.motorista_id===elegido)))asignar(false)});
   const h=$('dyDHistoricoEnviar');if(h)h.onclick=()=>reprogramarHistoricos();
-  const a=$('dyDAsig'),w=$('dyDAsigW'),r=$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);const reas=$('dyDReasignar');if(reas)reas.onclick=()=>reasignarSeleccionados();
+  const a=$('dyDAsig'),w=$('dyDAsigW'),r=$('dyDW');if(a)a.onclick=()=>asignar(false);if(w)w.onclick=()=>asignar(true);const reas=$('dyDReasignar');if(reas)reas.onclick=()=>reasignarSeleccionados();const prog=$('dyDProgramar');if(prog)prog.onclick=()=>programarSeleccionados();const inp=$('dyDProgramarFecha');if(inp)inp.onchange=()=>st.fechaProgramada=inp.value;const turp=$('dyDProgramarTurno');if(turp)turp.onchange=()=>st.turnoProgramado=turp.value;
   if(r)r.onclick=()=>{const d=drivers.find(x=>x.id===st.moto&&x.activo);const seleccion=paradas().filter(o=>st.sel.has(o.id));const suyos=seleccion.filter(o=>reenviable(o)&&o.motorista_id===d?.id);if(!d||!suyos.length){msg('No hay pedidos marcados asignados a esta moto.','err');return}const excluidos=seleccion.length-suyos.length;if(excluidos&&!confirm('Se enviarán '+suyos.length+' pedidos de '+d.nombre+'. Los otros '+excluidos+' marcados no le pertenecen y NO se enviarán. ¿Continuar?'))return;window.open(waUrl(d,new Set(suyos.map(o=>o.id))),'_blank','noopener');msg('Preparado WhatsApp con '+suyos.length+' pedido(s) de '+d.nombre+(excluidos?' · '+excluidos+' excluidos':'')+'. No se cambiaron las asignaciones.','ok')}}
  const NT={manana:'🌅 Mañana',tarde:'🌇 Tarde',sin_definir:'Sin turno'};
  function otrosHtml(){const ot=orders.filter(o=>esFecha(o)&&tur(o)!==st.turno&&o.estado==='pendiente'&&!o.motorista_id);if(!ot.length)return '';const pod=['manana','tarde'].includes(st.turno);
@@ -1640,6 +1643,32 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
     refrescar();msg('✅ Se guardaron '+numero+' asignaciones. Si WhatsApp no abrió, comprobá el bloqueo de ventanas emergentes.','ok');
   }catch(e){await $('routeReload').onclick().catch(()=>{});refrescar();msg('⚠️ No se completó o verificó la reprogramación: '+(e.message||e),'err')}
   finally{if(boton)boton.disabled=false}
+ }
+ async function programarSeleccionados(){
+   const d=drivers.find(x=>x.id===st.moto&&x.activo);
+   const lista=paradas().filter(o=>st.sel.has(o.id)&&transferible(o));
+   const fecha=$('dyDProgramarFecha')?.value;
+   const turno=$('dyDProgramarTurno')?.value;
+   if(!d||!lista.length)return msg('Elegí una moto y al menos un pedido asignado pendiente.','err');
+   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha||'')||fecha<hoy()||fecha>fechaLimite())return msg('Elegí una fecha válida dentro de los próximos 14 días.','err');
+   if(!['manana','tarde'].includes(turno))return msg('Elegí turno mañana o tarde.','err');
+   if(lista.some(o=>fechaOperativa(o)>=fecha))return msg('La nueva fecha debe ser posterior a la fecha original de todos los pedidos.','err');
+   const nombres=lista.slice(0,4).map(o=>o.nombre_cliente).join(', ');
+   if(!confirm('¿Pasar '+lista.length+' pedido(s) ('+nombres+') al '+fecha+' · '+(turno==='manana'?'mañana':'tarde')+' con '+d.nombre+'?\\n\\nSaldrán de las rutas anteriores. No se cobrarán ni duplicarán.'))return;
+   const b=$('dyDProgramar');b.disabled=true;
+   const ids=lista.map(o=>o.id),versiones=Object.fromEntries(lista.map(o=>[o.id,Number(o.version_edicion)||0]));
+   try{
+     const res=await client.rpc('flota_reprogramar_pedidos_asignados',{p_pedidos:ids,p_motorista_destino:d.id,p_fecha_destino:fecha,p_turno_destino:turno,p_versiones:versiones});
+     if(res.error)throw res.error;
+     const verified=await client.from('pedidos').select('id,motorista_id,ruta_general_id,turno,estado').in('id',ids);
+     if(verified.error)throw verified.error;
+     if((verified.data||[]).length!==ids.length||(verified.data||[]).some(p=>p.motorista_id!==d.id||p.turno!==turno||p.estado!=='pendiente'||p.ruta_general_id!==res.data?.ruta_destino))throw Error('Traslado guardado, pero falta verificar la lista. No lo repitas antes de revisar.');
+     await $('routeReload').onclick();
+     st.sel.clear();st.turno=turno;escogerFecha(fecha);st.moto=d.id;
+     st.ultimo='✅ '+ids.length+' pedido(s) para el '+esc(fecha)+' · '+esc(d.nombre)+'. Se retiraron de la jornada anterior.';
+     pintar();msg('✅ Traslado confirmado y verificado. No se duplicaron pedidos.','ok');
+   }catch(e){try{await $('routeReload').onclick()}catch(_){}refrescar();msg('No se pudo programar: '+(e.message||e),'err')}
+   finally{b.disabled=false}
  }
  async function reasignarSeleccionados(){
   if(!st.moto)return;
