@@ -129,3 +129,10 @@ test('Pasa mañana traslada inmediatamente y muestra procedencia en Central',()=
  assert.ok(central.includes('📅 Reprogramado desde'),'Central debe mostrar origen');
  assert.ok(central.includes('motivo_incidencia'),'Central debe conservar motivo en etiqueta');
 });
+
+test('Motorista puede deshacer No me fui individualmente sin afectar cobros',()=>{
+ assert.ok(motorista.includes("data-undo-no-fui="),'Botón por pedido en sección No me fui');
+ assert.ok(motorista.includes("sb.rpc('motorista_deshacer_no_me_fui'"),'RPC segura de deshacer');
+ assert.ok(motorista.includes("p_version:Number(p.version_edicion)||0"),'Control de versión del pedido');
+ assert.ok(motorista.includes("await load();"),'Actualizar ruta tras deshacer');
+});
