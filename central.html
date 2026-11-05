@@ -1336,7 +1336,9 @@ async function rdPdf(t,fecha){
   const cobroRechazo=est==='rechazado'&&rr?.responsable_pago==='tienda'?Number(rr.importe_pendiente||0):0;
   const compensado=datosAudit.compensaciones.some(c=>c.pedido_id===p.id);
   const rider=drivers.find(d=>d.id===p.motorista_id)?.nombre||'Sin motorista';
-  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE')):motivo);
+  const descontado=cobroRechazo>0&&!compensado&&!(datosAudit.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&Number(z.compensado)>0);
+  const cargo=descontado?'Delivery por rechazo: '+rdGs(cobroRechazo)+' descontados de la rendición':'Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE');
+  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo);
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
     rdGs(p.precio_mercaderia||0),rdGs(p.precio_delivery||0),rdGs(rec),observacion
