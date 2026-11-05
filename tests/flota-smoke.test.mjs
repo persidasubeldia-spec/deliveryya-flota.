@@ -136,3 +136,14 @@ test('Motorista puede deshacer No me fui individualmente sin afectar cobros',()=
  assert.ok(motorista.includes("p_version:Number(p.version_edicion)||0"),'Control de versión del pedido');
  assert.ok(motorista.includes("await load();"),'Actualizar ruta tras deshacer');
 });
+
+test('Central ofrece Pasar a mañana individual y múltiple sin exigir motorista',()=>{
+ assert.ok(central.includes("flota_pasar_pedidos_manana_central"),'Debe usar RPC segura y transaccional');
+ assert.ok(central.includes('data-pasar-manana-uno'),'Debe ofrecer un botón por pedido');
+ assert.ok(central.includes('dyDPasarManana'),'Debe ofrecer botón para selección múltiple');
+ assert.ok(central.includes('pasablesMarcados.length===selOs.length'),'Solo debe permitir lote elegible completo');
+ assert.ok(central.includes('p_fecha_origen:st.fecha'),'Debe validar fecha original');
+ assert.ok(central.includes('p_versiones:versiones'),'Debe enviar control de versiones');
+ assert.ok(central.includes("o.motorista_id!==null||o.estado!=='pendiente'"),'Debe verificar resultado sin motorista');
+ assert.ok(central.includes("o.precio_delivery!==lista.find"),'Debe conservar importe de entrega');
+});
