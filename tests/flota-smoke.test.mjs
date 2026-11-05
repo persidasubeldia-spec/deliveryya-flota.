@@ -147,3 +147,17 @@ test('Central ofrece Pasar a mañana individual y múltiple sin exigir motorista
  assert.ok(central.includes("o.motorista_id!==null||o.estado!=='pendiente'"),'Debe verificar resultado sin motorista');
  assert.ok(central.includes("o.precio_delivery!==lista.find"),'Debe conservar importe de entrega');
 });
+
+test('Rendiciones distinguen el día operativo de la fecha de carga y muestran Pasa mañana',()=>{
+ assert.ok(central.includes("flota_historial_reprogramados_fecha"),'Consultar historial auditado');
+ assert.ok(central.includes("reprogramados:reprogramados.data||[]"),'Incluir eventos por fecha');
+ assert.ok(central.includes("if(fechaRuta!==d.fecha&&(p.ruta_general_id||fechaCarga!==d.fecha))continue"),'No mostrar en hoy los pedidos trasladados a mañana');
+ assert.ok(central.includes("t.pasados.length+' pasados a mañana"),'Rendición de tienda debe contar traslado');
+ assert.ok(central.includes("PEDIDOS PASADOS A MAÑANA"),'PDF debe incluir detalle de traslados');
+});
+test('Crear rutas, asignar y anexar no recupera pedidos viejos automáticamente',()=>{
+ assert.ok(!central.includes("const moved=await client.rpc('flota_reorganizar_pendientes_heredados'"),'Crear turno no debe rescatar otras fechas');
+ assert.ok(!central.includes("const rr=await client.rpc('flota_reorganizar_pendientes_heredados'"),'Asignación no debe rescatar otras fechas');
+ assert.ok(central.includes("diaPY(o.created_at)===route.fecha"),'Anexar debe limitar pedidos sin ruta al día correcto');
+ assert.ok(central.includes("['pendiente','no_responde','no_recibio'].includes(o.estado)"),'Central debe permitir mover incidencias no cobradas');
+});
