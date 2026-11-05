@@ -974,7 +974,7 @@ function rdTiendas(d){
   t.filas.sort((a,b)=>String(a.p.turno).localeCompare(String(b.p.turno))||(a.p.numero_general??9999)-(b.p.numero_general??9999));
   t.pedidos.sort((a,b)=>(a.numero_general??999999)-(b.numero_general??999999)||String(a.created_at).localeCompare(String(b.created_at)));
   const rjs=[...new Map([...t.pedidos,...t.filas.map(f=>f.p)].filter(p=>p.estado==='rechazado').map(p=>[p.id,p])).values()];
-  for(const p of rjs){const r=d.rech.get(p.id);if(r?.responsable_pago==='tienda'&&Number(r.importe_pendiente)>0&&!d.compensaciones.some(c=>c.pedido_id===p.id))t.cargosPendientes+=Number(r.importe_pendiente)}
+  for(const p of rjs){const r=d.rech.get(p.id);if(r?.responsable_pago==='tienda'&&Number(r.importe_pendiente)>0&&!d.compensaciones.some(c=>c.pedido_id===p.id)&&!(d.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&Number(z.compensado)>0))t.cargosPendientes+=Number(r.importe_pendiente)}
   t.compensado=d.compensaciones.filter(c=>c.tienda_id===t.tienda.id).reduce((v,c)=>v+Number(c.importe||0),0);
   t.pagado=d.pagos.filter(p=>p.tienda_id===t.tienda.id).reduce((v,p)=>v+Number(p.importe||0),0);
   // Rechazos a cargo de tienda se descuentan automáticamente del neto.
@@ -1086,7 +1086,7 @@ async function dyRendiciones(){
    '<div class="rd-neto'+(t.neto<0?' neg':'')+'">'+(t.neto>=0?'Neto calculado a favor de la tienda: '+money(t.neto):'Importe calculado a favor de la flota: '+money(-t.neto))+'</div>'+
    '<div class="muted" style="margin:8px 0">Saldo después de pagos: <b>'+money(t.saldo)+'</b> · '+(t.saldo===0&&t.pagado>0?'Con pago registrado':'PROVISIONAL / NO LIQUIDADO')+'</div>'+
    '<div class="rd-acc"><button class="rd-pri" data-rdshare="'+i+'">📤 Enviar PDF a tienda</button><button data-rdpdf="'+i+'">📄 Descargar PDF</button><button data-rdver="'+i+'">👁 Ver detalle</button>'+
-   (puedeConfirmar?'<button data-rdpago="'+i+'">💵 Registrar pago recibido por tienda</button><button data-rdcomp="'+i+'">⚖️ Registrar compensación</button>':'')+
+   (puedeConfirmar?'<button data-rdpago="'+i+'">💵 Registrar pago recibido por tienda</button><button data-rdcomp="'+i+'">⚖️ Registrar compensación</button><button type="button" data-rdrecuperar="'+i+'" style="background:#fff7ed;border:1px solid #f59e0b;color:#92400e">↩ Recuperar rechazo pendiente</button>':'')+
    '</div><div id="rdDet'+i+'" hidden></div></div>').join(''):'<p class="muted">No hay movimientos de tiendas en este día.</p>');
    body.querySelectorAll('[data-rdver]').forEach(b=>b.onclick=()=>{
     const t=ts[b.dataset.rdver],el=$('rdDet'+b.dataset.rdver);
@@ -1114,6 +1114,27 @@ async function dyRendiciones(){
      try{const {error}=await client.rpc('flota_registrar_pago_tienda',{p_tienda:t.tienda.id,p_fecha:d.fecha,p_importe:importe,p_medio:tipo,p_referencia:referencia.trim()});
        if(error)throw error;await pintar();
      }catch(e){alert('No se registró el pago: '+e.message)}finally{b.disabled=false}
+   });
+   body.querySelectorAll('[data-rdrecuperar]').forEach(b=>b.onclick=async()=>{
+     if(d.fecha!==new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'})){alert('Para aplicar descuentos de fechas anteriores elegí la fecha de hoy. No se cambian cierres históricos.');return}
+     const t=ts[Number(b.dataset.rdrecuperar)];
+     const deuda=(d.rechazosDeuda||[]).filter(z=>z.tienda_id===t.tienda.id&&Number(z.saldo_pendiente)>0);
+     if(!deuda.length){alert('Esta tienda no tiene rechazos pendientes por recuperar.');return}
+     const lista=deuda.map((z,i)=>(i+1)+'. '+z.nombre_cliente+' · '+money(z.saldo_pendiente)+' · '+z.fecha_ruta).join('\n');
+     const eleccion=prompt('Elegí el número del rechazo que se descontará de la rendición de hoy:\n'+lista,'1');
+     if(eleccion===null)return;
+     const n=Number(eleccion)-1;
+     if(!Number.isInteger(n)||n<0||n>=deuda.length){alert('Número inválido');return}
+     const z=deuda[n],ref=prompt('Referencia del descuento acordado (mínimo 5 caracteres):','Rendición '+d.fecha);
+     if(ref===null)return;
+     if(ref.trim().length<5){alert('Falta una referencia válida');return}
+     if(!confirm('¿Registrar una sola vez el descuento de '+money(z.saldo_pendiente)+' por '+z.nombre_cliente+' en la rendición actual de '+t.tienda.nombre_comercial+'? Se verificará saldo suficiente. No registra dinero recibido ni modifica cierres anteriores.'))return;
+     b.disabled=true;
+     try{
+       const {error}=await client.rpc('flota_compensar_rechazo_en_rendicion',{p_pedido:z.pedido_id,p_fecha_rendicion:d.fecha,p_referencia:ref.trim()});
+       if(error)throw error;
+       await pintar();
+     }catch(e){alert('No se aplicó el descuento: '+e.message)}finally{b.disabled=false}
    });
    body.querySelectorAll('[data-rdcomp]').forEach(b=>b.onclick=async()=>{
      const t=ts[Number(b.dataset.rdcomp)],map=new Map();
