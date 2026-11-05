@@ -170,3 +170,10 @@ test('No reprogramar pedidos futuros hacia hoy; asignar futura ruta sin cambiar 
  assert.ok(central.includes("ver.data||[]).length!==ids.length"),'Verificar cantidad exacta');
  assert.ok(central.includes("waUrl(d,new Set(ids))"),'WhatsApp solo pedidos confirmados y seleccionados');
 });
+
+test('WhatsApp completo evita bloqueo de ventanas emergentes y permite copiar',()=>{
+ assert.ok(central.includes('id="dyEnviarRutaWA"'),'Link de envío completo');
+ assert.ok(central.includes('target="_self"'),'Abrir en la misma pestaña, sin popup');
+ assert.ok(central.includes('id="dyCopiarRutaWA"'),'Opción de copiar texto');
+ assert.ok(central.includes('navigator.clipboard.writeText(texto)'),'Copiar contenido real del mensaje');
+});
