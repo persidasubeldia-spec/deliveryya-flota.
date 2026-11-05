@@ -90,7 +90,7 @@ test('Rendición oficial separa motociclista, tienda y administración',()=>{
   "rdPdfMotoCentral","async function rdPdf(t,fecha)","rdPdfAdministracion",
   "flota_resumen_ajustes_tienda","flota_confirmar_compensacion_tienda",
   "flota_registrar_pago_tienda","rdAuditar(d)",
-  "Rechazos pendientes (no descontados)","PROVISIONAL / NO LIQUIDADO",
+  "Rechazos descontados directamente","PROVISIONAL / NO LIQUIDADO",
   "Compensaciones de rechazo confirmadas (-)",
   "if(audit.errores.length)throw Error('Conciliación inconsistente:"
  ]) assert.ok(central.includes(token),'Falta norma de rendición: '+token);
@@ -107,4 +107,11 @@ test('Finanzas no cuenta rechazos impagos como comisiones realizadas',()=>{
  assert.ok(central.includes("cobrada('comision_motorista')"));
  assert.ok(central.includes("detalleMovimiento(entregasCobradas,'empresa')"));
  assert.ok(central.includes("detalleMovimiento(entregasCobradas,'motos')"));
+});
+
+test('Rechazos de tienda se descuentan automáticamente sin duplicar compensaciones',()=>{
+ assert.ok(central.includes("t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado;"));
+ assert.ok(central.includes("!d.compensaciones.some(c=>c.pedido_id===p.id)"));
+ assert.ok(central.includes("Rechazos a cargo de tienda descontados (-)"));
+ assert.ok(central.includes("Rechazos descontados directamente"));
 });
