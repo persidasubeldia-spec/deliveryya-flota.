@@ -675,12 +675,11 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
    routes=updated||[];
    $('routeChoice').innerHTML='<option value="">Elegir ruta</option>'+routes.map(r=>'<option value="'+escapeHtml(r.id)+'">'+escapeHtml(r.fecha)+' · '+escapeHtml(r.estado)+'</option>').join('');
    $('routeChoice').value=data;
-   const moved=await client.rpc('flota_reorganizar_pendientes_heredados',{p_fecha:day,p_turno:selectedShift});
-   if(moved.error)throw Error('Ruta creada, pero no se pudieron recuperar pendientes anteriores: '+moved.error.message);
+   // No trasladar pedidos de otras fechas al crear turno.
    orders=await cargarTodosLosPedidos(account.empresa_id);
    selectedOrders.clear();proposedOrder=null;bestRoutePreview=null;optimizationTrial=0;
    view();
-   $('routeMsg').textContent='✅ Turno preparado ('+moved.data+' pedidos anteriores recuperados). Ahora elegí el punto de salida, optimizá y confirmá. Después podrás seleccionar y repartir.';
+   $('routeMsg').textContent='✅ Turno preparado sin alterar pedidos de otras fechas. Elegí tus pedidos y repartí.';
   }catch(e){$('routeMsg').textContent='No se pudo preparar la ruta: '+e.message;}
   finally{btn.disabled=false;}
  };
@@ -782,14 +781,14 @@ const showDispatchDetail=o=>{if(!o)return;routeSide='detail';document.querySelec
    if(sel.some(o=>o.numero_general==null)){
     msgEl.textContent='Preparando y confirmando la ruta del turno…';
     const c=await client.rpc('flota_crear_ruta_turno',{p_fecha:hoy,p_turno:turno});if(c.error)throw c.error;const rid=c.data;
-    const rr=await client.rpc('flota_reorganizar_pendientes_heredados',{p_fecha:hoy,p_turno:turno});if(rr.error)throw rr.error;
+    // No rescatar pendientes históricos al asignar.
     await $('routeReload').onclick();$('routeChoice').value=rid;
     const ruta=routes.find(r=>r.id===rid);sel=ids.map(id=>orders.find(o=>o.id===id)).filter(Boolean);
     let origen=null;try{origen=parseRouteOrigin($('routeOrigin').value)}catch(_){}
     if(!origen&&driver.gps_lat!=null&&driver.gps_lng!=null)origen={lat:Number(driver.gps_lat),lng:Number(driver.gps_lng)};
     const sinNumero=sel.filter(o=>o.numero_general==null);
     if(ruta?.estado==='abierta'){
-     const todos=orders.filter(o=>o.estado==='pendiente'&&!o.motorista_id&&(o.turno||'sin_definir')===turno&&o.lat!=null&&o.lng!=null&&(o.ruta_general_id==null||o.ruta_general_id===rid));
+     const todos=orders.filter(o=>o.estado==='pendiente'&&!o.motorista_id&&(o.turno||'sin_definir')===turno&&o.lat!=null&&o.lng!=null&&((o.ruta_general_id==null&&diaPY(o.created_at)===hoy)||o.ruta_general_id===rid));
      const elegidos=ordenarCercania(sel.filter(o=>todos.includes(o)),origen);
      const restoIds=new Set(todos.map(o=>o.id));elegidos.forEach(o=>restoIds.delete(o.id));
      const resto=todos.filter(o=>restoIds.has(o.id));
