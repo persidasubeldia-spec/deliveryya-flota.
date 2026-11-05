@@ -1494,7 +1494,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function pintar(){const box=$$('dyDesp');if(!box)return;
   const cM=contar('manana'),cT=contar('tarde'),cS=contar('sin_definir');
   if(!st.turno)st.turno=cM||cT?(cM>=cT?'manana':'tarde'):(new Date().getHours()<12?'manana':'tarde');
-  box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+fechaLimite()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=fechaLimite()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button></div></div>'
+  box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+fechaLimite()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=fechaLimite()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button><button type="button" id="dyDManana" style="background:#dbeafe;color:#1d4ed8;font-weight:800">📅 Mañana</button></div></div>'
   +(editable()?'<p class="sub">Para repartir: marcá pedidos nuevos y tocá la moto para agregarlos directamente. Optimizar es opcional.</p>':'<div class="dy-readonly">📅 Historial: podés seleccionar pedidos pendientes SIN MOTORISTA y reprogramarlos para hoy. Los entregados, cobrados o asignados permanecen protegidos.</div>')
   +'<div class="fila" id="dyDT">'+[['manana','🌅 Mañana',cM],['tarde','🌇 Tarde',cT]].concat(cS?[['sin_definir','Sin turno',cS]]:[]).map(([v,l,c])=>'<button type="button" class="chip '+(st.turno===v?'on':'')+'" data-t="'+v+'">'+l+' <small>'+c+' sin asignar</small></button>').join('')
   +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
@@ -1504,7 +1504,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   +'<div id="dyDAv"></div><div class="msg" id="dyDMsg"></div>'
   +'<div class="dy-map-toolbar"><strong>Mapa de reparto</strong><span id="dyMapProvider" role="status">Verificando Google Maps…</span><button type="button" id="dyMapFocus">Centrar en pedidos</button><span class="dy-map-hint">Verde: entregado · Rojo: rechazado · Azul: pendiente</span></div><div class="zona"><div class="lista" id="dyDList"></div><div id="dyMap"></div></div>'
   +'<div id="dyBarra"></div>';
-  $('dyDPrev').onclick=()=>moverFecha(-1);$('dyDNext').onclick=()=>moverFecha(1);$('dyDHoy').onclick=()=>escogerFecha(hoy());$('dyDFecha').onchange=e=>escogerFecha(e.target.value);
+  $('dyDPrev').onclick=()=>moverFecha(-1);$('dyDNext').onclick=()=>moverFecha(1);$('dyDHoy').onclick=()=>escogerFecha(hoy());$('dyDManana').onclick=()=>{st.turno='manana';escogerFecha(addDias(hoy(),1))};$('dyDFecha').onchange=e=>escogerFecha(e.target.value);
   box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{st.turno=b.dataset.t;st.sel.clear();st.fit=false;pintar()});
   $('dyDOtro').onclick=()=>{st.manual=!st.manual;pintar()};$('dyDGo').onclick=optimizar;
   $('dyBuscar').oninput=e=>{st.busqueda=e.target.value;st.sel.clear();refrescar()};
