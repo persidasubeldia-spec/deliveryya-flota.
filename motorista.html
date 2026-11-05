@@ -366,6 +366,7 @@ const mapH=$('map')?.closest('.card')?.querySelector('h3');if(mapH)mapH.textCont
 $('orders').querySelectorAll('[data-edit-operativo]').forEach(b=>b.onclick=()=>{
  const p=a.find(x=>x.id===b.dataset.editOperativo);if(p)dyEditarPedidoMotorista(p);
 });
+$('orders').querySelectorAll('[data-undo-no-fui]').forEach(b=>b.onclick=()=>{const p=a.find(x=>x.id===b.dataset.undoNoFui);if(!p)return;if(!confirm('¿Deshacer No me fui de '+p.nombre_cliente+'? Volverá a tus entregas pendientes y podrás elegir Pasa mañana. No genera cobros.'))return;b.disabled=true;sb.rpc('motorista_deshacer_no_me_fui',{p_pedido:p.id,p_version:Number(p.version_edicion)||0}).then(async({error})=>{if(error){alert('No se pudo deshacer: '+error.message);b.disabled=false;return}await load();}).catch(e=>{alert('No se pudo deshacer: '+e.message);b.disabled=false})});
 $('orders').querySelectorAll('[data-undo-pedido]').forEach(b=>b.onclick=()=>{
  const p=a.find(x=>x.id===b.dataset.undoPedido);if(p)dyDeshacerPedidoMotorista(p);
 });
@@ -728,7 +729,7 @@ function dyTarjetas(a){
   return '<div class="dy-done dy-done-correccion"><div class="dy-done-info"><span>'+(p.estado==='entregado'?'✅':'❌')+' N.º '+safe(p.numero_general??'—')+' · '+safe(p.nombre_cliente)+'</span><b>'+(cob?money(cob):p.estado==='entregado'?'pagado':'—')+'</b></div>'+accion+'</div>';
  };
  return (act.length?'<h3 class="dy-h">📦 Entregas pendientes ('+act.length+')</h3>'+act.map(tarjeta).join(''):(total?'<div class="card dy-fin">✅ No tenés entregas pendientes para esta fecha. Revisá Caja cuando termines tu turno.</div>':'<p class="muted">No hay pedidos asignados para hoy.</p>'))+
- (sinSalida.length?'<details class="card dy-terminados" open><summary>🚫 No me fui ('+sinSalida.length+') · Sin cobro ni comisión</summary>'+sinSalida.map(p=>'<div class="dy-done" style="border-left:4px solid #64748b;padding:10px"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">'+safe(p.motivo_incidencia||'No se realizó la visita')+'</div><b>₲ 0 cobrado · ₲ 0 comisión</b></div>').join('')+'</details>':'')+
+ (sinSalida.length?'<details class="card dy-terminados" open><summary>🚫 No me fui ('+sinSalida.length+') · Sin cobro ni comisión</summary>'+sinSalida.map(p=>'<div class="dy-done" style="border-left:4px solid #64748b;padding:10px"><strong>'+safe(p.nombre_cliente)+'</strong><div class="muted">'+safe(p.motivo_incidencia||'No se realizó la visita')+'</div><b>₲ 0 cobrado · ₲ 0 comisión</b><div style="margin-top:10px"><button type="button" class="dy-undo-entrega" data-undo-no-fui="'+safe(p.id)+'" aria-label="Deshacer No me fui de '+safe(p.nombre_cliente)+'">↩ Deshacer No me fui</button></div></div>').join('')+'</details>':'')+
  (hechos.length?'<details class="card dy-terminados"><summary>✅ Finalizadas hoy ('+hechos.length+') · Ver detalle</summary>'+hechos.map(linea).join('')+'</details>':'');
 }
 function dyResumenCaja(a){
