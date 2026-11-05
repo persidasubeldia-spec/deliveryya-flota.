@@ -1414,9 +1414,10 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function rutaHoy(t){return routes.filter(r=>r.fecha===st.fecha&&r.turno===t&&['abierta','optimizada','en_reparto'].includes(r.estado)).sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')))[0]||null}
  function paradas(){return orders.filter(o=>o.estado!=='cancelado'&&esFecha(o)&&tur(o)===st.turno).sort((a,b)=>(a.numero_general??1e9)-(b.numero_general??1e9)||String(a.created_at).localeCompare(String(b.created_at)))}
  function libre(o){if(!o||!editable()||!esFecha(o)||o.estado!=='pendiente'||o.motorista_id||tur(o)!==st.turno)return false;const r=routes.find(x=>x.id===o.ruta_general_id);return !r||(r.fecha===st.fecha&&r.turno===st.turno&&['abierta','optimizada','en_reparto'].includes(r.estado))}
- const reenviable=o=>!!o&&editable()&&esFecha(o)&&!!o.motorista_id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado);
+ const transferible=o=>!!o&&esFecha(o)&&!!o.motorista_id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado);
+ const reenviable=o=>transferible(o)&&editable();
  const historicoElegible=o=>!!o&&!editable()&&esFecha(o)&&o.estado==='pendiente'&&!o.motorista_id&&gps(o);
- const marcable=o=>libre(o)||reenviable(o)||historicoElegible(o);
+ const marcable=o=>libre(o)||transferible(o)||historicoElegible(o);
  function cercania(lista,desde){const r=[...lista],out=[];let cur=desde||P(r[0]);while(r.length){let bi=0,bd=Infinity;r.forEach((o,i)=>{const d=km(cur,P(o));if(d<bd){bd=d;bi=i}});const n=r.splice(bi,1)[0];out.push(n);cur=P(n)}return out}
  // 2-opt: deshace cruces del recorrido (camino abierto que sale del origen)
  function mejorar(ruta,origen){if(ruta.length<4)return ruta;const pts=[origen,...ruta.map(P)];let r=[...ruta],mejoro=true,vueltas=0;const D=(a,b)=>km(a,b);
@@ -1480,13 +1481,13 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   $$('dyDList').querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{c.checked?st.sel.add(c.dataset.ck):st.sel.delete(c.dataset.ck);refrescar()});
   $('dyDTodos').onclick=()=>{st.sel.clear();libres.forEach(o=>st.sel.add(o.id));refrescar()};$('dyDAsignados').onclick=()=>{if(!st.moto){msg('Primero elegí un motorista en las tarjetas de abajo.','err');return}st.sel.clear();vistos.filter(o=>reenviable(o)&&o.motorista_id===st.moto).forEach(o=>st.sel.add(o.id));refrescar();if(!st.sel.size)msg('No hay pedidos activos de esta moto en el filtro actual. Elegí Todos.','err')};$('dyDNinguno').onclick=()=>{st.sel.clear();refrescar()};
   barra(ps);dibujar(ps);st.firma=firma()}
- function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const historicosMarcados=selOs.filter(historicoElegible);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const transferibles=selOs.filter(o=>reenviable(o)&&o.motorista_id!==st.moto&&!!st.moto);const act=drivers.filter(d=>d.activo);
+ function barra(ps){const el=$$('dyBarra');if(!el)return;const selOs=ps.filter(o=>st.sel.has(o.id));const libresMarcados=selOs.filter(libre);const reenviarMarcados=selOs.filter(o=>reenviable(o)&&o.motorista_id===st.moto);const historicosMarcados=selOs.filter(historicoElegible);const ajenosMarcados=selOs.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==st.moto));const puedeSumar=!!st.moto&&libresMarcados.length>0&&ajenosMarcados.length===0;const transferibles=selOs.filter(o=>transferible(o)&&o.motorista_id!==st.moto&&!!st.moto);const act=drivers.filter(d=>d.activo);
   if(st.moto&&!act.some(d=>d.id===st.moto))st.moto=null;
   const nums=selOs.map(o=>o.numero_general??'nuevo');const k=largo(selOs.filter(gps),null);
   el.classList.toggle('dy-sin-seleccion',!selOs.length&&!st.moto);
   el.innerHTML='<div class="r1"><div class="cnt">'+(selOs.length?'✅ '+selOs.length+' marcado(s): '+libresMarcados.length+' nuevos sin asignar, '+reenviarMarcados.length+' de la moto seleccionada'+(ajenosMarcados.length?' · '+ajenosMarcados.length+' de otras motos':'')+' <small>N.º Central '+nums.join(', ')+'</small>':(editable()?'Marcá pedidos y elegí la moto para asignar':'Historial del '+st.fecha+' · consulta sin modificaciones'))+'</div></div>'
   +'<div class="motos">'+act.map(d=>{const n=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&tur(o)===st.turno&&!FIN.includes(o.estado)).length;return '<button type="button" class="moto '+(st.moto===d.id?'on':'')+'" data-moto="'+esc(d.id)+'"><span class="dot" style="background:'+colorMoto(d.id)+'"></span>'+esc(d.nombre)+' <small>'+n+'</small></button>'}).join('')+'</div>'
-  +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>✅ Asignar '+libresMarcados.length+' ahora</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(editable()&&st.moto&&transferibles.length?'<button type="button" class="a2" id="dyDReasignar">🔁 Reasignar '+transferibles.length+' a esta moto</button>':'')+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
+  +'<div class="acc"><button type="button" class="a1" id="dyDAsig" '+(puedeSumar?'':'disabled')+'>✅ Asignar '+libresMarcados.length+' ahora</button><button type="button" class="a2" id="dyDAsigW" '+(puedeSumar?'':'disabled')+'>Asignar y WhatsApp</button>'+(st.moto&&transferibles.length?'<button type="button" class="a2" id="dyDReasignar">🔁 Reasignar '+transferibles.length+' a esta moto</button>':'')+(editable()&&st.moto&&reenviarMarcados.length?'<button type="button" class="a0" id="dyDW">📲 Reenviar '+reenviarMarcados.length+' de esta moto</button>':'')+'</div>'
   +(!editable()&&historicosMarcados.length?'<div class="acc" style="margin-top:8px;flex-wrap:wrap"><button type="button" class="a2" id="dyDHistoricoEnviar" '+(st.moto&&historicosMarcados.length===selOs.length?'':'disabled')+'>📲 Reprogramar '+historicosMarcados.length+' para hoy y enviar a la moto</button></div><div class="sub" style="margin-top:6px">Solo pedidos históricos pendientes, sin asignación y sin cobros. Requiere confirmación y registra auditoría.</div>':'')
   +(st.ultimo?'<div class="post">'+st.ultimo+'</div>':'');
   el.querySelectorAll('[data-moto]').forEach(b=>b.onclick=()=>{const elegido=b.dataset.moto;st.moto=elegido;st.ultimo=null;st.fit=false;const marcados=paradas().filter(o=>st.sel.has(o.id));barra(paradas());dibujar(paradas());if(editable()&&marcados.some(libre)&&marcados.every(o=>libre(o)||(reenviable(o)&&o.motorista_id===elegido)))asignar(false)});
@@ -1641,9 +1642,9 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   finally{if(boton)boton.disabled=false}
  }
  async function reasignarSeleccionados(){
-  if(!editable()||!st.moto)return;
+  if(!st.moto)return;
   const destino=drivers.find(x=>x.id===st.moto&&x.activo);
-  const lista=paradas().filter(o=>st.sel.has(o.id)&&reenviable(o)&&o.motorista_id!==st.moto);
+  const lista=paradas().filter(o=>st.sel.has(o.id)&&transferible(o)&&o.motorista_id!==st.moto);
   if(!destino||!lista.length){msg('Marcá pedidos de otra moto y elegí el motorista destino.','err');return}
   if(!confirm('¿Mover '+lista.length+' pedido(s) a '+destino.nombre+'? Se quitarán de la moto anterior, sin duplicarlos. La caja y las entregas finalizadas no se modifican.'))return;
   const btn=$('dyDReasignar');if(btn)btn.disabled=true;
