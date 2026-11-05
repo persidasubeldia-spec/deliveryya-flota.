@@ -1453,7 +1453,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function paradas(){return orders.filter(o=>o.estado!=='cancelado'&&esFecha(o)&&tur(o)===st.turno).sort((a,b)=>(a.numero_general??1e9)-(b.numero_general??1e9)||String(a.created_at).localeCompare(String(b.created_at)))}
  function libre(o){if(!o||!editable()||!esFecha(o)||o.estado!=='pendiente'||o.motorista_id||tur(o)!==st.turno)return false;const r=routes.find(x=>x.id===o.ruta_general_id);return !r||(r.fecha===st.fecha&&r.turno===st.turno&&['abierta','optimizada','en_reparto'].includes(r.estado))}
  const liberable=o=>!!o&&editable()&&esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente'&&!!o.motorista_id&&!!o.ruta_general_id;
- const pasableManana=o=>!!o&&editable()&&esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente'&&!/^No me fui:/i.test(String(o.motivo_incidencia||''));
+ const pasableManana=o=>!!o&&editable()&&esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente';
  const transferible=o=>!!o&&esFecha(o)&&!!o.motorista_id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado);
  // Reenviar solo prepara un mensaje: no modifica pedidos ni depende de que la fecha sea hoy.
  const reenviable=o=>transferible(o);
