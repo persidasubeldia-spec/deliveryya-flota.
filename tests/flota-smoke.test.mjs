@@ -36,7 +36,12 @@ test('Motorista conserva entrega, rendición, GPS y fecha operativa real',()=>{
   "motorista_recorrido_actual",
   "p_coordenadas:coordenadas",
   "getCurrentPosition(resolve,reject",
-  "const pedidosJornada=(data||[]).filter(p=>fechaPedido(p)===hoyOperativo)",
+  "const pedidosJornada=(data||[]).filter(p=>fechaPedido(p)===fechaVista)",
+  "const pedidosHoy=(data||[]).filter(p=>fechaPedido(p)===hoyOperativo)",
+  "else dyPintarCaja(aHoy)",
+  "const fechaVista=dyFechaRutaSeleccionada||hoyOperativo",
+  "dyActualizarCalendarioMoto()",
+  "dy-cal-readonly",
   "_fecha_operativa:fechaPedido(p)",
   "p._fecha_operativa&&p._fecha_operativa!==dyHoyAsu()"
  ])assert.ok(motorista.includes(token),'Falta '+token);
