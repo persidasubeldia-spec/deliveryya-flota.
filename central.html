@@ -1767,12 +1767,12 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    finally{b.disabled=false}
  }
  async function asignarDirecto(){
-  if(!editable()||!st.moto)return;
+  if(!st.moto)return;
   const seleccion=paradas().filter(o=>st.sel.has(o.id));
   const libres=seleccion.filter(libre);
   const futuros=seleccion.filter(futuroElegible);
   const transferidos=seleccion.filter(o=>transferible(o)&&o.motorista_id!==st.moto);
-  const otros=seleccion.filter(o=>!libre(o)&&!(transferible(o)&&o.motorista_id!==st.moto)&&o.motorista_id!==st.moto);
+  const otros=seleccion.filter(o=>!libre(o)&&!futuroElegible(o)&&!(transferible(o)&&o.motorista_id!==st.moto)&&o.motorista_id!==st.moto);
   if(otros.length)return msg('Hay pedidos finalizados o no disponibles. No se modificaron.','err');
   if(!libres.length&&!futuros.length&&!transferidos.length)return msg('Seleccioná pedidos para asignar.','err');
   if([libres.length>0,futuros.length>0,transferidos.length>0].filter(Boolean).length>1)return msg('Seleccioná por separado los pedidos nuevos y los ya asignados para evitar cambios parciales.','err');
