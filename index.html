@@ -193,8 +193,8 @@ async function cargarTarifasOficiales(empresaId){
  const {data,error}=await supabaseClient.rpc('flota_tarifas_vigentes',{p_empresa:empresaId});
  if(error)throw Error('No se pudo consultar el tarifario vigente: '+error.message);
  const lista=new Map((data||[]).map(x=>[x.localidad,Number(x.costo_envio)]));
- const requeridas=["Areguá","Capiatá","Fernando de la Mora","Guarambaré","Itá","Itauguá","J. Augusto Saldívar","Lambaré","Limpio","Luque","Mariano Roque Alonso","Nueva Italia","Ñemby","San Antonio","San Lorenzo","Villa Elisa","Villeta","Ypacaraí","Ypané","Villa Hayes"];
- if(lista.size!==20||requeridas.some(n=>!Number.isSafeInteger(lista.get(n))||lista.get(n)<=0))throw Error('Tarifario oficial incompleto o inconsistente. Consultá con Central antes de cargar pedidos.');
+ const requeridas=["Asunción","Areguá","Capiatá","Fernando de la Mora","Guarambaré","Itá","Itauguá","J. Augusto Saldívar","Lambaré","Limpio","Luque","Mariano Roque Alonso","Nueva Italia","Ñemby","San Antonio","San Lorenzo","Villa Elisa","Villeta","Ypacaraí","Ypané","Villa Hayes"];
+ if(lista.size!==requeridas.length||requeridas.some(n=>!Number.isSafeInteger(lista.get(n))||lista.get(n)<=0))throw Error('Tarifario oficial incompleto o inconsistente. Consultá con Central antes de cargar pedidos.');
  locations=[['','Seleccionar localidad',null],...requeridas.map(n=>[n,n,lista.get(n)])];
  tarifasCargadas=true;
  lastManualDeliveryMode=null;
