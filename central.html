@@ -1470,8 +1470,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  const transferible=o=>!!o&&esFecha(o)&&!!o.motorista_id&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(o.estado);
  // Reenviar solo prepara un mensaje: no modifica pedidos ni depende de que la fecha sea hoy.
  const reenviable=o=>transferible(o);
- const historicoElegible=o=>!!o&&st.turno!=='todos'&&st.fecha<hoy()&&esFecha(o)&&o.estado==='pendiente'&&!o.motorista_id&&gps(o);
- const futuroElegible=o=>!!o&&st.turno!=='todos'&&st.fecha>hoy()&&esFecha(o)&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)&&!!o.ruta_general_id&&Number(o.numero_general)>0&&['optimizada','en_reparto'].includes(routes.find(r=>r.id===o.ruta_general_id)?.estado);
+ const historicoElegible=o=>!!o&&st.fecha<hoy()&&st.turno!=='todos'&&esFecha(o)&&o.estado==='pendiente'&&!o.motorista_id&&gps(o);
+ const futuroElegible=o=>!!o&&st.fecha>hoy()&&st.turno!=='todos'&&esFecha(o)&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)&&!!o.ruta_general_id&&Number(o.numero_general)>0&&['optimizada','en_reparto'].includes(routes.find(r=>r.id===o.ruta_general_id)?.estado);
  const marcable=o=>st.turno==='todos'?(libre(o)||transferible(o)):libre(o)||transferible(o)||historicoElegible(o)||futuroElegible(o);
  function cercania(lista,desde){const r=[...lista],out=[];let cur=desde||P(r[0]);while(r.length){let bi=0,bd=Infinity;r.forEach((o,i)=>{const d=km(cur,P(o));if(d<bd){bd=d;bi=i}});const n=r.splice(bi,1)[0];out.push(n);cur=P(n)}return out}
  // 2-opt: deshace cruces del recorrido (camino abierto que sale del origen)
