@@ -957,7 +957,7 @@ async function rdCargar(fecha){
 function rdLineaTienda(m,p,r){
  const ent=p.estado==='entregado',rej=m.es_rechazo_facturable===true||p.estado==='rechazado';
  const merc=ent&&p.modalidad_pago==='pendiente'?Number(m.monto_mercaderia||0):0;
- const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(p.delivery_cliente??m.monto_delivery||0):0;
+ const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(p.delivery_cliente??m.monto_delivery??0):0;
  let debeTienda=0,nota='';
  if(ent&&p.modalidad_pago==='todo_pagado'){debeTienda=Number(m.monto_delivery||0);nota='Envío ya cobrado por la tienda'}
  else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: envío a cargo de tienda, descontado directamente de la rendición (sin cobro del cliente)'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
@@ -1037,7 +1037,7 @@ function rdAuditar(d){
  // Este balance solo aplica a los pedidos con cobro completo al motorista.
  const completos=d.movs.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado'&&d.porPedido.get(m.pedido_id)?.modalidad_pago==='pendiente');
  const suma=a=>completos.reduce((v,m)=>v+Number(m[a]||0),0);
- if(completos.reduce((v,m)=>v+Number(m.monto_mercaderia||0)+Number(d.porPedido.get(m.pedido_id)?.delivery_cliente??m.monto_delivery||0),0)!==suma('efectivo_cobrado')+suma('transferencia_cobrada'))
+ if(completos.reduce((v,m)=>v+Number(m.monto_mercaderia||0)+Number(d.porPedido.get(m.pedido_id)?.delivery_cliente??m.monto_delivery??0),0)!==suma('efectivo_cobrado')+suma('transferencia_cobrada'))
   errores.push('El total cobrado de pedidos con pago completo no coincide');
  if(d.movs.some(m=>m.liquidado)&&d.cierres.some(c=>c.estado!=='confirmada'))
   avisos.push('Hay movimientos marcados liquidados y cierres aún no confirmados');
