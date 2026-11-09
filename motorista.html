@@ -441,7 +441,7 @@ function dyEditarPedidoMotorista(p){
   ['telefono_cliente','Teléfono','tel',p.telefono_cliente],
   ['producto','Producto','text',p.producto],
   ['precio_mercaderia','Precio de mercadería (Gs.)','number',p.precio_mercaderia],
-  ['precio_delivery','Precio del envío (Gs.)','number',p.precio_delivery],
+  ['precio_delivery','Tarifa real del envío (Gs.)','number',p.precio_delivery],
   ['referencias','Referencia','text',p.referencias],
   ['observaciones','Observaciones','text',p.observaciones]
  ];
@@ -458,8 +458,8 @@ function dyEditarPedidoMotorista(p){
  });
  pago.value=p.modalidad_pago;h.sh.append(dyEl('div',{class:'dy-lbl',text:'El cliente paga'}),pago);
  const resumen=dyEl('p',{class:'dy-sub'});const recalcular=()=>{
-  const merc=Number(inputs.precio_mercaderia.value),envio=Number(inputs.precio_delivery.value);
-  resumen.textContent=Number.isFinite(merc)&&Number.isFinite(envio)?'Al confirmar entrega se cobrará: '+money(pago.value==='todo_pagado'?0:pago.value==='producto_pagado'?envio:merc+envio):'Revisá los importes';
+  const merc=Number(inputs.precio_mercaderia.value),real=Number(inputs.precio_delivery.value),envio=p.regla_comercial==='boom_25k_cliente_20k_v1'&&[20000,25000].includes(real)?20000:real;
+  resumen.textContent=Number.isFinite(merc)&&Number.isFinite(envio)?'Al confirmar entrega se cobrará: '+money(pago.value==='todo_pagado'?0:pago.value==='producto_pagado'?envio:merc+envio)+(p.regla_comercial==='boom_25k_cliente_20k_v1'&&[20000,25000].includes(real)?' · Boom Store asume Gs. 5.000 del envío':''):'Revisá los importes';
  };pago.onchange=recalcular;inputs.precio_mercaderia.oninput=recalcular;inputs.precio_delivery.oninput=recalcular;recalcular();h.sh.append(resumen);
  const ok=dyEl('button',{type:'button',class:'dy-big',text:'💾 Guardar corrección'});h.sh.append(ok);
  ok.onclick=async()=>{
