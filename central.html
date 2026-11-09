@@ -957,10 +957,10 @@ async function rdCargar(fecha){
 function rdLineaTienda(m,p,r){
  const ent=p.estado==='entregado',rej=m.es_rechazo_facturable===true||p.estado==='rechazado';
  const merc=ent&&p.modalidad_pago==='pendiente'?Number(m.monto_mercaderia||0):0;
- const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(p.delivery_cliente??m.monto_delivery??0):0;
+ const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(p.delivery_cliente??m.monto_delivery??0):rej&&r?Number(r.importe_cobrado||0):0;
  let debeTienda=0,nota='';
  if(ent&&p.modalidad_pago==='todo_pagado'){debeTienda=Number(m.monto_delivery||0);nota='Envío ya cobrado por la tienda'}
- else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: envío a cargo de tienda, descontado directamente de la rendición (sin cobro del cliente)'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
+ else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: cliente abonó '+rdGs(r.importe_cobrado||0)+' de envío; saldo '+rdGs(r.importe_pendiente||0)+' a cargo de tienda'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
  else if(ent&&p.modalidad_pago==='pendiente')nota='Cobrado '+(Number(m.transferencia_cobrada||0)?'por transferencia':'en efectivo');
  else if(ent)nota='Producto pagado: solo envío';
  if(ent&&p.modalidad_pago!=='todo_pagado'&&Number(p.delivery_subsidio_tienda||0)>0){debeTienda+=Number(p.delivery_subsidio_tienda);nota+=' · Boom Store asume '+rdGs(p.delivery_subsidio_tienda)+' de envío';}
