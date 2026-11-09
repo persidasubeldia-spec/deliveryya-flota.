@@ -491,7 +491,7 @@ if(n==='Inicio'){
 if(n==='Pedidos'){
  const shopName=id=>{const t=stores.find(t=>t.id===id);return t?String(t.codigo||'')+' · '+String(t.nombre_comercial||''):'—'};
  const showOrder=o=>{const d=drivers.find(x=>x.id===o.motorista_id),phone=String(o.telefono_cliente||'').replace(/[^0-9]/g,'');
- const entries=[['Tienda',shopName(o.tienda_id)],['Cliente',o.nombre_cliente],['Teléfono',o.telefono_cliente],['Dirección',o.direccion_cliente],['Referencias',o.referencias],['Producto',o.producto],['Observaciones',o.observaciones],['Mercadería',money(o.precio_mercaderia)],['Envío',money(o.precio_delivery)],['Modalidad',o.modalidad_pago],['Motorista',d?.nombre||'Sin asignar'],['N.º general',o.numero_general??'Sin número'],['Estado',o.estado],['Incidencia',o.motivo_incidencia]];
+ const entries=[['Tienda',shopName(o.tienda_id)],['Cliente',o.nombre_cliente],['Teléfono',o.telefono_cliente],['Dirección',o.direccion_cliente],['Referencias',o.referencias],['Producto',o.producto],['Observaciones',o.observaciones],['Mercadería',money(o.precio_mercaderia)],['Envío tarifa real',money(o.precio_delivery)],['Envío cobra cliente',money(o.delivery_cliente??o.precio_delivery)],['Aporte tienda',money(o.delivery_subsidio_tienda||0)],['Modalidad',o.modalidad_pago],['Motorista',d?.nombre||'Sin asignar'],['N.º general',o.numero_general??'Sin número'],['Estado',o.estado],['Incidencia',o.motivo_incidencia]];
  $('orderDetail').innerHTML='<div class="toolbar"><h3 style="flex:1">Detalle del pedido</h3><button id="closeOrder">Cerrar ✕</button></div>'+entries.map(([k,v])=>'<div class="detail-row"><span class="muted">'+k+'</span><strong>'+escapeHtml(v??'—')+'</strong></div>').join('')+'<div class="toolbar">'+(o.lat!=null&&o.lng!=null?'<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(o.lat+','+o.lng)+'">Ver mapa</a>':'<span class="muted">Sin GPS</span>')+'<a href="tel:'+encodeURIComponent(o.telefono_cliente||'')+'">Llamar</a><a target="_blank" rel="noopener" href="https://wa.me/'+(phone.startsWith('595')?phone:'595'+phone.replace(/^0/,''))+'">WhatsApp</a>'+(o.estado==='pendiente'?'<button data-dyedit="'+escapeHtml(o.id)+'">✏️ Editar pedido</button>':'')+'</div>';
  $('orderDetail').hidden=false;$('orderDetailBackdrop').hidden=false;
  const close=()=>{$('orderDetail').hidden=true;$('orderDetailBackdrop').hidden=true};$('closeOrder').onclick=close;$('orderDetailBackdrop').onclick=close;};
@@ -957,12 +957,13 @@ async function rdCargar(fecha){
 function rdLineaTienda(m,p,r){
  const ent=p.estado==='entregado',rej=m.es_rechazo_facturable===true||p.estado==='rechazado';
  const merc=ent&&p.modalidad_pago==='pendiente'?Number(m.monto_mercaderia||0):0;
- const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(m.monto_delivery||0):0;
+ const envCliente=ent&&p.modalidad_pago!=='todo_pagado'?Number(p.delivery_cliente??m.monto_delivery||0):0;
  let debeTienda=0,nota='';
  if(ent&&p.modalidad_pago==='todo_pagado'){debeTienda=Number(m.monto_delivery||0);nota='Envío ya cobrado por la tienda'}
  else if(rej){if(r&&r.responsable_pago==='tienda'){nota='Rechazo: envío a cargo de tienda, descontado directamente de la rendición (sin cobro del cliente)'}else if(r){nota='Rechazo: envío '+(r.responsable_pago==='cliente'?'pagado por el cliente ('+rdGs(r.importe_cobrado)+')':'pendiente de definir')}else nota='Rechazo sin detalle'}
  else if(ent&&p.modalidad_pago==='pendiente')nota='Cobrado '+(Number(m.transferencia_cobrada||0)?'por transferencia':'en efectivo');
  else if(ent)nota='Producto pagado: solo envío';
+ if(ent&&p.modalidad_pago!=='todo_pagado'&&Number(p.delivery_subsidio_tienda||0)>0){debeTienda+=Number(p.delivery_subsidio_tienda);nota+=' · Boom Store asume '+rdGs(p.delivery_subsidio_tienda)+' de envío';}
  return {merc,envCliente,debeTienda,nota,rej,ent};
 }
 function rdTiendas(d){
@@ -1027,7 +1028,7 @@ function rdAuditar(d){
   const delivery=Number(m.monto_delivery||0),distribuido=Number(m.comision_empresa||0)+Number(m.comision_motorista||0);
   if(delivery!==distribuido)errores.push('Descuadre en distribución del envío: '+p.nombre_cliente);
   const cobro=Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0);
-  if(p.estado==='entregado'&&p.modalidad_pago==='pendiente'&&cobro!==Number(m.monto_mercaderia||0)+delivery)
+  if(p.estado==='entregado'&&p.modalidad_pago==='pendiente'&&cobro!==Number(m.monto_mercaderia||0)+Number(p.delivery_cliente??delivery))
    errores.push('Descuadre de cobro en '+p.nombre_cliente);
  }
  const ts=rdTiendas(d),motos=rdMotos(d);
@@ -1036,7 +1037,7 @@ function rdAuditar(d){
  // Este balance solo aplica a los pedidos con cobro completo al motorista.
  const completos=d.movs.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado'&&d.porPedido.get(m.pedido_id)?.modalidad_pago==='pendiente');
  const suma=a=>completos.reduce((v,m)=>v+Number(m[a]||0),0);
- if(suma('monto_mercaderia')+suma('monto_delivery')!==suma('efectivo_cobrado')+suma('transferencia_cobrada'))
+ if(completos.reduce((v,m)=>v+Number(m.monto_mercaderia||0)+Number(d.porPedido.get(m.pedido_id)?.delivery_cliente??m.monto_delivery||0),0)!==suma('efectivo_cobrado')+suma('transferencia_cobrada'))
   errores.push('El total cobrado de pedidos con pago completo no coincide');
  if(d.movs.some(m=>m.liquidado)&&d.cierres.some(c=>c.estado!=='confirmada'))
   avisos.push('Hay movimientos marcados liquidados y cierres aún no confirmados');
@@ -1342,7 +1343,8 @@ async function rdPdf(t,fecha){
   const rider=drivers.find(d=>d.id===p.motorista_id)?.nombre||'Sin motorista';
   const descontado=cobroRechazo>0&&!compensado&&!(datosAudit.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&Number(z.compensado)>0);
   const cargo=descontado?'Delivery por rechazo: '+rdGs(cobroRechazo)+' descontados de la rendición':'Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE');
-  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo);
+  const aporte=est==='entregado'&&Number(p.delivery_subsidio_tienda||0)>0?' · Diferencia de delivery: '+rdGs(p.delivery_subsidio_tienda)+' a cargo de Boom Store':'';
+  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte;
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
     rdGs(p.precio_mercaderia||0),rdGs(p.precio_delivery||0),rdGs(rec),observacion
@@ -1376,7 +1378,7 @@ async function rdPdf(t,fecha){
  txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
  const financiero=[
   ['Mercaderia cobrada para la tienda (+)',t.merc],
-  ['Envíos pagados a la tienda por cliente (cargo a tienda)',t.debe],
+  ['Envíos y aporte tienda a cargo de Boom Store (-)',t.debe],
   ['Compensaciones de rechazo confirmadas (-)',t.compensado],
   ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
