@@ -1692,12 +1692,12 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
    const og=$$('routeOrigin');if(og)og.value=st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6);
    msg('Preparando la ruta del turno…');
    const c=await client.rpc('flota_crear_ruta_turno',{p_fecha:st.fecha,p_turno:st.turno});if(c.error)throw c.error;const rid=c.data;
-   // Los pedidos de fechas anteriores no se trasladan automáticamente al optimizar.
-   await $$('routeReload').onclick();
-   const ruta=routes.find(r=>r.id===rid);
+   // Ya contamos con los pedidos de la jornada en memoria; evitar una recarga global antes de calcular.
+   // La RPC y la verificación en BD protegen el estado real ante cambios simultáneos.
+   const ruta=routes.find(r=>r.id===rid)||{id:rid,fecha:st.fecha,turno:st.turno,estado:'abierta'};
    const enRuta=orders.filter(o=>o.ruta_general_id===rid);
    const bloqueada=enRuta.some(o=>o.motorista_id||o.estado!=='pendiente')||!['abierta','optimizada'].includes(ruta?.estado);
-   const cand=orders.filter(o=>esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)&&(o.ruta_general_id==null||o.ruta_general_id===rid));
+   const cand=orders.filter(o=>!o.excluido_ruta&&esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)&&(o.ruta_general_id==null||o.ruta_general_id===rid));
    msg('Ordenando del 1 al último…');let n=0;let nuevosIds=[];
    if(!bloqueada){if(!cand.length)throw Error('No hay pedidos con ubicación en este turno.');
     const orden=mejorar(cercania(cand,st.origen),st.origen).map(o=>o.id);const resto=enRuta.filter(o=>!orden.includes(o.id)).map(o=>o.id);
