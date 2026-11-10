@@ -1533,7 +1533,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   box.innerHTML='<div class="dy-fecha-head"><div><h3>🗺️ Rutas por fecha</h3><p class="sub">Consultá una jornada, elegí el turno y revisá sus pedidos.</p></div><div class="dy-date-actions"><button type="button" id="dyDPrev" title="Día anterior">◀</button><input type="date" id="dyDFecha" value="'+st.fecha+'" max="'+fechaLimite()+'" aria-label="Fecha de la ruta"><button type="button" id="dyDNext" '+(st.fecha>=fechaLimite()?'disabled':'')+' title="Día siguiente">▶</button><button type="button" id="dyDHoy">Hoy</button><button type="button" id="dyDManana" style="background:#dbeafe;color:#1d4ed8;font-weight:800">📅 Mañana</button></div></div>'
   +(editable()?'<p class="sub">Para repartir: marcá pedidos nuevos y tocá la moto para agregarlos directamente. Optimizar es opcional.</p>':'<div class="dy-readonly">📅 Historial: podés seleccionar pedidos pendientes SIN MOTORISTA y reprogramarlos para hoy. Los entregados, cobrados o asignados permanecen protegidos.</div>')
   +'<div class="fila" id="dyDT">'+[['todos','🗺️ Todos los turnos',cM+cT],['manana','🌅 Mañana',cM],['tarde','🌇 Tarde',cT]].concat(cS?[['sin_definir','Sin turno',cS]]:[]).map(([v,l,c])=>'<button type="button" class="chip '+(st.turno===v?'on':'')+'" data-t="'+v+'">'+l+' <small>'+c+' sin asignar</small></button>').join('')
-  +'<button type="button" class="opt" id="dyDGo" '+(editable()&&st.turno!=='todos'?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
+  +'<button type="button" class="opt" id="dyDGo" '+(editable()?'':'disabled')+'>📍 Optimizar ruta desde mi ubicación</button></div>'
   +'<button type="button" class="link" id="dyDOtro">'+(st.manual?'Usar mi ubicación (GPS)':'Salir desde otro punto…')+'</button>'
   +(st.manual?'<div class="orig"><input id="dyDOrig" placeholder="Coordenadas: -25.30,-57.60 o enlace de Maps con coordenadas" value="'+(st.origen?st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6):'')+'"></div>':'')
   +'<div class="dy-filtro-bar"><input id="dyBuscar" type="search" placeholder="Buscar número, cliente, teléfono o tienda" aria-label="Buscar pedido en esta fecha y turno"><div class="dy-filtro-botones">'+[['pendientes','Por realizar'],['sin_asignar','Sin asignar'],['entregados','Entregados'],['incidencias','Incidencias'],['todos','Todos']].map(([v,n])=>'<button type="button" data-dy-filtro="'+v+'" class="'+(st.filtro===v?'on':'')+'">'+n+'</button>').join('')+'</div><div id="dyResumenTurno"></div></div>'
@@ -1687,7 +1687,23 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  // ---------- acciones ----------
  function ubic(){return new Promise((ok,no)=>{if(!navigator.geolocation)return no(Error('Este navegador no da la ubicación.'));navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),e=>no(Error(e.code===1?'Permití la ubicación en el navegador (candado de la barra de direcciones) o usá «Salir desde otro punto».':'No se pudo obtener tu ubicación: '+e.message)),{enableHighAccuracy:true,timeout:15000,maximumAge:60000})})}
  function leerOrigen(){const v=($$('dyDOrig')?.value||'').trim();let d=v;try{d=decodeURIComponent(v)}catch(_){}const m=d.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/)||d.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);if(!m)throw Error('Escribí coordenadas (ej. -25.30,-57.60) o pegá un enlace de Maps que las tenga.');const o={lat:Number(m[1]),lng:Number(m[2])};if(o.lat<-28||o.lat>-19||o.lng<-63||o.lng>-54)throw Error('Ese punto no está en Paraguay.');return o}
- async function optimizar(){if(st.turno==='todos')return msg('Elegí Mañana o Tarde para optimizar sin mezclar las rutas.','err');if(!editable()){msg('Esta fecha es de consulta; no se puede optimizar.','err');return}const b=$('dyDGo');b.disabled=true;try{
+ async function optimizar(){
+ if(!editable()){msg('Esta fecha es de consulta; no se puede optimizar.','err');return}
+ if(st.turno==='todos'){
+   const turnosDisponibles=['manana','tarde'].filter(t=>orders.some(o=>!o.excluido_ruta&&esFecha(o)&&tur(o)===t&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)));
+   if(!turnosDisponibles.length){msg('No hay pedidos pendientes con ubicación en los turnos de hoy.','err');return}
+   if(turnosDisponibles.length===1){st.turno=turnosDisponibles[0]}
+   else{
+     const valor=prompt('¿Qué turno querés optimizar?\nEscribí M para MAÑANA o T para TARDE.\nCada turno se calcula por separado.','M');
+     if(valor===null)return;
+     const v=valor.trim().toLowerCase();
+     if(['m','mañana','manana'].includes(v))st.turno='manana';
+     else if(['t','tarde'].includes(v))st.turno='tarde';
+     else{msg('Turno incorrecto. Escribí M o T.','err');return}
+   }
+   st.sel.clear();st.fit=false;pintar();
+ }
+ const b=$('dyDGo');b.disabled=true;try{
    msg('Buscando tu ubicación…');st.origen=st.manual?leerOrigen():await ubic();
    const og=$$('routeOrigin');if(og)og.value=st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6);
    msg('Preparando la ruta del turno…');
