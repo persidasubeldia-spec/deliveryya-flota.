@@ -1514,7 +1514,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   const tr=enlaces(asig.filter(gps));const lista=asig.slice(0,40).map(o=>'Parada '+posiciones.get(o.id)+' · '+o.nombre_cliente+(o.direccion_cliente?' · '+o.direccion_cliente:'')+(window.dyNotaTxt?dyNotaTxt(o):'')).join('\n');
   const texto='*DeliveryYa Flota* 🏍️\nHola '+d.nombre+', tenés '+asig.length+' entrega(s).\n📅 Fecha de la ruta: '+st.fecha+'\n\n*▶ ABRIR MI RUTA EN DELIVERY YA:*\n'+location.origin+'/motorista.html?fecha='+encodeURIComponent(st.fecha)+'\n\n*Orden de entrega:*\n'+lista+(asig.length>40?'\n… y '+(asig.length-40)+' más en la app.':'')+'\n\n📍 Para navegar a cada cliente, tocá *Navegar* dentro de la aplicación.\n✅ Registrá ahí las entregas y los cobros.';
   return 'https://api.whatsapp.com/send?phone='+phone+'&text='+encodeURIComponent(texto)}
- function msg(t,k){const m=$$('dyDMsg');if(m){m.className='msg '+(k||'');m.textContent=t}}
+ function msg(t,k){const m=$('dyDMsg');if(m){m.className='msg '+(k||'');m.textContent=t}if(k==='err'){const top=$('dyDAv');if(top){let aviso=$('dyAsignacionAviso');if(!aviso){aviso=document.createElement('div');aviso.id='dyAsignacionAviso';aviso.className='aviso';aviso.style.cssText='background:#fee2e2;border:2px solid #dc2626;color:#7f1d1d;font-weight:800;margin:10px 0';top.after(aviso)}aviso.textContent=t;aviso.scrollIntoView({block:'center',behavior:'smooth'})}}else{const aviso=$('dyAsignacionAviso');if(aviso)aviso.remove()}}
  function contar(t){return orders.filter(o=>esFecha(o)&&tur(o)===t&&o.estado==='pendiente'&&!o.motorista_id).length}
  function visiblesTurno(){
   let p=paradas();
@@ -1952,43 +1952,47 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
   const marcados=paradas().filter(o=>st.sel.has(o.id));
   const ajenos=marcados.filter(o=>!libre(o)&&(!reenviable(o)||o.motorista_id!==d?.id));
   const ids=marcados.filter(libre).map(o=>o.id);
-  if(!d||!ids.length){msg('Seleccioná una moto y al menos un pedido NUEVO sin asignar. Los existentes se conservan.','err');return}
-  if(ajenos.length){msg('Hay '+ajenos.length+' pedido(s) de otra moto. Desmarcalos antes de agregar.','err');return}
+  if(!d||!ids.length){msg('Seleccioná una moto y al menos un pedido NUEVO sin asignar.','err');return}
+  if(ajenos.length){msg('Hay '+ajenos.length+' pedido(s) de otra moto: desmarcalos antes de asignar.','err');return}
   const existentes=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&!FIN.includes(o.estado)).length;
-  if(!confirm('¿Agregar '+ids.length+' pedido(s) nuevos a '+d.nombre+'? Ya tiene '+existentes+' activos. Se conservarán todos los anteriores, sin duplicarlos.'+(conWa?' Después se abrirá WhatsApp.':'')))return;
-  const ventana=conWa?window.open('','_blank'):null;
+  if(!confirm('¿Asignar '+ids.length+' pedidos a '+d.nombre+' para el '+st.fecha+'?'+(conWa?' Al confirmar los pedidos se abrirá WhatsApp con la ruta completa.':'')+'\nNo se borrarán ni duplicarán pedidos.'))return;
   const bs=[$$('dyDAsig'),$$('dyDAsigW')];bs.forEach(b=>b&&(b.disabled=true));
-  let guardados=false;
+  let guardados=false;let confirmados=new Set();
   try{
-   // Agrupar por turno operativo real antes de llamar al servidor.
    const porTurno=new Map();
    ids.forEach(id=>{const p=marcados.find(o=>o.id===id),t=tur(p);if(!['manana','tarde','sin_definir'].includes(t))throw Error('Turno inválido: '+id);if(!porTurno.has(t))porTurno.set(t,[]);porTurno.get(t).push(id)});
    if(st.turno==='todos'&&porTurno.has('sin_definir'))throw Error('En vista conjunta solo se asignan Mañana y Tarde.');
    for(const [turno,delTurno] of porTurno)for(let i=0;i<delTurno.length;i+=200){
     const r=await client.rpc('flota_asignar_pedidos_rapido',{p_pedidos:delTurno.slice(i,i+200),p_motorista:d.id,p_fecha:st.fecha,p_turno:turno});
-    if(r.error)throw Error('No se completó el turno '+turno+'. Actualizá y verificá antes de repetir: '+r.error.message);
+    if(r.error)throw new Error('Error asignando '+turno+': '+r.error.message);
    }
    guardados=true;
-   // Confirmar en Supabase, no confiar solo en la selección temporal del navegador.
    const {data:comprobados,error:verr}=await client.from('pedidos').select('id,motorista_id,estado,numero_general,ruta_general_id,turno').in('id',ids);
-   if(verr)throw Error('Se envió la asignación, pero falló su verificación: '+verr.message);
-   const confirmados=new Set((comprobados||[]).filter(o=>o.motorista_id===d.id&&o.ruta_general_id&&Number(o.numero_general)>0&&tur(o)===tur(marcados.find(p=>p.id===o.id))).map(o=>o.id));
-   if(ids.some(id=>!confirmados.has(id)))throw Error('ATENCIÓN: solo se confirmaron '+confirmados.size+' de '+ids.length+' pedidos nuevos en Supabase. Revisá antes de reenviar.');
-   await $$('routeReload').onclick();
-   const actuales=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&!FIN.includes(o.estado));
-   if(actuales.length<existentes+ids.length)throw Error('Supabase confirmó los '+ids.length+' nuevos, pero la Central muestra '+actuales.length+' activos en vez de al menos '+(existentes+ids.length)+'. Actualizá para comprobar antes de reenviar.');
-   st.sel.clear();st.fit=false;
+   if(verr)throw Error('No se pudo verificar en Supabase: '+verr.message);
+   confirmados=new Set((comprobados||[]).filter(o=>o.motorista_id===d.id&&o.ruta_general_id&&Number(o.numero_general)>0&&o.estado==='pendiente'&&tur(o)===tur(marcados.find(p=>p.id===o.id))).map(o=>o.id));
+   if(ids.some(id=>!confirmados.has(id)))throw Error('Solo '+confirmados.size+' de '+ids.length+' quedaron asignados. No se enviará un WhatsApp incompleto.');
+   // Los pedidos ya están comprobados: la recarga de Central no puede invalidar una operación confirmada.
+   try{await $$('routeReload').onclick()}catch(e){console.warn('Recarga posterior a asignación:',e)}
+   st.sel.clear();st.fit=false;st.moto=d.id;
    try{window.__dyRedibujar&&window.__dyRedibujar()}catch(_){}
+   const actuales=orders.filter(o=>esFecha(o)&&o.motorista_id===d.id&&!FIN.includes(o.estado));
+   const total=Math.max(existentes+ids.length,actuales.length);
    const url=waUrl(d);
-   if(conWa){if(ventana&&!ventana.closed)ventana.location.href=url;else window.open(url,'_blank')}
-   st.ultimo='✅ '+ids.length+' nuevos confirmados para '+esc(d.nombre)+' · '+actuales.length+' activos en total. Los anteriores permanecen asignados. <a target="_blank" rel="noopener" href="'+url+'">📲 '+(conWa?'Abrir WhatsApp nuevamente':'Enviar ruta por WhatsApp')+'</a>';
-   refrescar();msg('');
-  }catch(e){
-   if(ventana&&!ventana.closed)ventana.close();
-   try{await $$('routeReload').onclick()}catch(_){}
+   st.ultimo='✅ '+ids.length+' pedidos verificados en Supabase para '+esc(d.nombre)+'. <a target="_self" href="'+url+'">📲 ENVIAR RUTA COMPLETA POR WHATSAPP</a>';
    refrescar();
-   msg((guardados?'⚠️ Revisá la asignación: ':'No se pudo asignar: ')+((e&&e.message)||e),'err');
-  }finally{bs.forEach(b=>b&&(b.disabled=false));}
+   if(conWa){
+     msg('✅ '+ids.length+' pedidos confirmados para '+d.nombre+'. Abriendo WhatsApp con su ruta…','ok');
+     // Mismo tab: no depende de ventanas emergentes, no se pierden pedidos por bloqueo de popups.
+     window.location.assign(url);
+   }else msg('✅ '+ids.length+' pedidos asignados a '+d.nombre+' y verificados. Podés enviar la ruta con el botón verde de WhatsApp.','ok');
+  }catch(e){
+   try{await $$('routeReload').onclick()}catch(_){}
+   // Mantener la selección de los no asignados, no ocultar el problema.
+   st.sel=new Set(ids.filter(id=>{const o=orders.find(p=>p.id===id);return o&&!o.motorista_id&&!o.excluido_ruta&&o.estado==='pendiente'}));
+   refrescar();
+   const texto=(guardados?'⚠️ Asignación parcial o verificación incompleta: ':'❌ No se confirmó la asignación: ')+(e.message||e)+'. No se enviará WhatsApp hasta confirmar el total.';
+   msg(texto,'err');
+  }finally{bs.forEach(b=>b&&(b.disabled=false))}
  }
  // ---------- montaje ----------
  function firma(){return st.fecha+'|'+orders.map(o=>o.id+o.estado+(o.motorista_id||'')+(o.numero_general??'')).join('|')+'#'+drivers.length}
