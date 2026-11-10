@@ -1688,43 +1688,61 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  function ubic(){return new Promise((ok,no)=>{if(!navigator.geolocation)return no(Error('Este navegador no da la ubicación.'));navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),e=>no(Error(e.code===1?'Permití la ubicación en el navegador (candado de la barra de direcciones) o usá «Salir desde otro punto».':'No se pudo obtener tu ubicación: '+e.message)),{enableHighAccuracy:true,timeout:15000,maximumAge:60000})})}
  function leerOrigen(){const v=($$('dyDOrig')?.value||'').trim();let d=v;try{d=decodeURIComponent(v)}catch(_){}const m=d.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/)||d.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);if(!m)throw Error('Escribí coordenadas (ej. -25.30,-57.60) o pegá un enlace de Maps que las tenga.');const o={lat:Number(m[1]),lng:Number(m[2])};if(o.lat<-28||o.lat>-19||o.lng<-63||o.lng>-54)throw Error('Ese punto no está en Paraguay.');return o}
  async function optimizar(){
- if(!editable()){msg('Esta fecha es de consulta; no se puede optimizar.','err');return}
- if(st.turno==='todos'){
-   const turnosDisponibles=['manana','tarde'].filter(t=>orders.some(o=>!o.excluido_ruta&&esFecha(o)&&tur(o)===t&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)));
-   if(!turnosDisponibles.length){msg('No hay pedidos pendientes con ubicación en los turnos de hoy.','err');return}
-   if(turnosDisponibles.length===1){st.turno=turnosDisponibles[0]}
-   else{
-     const valor=prompt('¿Qué turno querés optimizar?\nEscribí M para MAÑANA o T para TARDE.\nCada turno se calcula por separado.','M');
-     if(valor===null)return;
-     const v=valor.trim().toLowerCase();
-     if(['m','mañana','manana'].includes(v))st.turno='manana';
-     else if(['t','tarde'].includes(v))st.turno='tarde';
-     else{msg('Turno incorrecto. Escribí M o T.','err');return}
+  if(!editable()){msg('Solo se puede optimizar la jornada actual.','err');return}
+  const verAmbos=st.turno==='todos';
+  const turnos=verAmbos?['manana','tarde']:[st.turno];
+  const activos=turnos.filter(t=>orders.some(o=>!o.excluido_ruta&&esFecha(o)&&tur(o)===t&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)));
+  if(!activos.length){msg('No hay pedidos nuevos pendientes con ubicación para optimizar.','err');return}
+  const b=$('dyDGo');if(b)b.disabled=true;
+  const resultados=[];
+  try{
+   msg('Obteniendo punto de salida para '+(verAmbos?'ambos turnos':'el turno')+'…');
+   // Una sola solicitud GPS para ambos recorridos; nunca se mezclan los turnos.
+   const origen=st.manual?leerOrigen():await ubic();
+   st.origen=origen;
+   const og=$$('routeOrigin');if(og)og.value=origen.lat.toFixed(6)+','+origen.lng.toFixed(6);
+   for(const turno of activos){
+    const etiqueta=turno==='manana'?'Mañana':'Tarde';
+    msg('Optimizando '+etiqueta+' ('+(resultados.length+1)+'/'+activos.length+')…');
+    const candInicial=orders.filter(o=>!o.excluido_ruta&&esFecha(o)&&tur(o)===turno&&o.estado==='pendiente'&&!o.motorista_id&&gps(o));
+    if(!candInicial.length){resultados.push(etiqueta+': sin pedidos');continue}
+    const c=await client.rpc('flota_crear_ruta_turno',{p_fecha:st.fecha,p_turno:turno});if(c.error)throw new Error(etiqueta+': '+c.error.message);
+    const rid=c.data;
+    const ruta=routes.find(r=>r.id===rid)||{id:rid,fecha:st.fecha,turno,estado:'abierta'};
+    const enRuta=orders.filter(o=>o.ruta_general_id===rid&&!o.excluido_ruta);
+    const bloqueada=enRuta.some(o=>o.motorista_id||o.estado!=='pendiente')||!['abierta','optimizada'].includes(ruta.estado);
+    const cand=candInicial.filter(o=>o.ruta_general_id==null||o.ruta_general_id===rid);
+    let cantidad=0;
+    if(!bloqueada){
+     if(!cand.length){resultados.push(etiqueta+': sin pedidos nuevos');continue}
+     const orden=mejorar(cercania(cand,origen),origen).map(o=>o.id);
+     const resto=enRuta.filter(o=>!orden.includes(o.id)).map(o=>o.id);
+     const cf=await client.rpc('admin_confirmar_ruta_optimizada',{p_ruta_general_id:rid,p_orden_ids:[...orden,...resto]});
+     if(cf.error)throw new Error(etiqueta+': '+cf.error.message);
+     cantidad=orden.length;
+    }else{
+     const nuevos=cand.filter(o=>o.numero_general==null);
+     if(!nuevos.length){resultados.push(etiqueta+': ruta existente conservada, sin pedidos nuevos');continue}
+     const numerados=enRuta.filter(o=>o.numero_general!=null&&gps(o)).sort((a,b)=>a.numero_general-b.numero_general);
+     const desde=numerados.length?P(numerados.at(-1)):origen;
+     const ids=mejorar(cercania(nuevos,desde),desde).map(o=>o.id);
+     const ax=await client.rpc('flota_anexar_pedidos_a_ruta',{p_ruta:rid,p_pedidos:ids});
+     if(ax.error)throw new Error(etiqueta+': '+ax.error.message);
+     cantidad=ids.length;
+    }
+    resultados.push(etiqueta+': '+cantidad+' pedidos ordenados'+(bloqueada?' (agregados sin alterar repartos)':''));
    }
-   st.sel.clear();st.fit=false;pintar();
+   await $('routeReload').onclick();
+   st.sel.clear();st.fit=false;st.ultimo=null;
+   try{window.__dyRedibujar&&window.__dyRedibujar()}catch(_){}
+   // Conservar la vista "Todos los turnos" cuando se optimizan ambos.
+   refrescar();
+   msg('✅ '+resultados.join(' · ')+'. Rutas independientes del '+st.fecha+'.','ok');
+  }catch(e){
+   try{await $('routeReload').onclick()}catch(_){}
+   msg('⚠️ '+(resultados.length?'Completado: '+resultados.join(' · ')+'. ':'')+'No se pudo completar: '+(e.message||e)+'. Revisá antes de reintentar.','err');
+  }finally{const bb=$$('dyDGo');if(bb)bb.disabled=false}
  }
- const b=$('dyDGo');b.disabled=true;try{
-   msg('Buscando tu ubicación…');st.origen=st.manual?leerOrigen():await ubic();
-   const og=$$('routeOrigin');if(og)og.value=st.origen.lat.toFixed(6)+','+st.origen.lng.toFixed(6);
-   msg('Preparando la ruta del turno…');
-   const c=await client.rpc('flota_crear_ruta_turno',{p_fecha:st.fecha,p_turno:st.turno});if(c.error)throw c.error;const rid=c.data;
-   // Ya contamos con los pedidos de la jornada en memoria; evitar una recarga global antes de calcular.
-   // La RPC y la verificación en BD protegen el estado real ante cambios simultáneos.
-   const ruta=routes.find(r=>r.id===rid)||{id:rid,fecha:st.fecha,turno:st.turno,estado:'abierta'};
-   const enRuta=orders.filter(o=>o.ruta_general_id===rid);
-   const bloqueada=enRuta.some(o=>o.motorista_id||o.estado!=='pendiente')||!['abierta','optimizada'].includes(ruta?.estado);
-   const cand=orders.filter(o=>!o.excluido_ruta&&esFecha(o)&&tur(o)===st.turno&&o.estado==='pendiente'&&!o.motorista_id&&gps(o)&&(o.ruta_general_id==null||o.ruta_general_id===rid));
-   msg('Ordenando del 1 al último…');let n=0;let nuevosIds=[];
-   if(!bloqueada){if(!cand.length)throw Error('No hay pedidos con ubicación en este turno.');
-    const orden=mejorar(cercania(cand,st.origen),st.origen).map(o=>o.id);const resto=enRuta.filter(o=>!orden.includes(o.id)).map(o=>o.id);
-    const cf=await client.rpc('admin_confirmar_ruta_optimizada',{p_ruta_general_id:rid,p_orden_ids:[...orden,...resto]});if(cf.error)throw cf.error;n=orden.length}
-   else{const nuevos=cand.filter(o=>o.numero_general==null);nuevosIds=nuevos.map(o=>o.id);if(!nuevos.length){await $$('routeReload').onclick();st.sel.clear();st.fit=false;refrescar();msg('La ruta ya está ordenada y en reparto. No hay pedidos nuevos para sumar.','ok');return}
-    const numerados=enRuta.filter(o=>o.numero_general!=null&&gps(o)).sort((a,b)=>a.numero_general-b.numero_general);const desde=numerados.length?P(numerados.at(-1)):st.origen;
-    const ax=await client.rpc('flota_anexar_pedidos_a_ruta',{p_ruta:rid,p_pedidos:mejorar(cercania(nuevos,desde),desde).map(o=>o.id)});if(ax.error)throw ax.error;n=nuevos.length}
-   await $('routeReload').onclick();st.sel.clear();if(bloqueada)nuevosIds.filter(id=>libre(orders.find(o=>o.id===id))).forEach(id=>st.sel.add(id));st.fit=false;st.ultimo=null;try{window.__dyRedibujar&&window.__dyRedibujar()}catch(_){}
-   refrescar();const ps=paradas().filter(o=>o.numero_general!=null);
-   msg(bloqueada?'✅ '+n+' pedido(s) nuevos sumados al final (N.º '+(ps.length-n+1)+'–'+ps.length+'). Los números ya repartidos no cambian. Los nuevos ya están marcados: elegí la moto y tocá Asignar y WhatsApp para sumarlos a su misma ruta.':'✅ Ruta ordenada: N.º 1 al '+n+' desde '+(st.manual?'el punto elegido':'tu ubicación')+'. Marcá pedidos y elegí la moto.','ok');
-  }catch(e){msg((e&&e.message)||String(e),'err')}finally{const bb=$$('dyDGo');if(bb)bb.disabled=false}}
  async function asignarFuturos(sinWhatsApp=false){
   if(st.turno==='todos')return msg('Elegí Mañana o Tarde para asignar pedidos futuros.','err');
   if(st.fecha<=hoy())return msg('Elegí una fecha futura válida para esta asignación.','err');
