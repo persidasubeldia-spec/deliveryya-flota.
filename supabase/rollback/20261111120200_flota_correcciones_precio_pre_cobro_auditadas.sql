@@ -1,0 +1,2 @@
+-- The table contains financial evidence: do not DROP it during rollback.
+-- This compatibility migration does not require a destructive rollback.
