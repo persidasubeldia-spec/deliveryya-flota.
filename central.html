@@ -2081,12 +2081,13 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-driv
  const num=v=>{const d=String(v??'').replace(/\D/g,'');return d===''?null:Number(d)};
  // Misma regla que usan Tienda y Motorista para "a cobrar al entregar".
  const aCobrar=(m,e,mod)=>mod==='todo_pagado'?0:mod==='producto_pagado'?e:m+e;
-  const envioAlCliente=tarifaReal=>dyEnvioPreviewCentral(o,tarifaReal);
+
  const MOD={pendiente:'Todo',producto_pagado:'Solo envío',todo_pagado:'Nada'};
  const NOM={nombre_cliente:'cliente',telefono_cliente:'teléfono',direccion_cliente:'dirección',producto:'producto',referencias:'referencia',observaciones:'observaciones',precio_mercaderia:'precio',precio_delivery:'envío',modalidad_pago:'forma de cobro',lat:'ubicación'};
  function leerCoords(t){let d=String(t||'').trim();try{d=decodeURIComponent(d)}catch(_){}const m=d.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/)||d.match(/[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/)||d.match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/)||d.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);return m?{lat:Number(m[1]),lng:Number(m[2])}:null}
  window.dyEditarPedido=function(o){
   if(!o)return;
+  const envioAlCliente=tarifaReal=>dyEnvioPreviewCentral(o,tarifaReal);
   if(o.estado!=='pendiente'){alert('Este pedido ya está '+String(o.estado).replaceAll('_',' ')+': no se puede editar desde acá.');return}
   const d=(typeof drivers!=='undefined'?drivers:[]).find(x=>x.id===o.motorista_id);let mod=o.modalidad_pago||'pendiente';
   document.getElementById('dyEdit')?.remove();
