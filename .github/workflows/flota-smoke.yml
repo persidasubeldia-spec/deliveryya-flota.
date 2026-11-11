@@ -56,5 +56,9 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -f supabase/tests/precios_aislado_fixture.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111120000_flota_auditar_bloquear_precios.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111160000_flota_importes_originales_tienda.sql
       - name: Ejecutar 8 pruebas SQL con datos ficticios
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/precios_proteccion_integracion.sql
+      - name: Validar importes originales introducidos por tienda (8 casos SQL)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/importes_originales_tienda_integracion.sql
+
