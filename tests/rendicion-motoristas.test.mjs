@@ -39,7 +39,9 @@ test('Una sola caja por día con mañana y tarde',()=>{
  assert.match(sql,/m\.comision_motorista/);
  assert.match(sql,/ci\.a_rendir_esperado/);
  assert.match(sql,/greatest\(0::bigint,b\.ef-least\(b\.ef,b\.ganancia\)\)/);
- assert.match(sql,/confirmed_at IS NOT NULL THEN c\.efectivo_recibido/);
+ assert.match(sql,/c\.confirmed_at IS NOT NULL AND c\.validado_central/);
+ assert.match(sql,/confirmador\.usuario_id=ci\.confirmado_por/);
+ assert.match(sql,/CASE WHEN c\.cierre_id IS NOT NULL AND \(c\.confirmed_at IS NULL OR NOT c\.validado_central\)/);
  assert.match(sql,/sin_movimiento/);
  assert.match(sql,/duplicados/);
 });
