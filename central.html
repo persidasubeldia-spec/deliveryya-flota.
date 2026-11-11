@@ -992,7 +992,7 @@ function rdTiendas(d){
  const out=new Map();
  const asegurar=(id)=>{
   if(out.has(id))return out.get(id);
-  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech,pasados:[]};
+  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,noRecibioCargos:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech,pasados:[]};
   out.set(id,t);return t;
  };
  // La rendición financiera se mantiene exclusivamente sobre movimientos reales.
@@ -1022,7 +1022,13 @@ function rdTiendas(d){
   t.pagado=d.pagos.filter(p=>p.tienda_id===t.tienda.id).reduce((v,p)=>v+Number(p.importe||0),0);
   // Rechazos a cargo de tienda se descuentan automáticamente del neto.
   // Una compensación explícita reemplaza el cargo pendiente, evitando dobles descuentos.
-  t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado;
+  // Boom Store · 10/11/2026: visitas efectivas sin recepción ni cobro.
+  // Cargo de envío completo por pedido, una sola vez, sin sumar el subsidio de nuevo.
+  t.noRecibioCargos=(d.fecha==='2026-11-10' && (t.tienda.codigo==='T14'||t.tienda.nombre_comercial==='Boom Store'))
+   ?t.pedidos.filter(p=>p.estado==='no_recibio'&&p.motorista_id&&/mal su ubicacion/i.test(String(p.motivo_incidencia||''))
+     &&!d.compensaciones.some(c=>c.pedido_id===p.id)
+     &&!t.filas.some(f=>f.p.id===p.id)).reduce((a,p)=>a+Number(p.precio_delivery||0),0):0;
+  t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado-t.noRecibioCargos;
   t.saldo=t.neto-t.pagado;
  }
  return [...out.values()].sort((a,b)=>String(a.tienda.codigo).localeCompare(String(b.tienda.codigo),'es',{numeric:true}));
@@ -1369,16 +1375,17 @@ async function rdPdf(t,fecha){
   const rider=drivers.find(d=>d.id===p.motorista_id)?.nombre||'Sin motorista';
   const descontado=cobroRechazo>0&&!compensado&&!(datosAudit.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&Number(z.compensado)>0);
   const cargo=descontado?'Delivery por rechazo: '+rdGs(cobroRechazo)+' descontados de la rendición':'Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE');
-  const aporte=est==='entregado'&&Number(p.delivery_subsidio_tienda||0)>0?' · Diferencia de delivery: '+rdGs(p.delivery_subsidio_tienda)+' a cargo de Boom Store':'';
-  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte;
+  const aporte=est==='entregado'&&Number(p.delivery_subsidio_tienda||0)>0?' · Subsidio tienda: '+rdGs(p.delivery_subsidio_tienda):'';
+  const visita=est==='no_recibio'&&d.fecha==='2026-11-10'&&(t.tienda.codigo==='T14'||t.tienda.nombre_comercial==='Boom Store')&&p.motorista_id&&/mal su ubicacion/i.test(String(p.motivo_incidencia||''))?' · Visita sin cobro: '+rdGs(p.precio_delivery||0)+' a cargo de Boom Store':'';
+  const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte+visita;
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
-    rdGs(p.precio_mercaderia||0),rdGs(p.precio_delivery||0),rdGs(rec),observacion
+    rdGs(p.precio_mercaderia||0),rdGs(p.delivery_cliente??p.precio_delivery??0),rdGs(rec),observacion
   ];
  });
  doc.autoTable({
   startY:74,margin:{top:37,left:M,right:M,bottom:17},
-  head:[['N.º','Cliente','Producto','Estado','Mercaderia','Envio','Cobrado','Observacion / motivo']],
+  head:[['N.º','Cliente','Producto','Estado','Mercaderia','Envío de Iván','Cobrado','Observacion / motivo']],
   body:rows.length?rows:[['—','Sin pedidos en este dia','—','—','—','—','—','—']],
   theme:'grid',showHead:'everyPage',rowPageBreak:'avoid',
   styles:{font:'helvetica',fontSize:7.4,cellPadding:2,overflow:'linebreak',valign:'middle',lineColor:[222,230,239],lineWidth:0.15,textColor:[31,49,70]},
@@ -1407,6 +1414,7 @@ async function rdPdf(t,fecha){
   ['Envíos y aporte tienda a cargo de Boom Store (-)',t.debe],
   ['Compensaciones de rechazo confirmadas (-)',t.compensado],
   ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
+  ['Visitas sin cobro (Maicol y Fernando) (-)',t.noRecibioCargos],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
