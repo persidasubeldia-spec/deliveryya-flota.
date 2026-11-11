@@ -1376,7 +1376,7 @@ async function rdPdf(t,fecha){
   const descontado=cobroRechazo>0&&!compensado&&!(datosAudit.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&Number(z.compensado)>0);
   const cargo=descontado?'Delivery por rechazo: '+rdGs(cobroRechazo)+' descontados de la rendición':'Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE');
   const aporte=est==='entregado'&&Number(p.delivery_subsidio_tienda||0)>0?' · Subsidio tienda: '+rdGs(p.delivery_subsidio_tienda):'';
-  const visita=est==='no_recibio'&&d.fecha==='2026-11-10'&&(t.tienda.codigo==='T14'||t.tienda.nombre_comercial==='Boom Store')&&p.motorista_id&&/mal su ubicacion/i.test(String(p.motivo_incidencia||''))?' · Visita sin cobro: '+rdGs(p.precio_delivery||0)+' a cargo de Boom Store':'';
+  const visita=est==='no_recibio'&&fecha==='2026-11-10'&&(t.tienda.codigo==='T14'||t.tienda.nombre_comercial==='Boom Store')&&p.motorista_id&&/mal su ubicacion/i.test(String(p.motivo_incidencia||''))?' · Visita sin cobro: '+rdGs(p.precio_delivery||0)+' a cargo de Boom Store':'';
   const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte+visita;
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
