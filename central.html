@@ -1068,12 +1068,69 @@ function rdMotos(d){
   const ef=s('efectivo_cobrado'),tr=s('transferencia_cobrada');
   const entregas=mv.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado');
   const cm=mv.reduce((v,m)=>v+Number(m.comision_motorista||0),0),ce=mv.reduce((v,m)=>v+Number(m.comision_empresa||0),0);
+  const cmEnt=entregas.reduce((v,m)=>v+Number(m.comision_motorista||0),0),cmRej=cm-cmEnt;
+  const rendirEntregas=x.modalidad_liquidacion==='retener_comision'?Math.max(0,ef-Math.min(ef,cmEnt)):ef;
   const rendir=x.modalidad_liquidacion==='retener_comision'?Math.max(0,ef-Math.min(ef,cm)):ef;
   const ped=[...d.porPedido.values()].filter(p=>p.motorista_id===x.id&&(mv.some(m=>m.pedido_id===p.id)||(d.fecha===new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'})&&['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado))));
   const c=d.cierres.find(k=>k.motorista_id===x.id);
   const pasados=(d.reprogramados||[]).filter(e=>e.motorista_anterior===x.nombre).length;
-  return {x,pasados,ef,tr,cm,ce,rendir:c?c.a_rendir_esperado:rendir,c,ent:ped.filter(p=>p.estado==='entregado').length,rej:ped.filter(p=>p.estado==='rechazado').length,pend:ped.filter(p=>!['entregado','rechazado','cancelado'].includes(p.estado)).length};
- }).filter(r=>r.ent||r.rej||r.pend||r.c||r.pasados);
+  return {x,pasados,ef,tr,cm,ce,cmEnt,cmRej,rendirEntregas,rendir:c?c.a_rendir_esperado:rendir,c,ent:ped.filter(p=>p.estado==='entregado').length,rej:ped.filter(p=>p.estado==='rechazado').length,pend:ped.filter(p=>!['entregado','rechazado','cancelado'].includes(p.estado)).length};
+ }).sort((a,b)=>{
+  const saldo=r=>r.c?.estado==='confirmada'?0:Math.max(0,r.rendir-Number(r.c?.efectivo_recibido||0));
+  return saldo(b)-saldo(a)||Number(Boolean(b.ef||b.tr||b.c))-Number(Boolean(a.ef||a.tr||a.c))||a.x.nombre.localeCompare(b.x.nombre,'es');
+ });
+}
+
+
+// Panel por motorista: separar comisión registrada de comisión por entregas efectivamente cobradas.
+function rdEstadoMoto(r){
+ if(r.pend)return '🟡 Tiene '+r.pend+' pedido(s) sin terminar';
+ if(r.c?.estado==='confirmada')return '✅ Cierre registrado confirmado';
+ if(r.c?.estado==='diferencia')return '🔴 Cierre con diferencia';
+ if(r.c)return '🟡 Rendición presentada';
+ return r.ef||r.tr?'🟠 Pendiente de rendición':'⚪ Sin movimientos';
+}
+function rdSaldoMoto(r){return Math.max(0,r.rendir-Number(r.c?.efectivo_recibido||0))}
+function rdCardMoto(r,i){
+ return '<article class="rd-moto-card"><div class="rd-moto-top"><div><b>'+escapeHtml(r.x.nombre)+'</b><small>'+
+ escapeHtml(rdEstadoMoto(r))+'</small><small>✅ '+r.ent+' entregados · ❌ '+r.rej+' rechazados · ⏳ '+r.pend+' pendientes</small></div>'+
+ '<div class="rd-moto-monto"><small>A entregar a Central · cálculo del sistema</small><strong>'+money(r.rendir)+'</strong></div></div>'+
+ '<div class="rd-moto-mini"><span>Cobrado<b>'+money(r.ef+r.tr)+'</b></span><span>Ganancia registrada<b>'+money(r.cm)+'</b></span>'+
+ '<span>Recibido registrado<b>'+(r.c?.efectivo_recibido==null?'—':money(r.c.efectivo_recibido))+'</b></span>'+
+ '<span>Saldo registrado<b>'+money(rdSaldoMoto(r))+'</b></span></div>'+
+ '<button type="button" class="rd-moto-abrir" data-rdmoto="'+i+'" aria-expanded="false" aria-controls="rdDetalleMoto'+i+'">Ver rendición de '+escapeHtml(r.x.nombre)+' ⌄</button>'+
+ '<div id="rdDetalleMoto'+i+'" class="rd-moto-detalle" hidden></div></article>';
+}
+function rdDetalleMoto(r,d){
+ const mv=d.movs.filter(m=>m.motorista_id===r.x.id),rech=d.rech;
+ const sinCobro=mv.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='rechazado'&&!Number(m.efectivo_cobrado||0)&&!Number(m.transferencia_cobrada||0));
+ const deudaRechazo=sinCobro.reduce((v,m)=>v+Number(rech.get(m.pedido_id)?.importe_pendiente||0),0);
+ const kpis=[
+ ['Cobró efectivo',money(r.ef)],['Cobró transferencia',money(r.tr)],
+ ['Ganancia por entregas',money(r.cmEnt)],['Comisión de rechazos',money(r.cmRej)],
+ ['Ganancia total registrada',money(r.cm)],['Debe rendir según sistema',money(r.rendir)],
+ ['Debe rendir sin anticipar rechazo',money(r.rendirEntregas)],
+ ['Declaró a Central',r.c?money(r.c.efectivo_declarado):'No presentado'],
+ ['Recibido registrado',r.c?.efectivo_recibido==null?'No registrado':money(r.c.efectivo_recibido)],
+ ['Transferencia confirmada',r.c?.transferencia_confirmada==null?'No verificada':money(r.c.transferencia_confirmada)],
+ ['Saldo en sistema',money(rdSaldoMoto(r))]];
+ const pendientes=[...d.porPedido.values()].filter(p=>p.motorista_id===r.x.id&&
+   ['pendiente','no_responde','no_recibio','pasa_manana'].includes(p.estado)&&
+   routes.find(z=>z.id===p.ruta_general_id)?.fecha===d.fecha);
+ return '<div class="rd-det-kpis">'+kpis.map(([n,v])=>'<div><small>'+escapeHtml(n)+'</small><b>'+v+'</b></div>').join('')+'</div>'+
+ (r.cmRej?'<p class="rd-aviso">⚠️ '+money(r.cmRej)+' corresponde a rechazos. Si el cliente no pagó, hay que conciliar con la tienda antes de descontar esta comisión del efectivo.</p>':'')+
+ (deudaRechazo?'<p class="rd-aviso">🏪 '+money(deudaRechazo)+' de envío rechazado pendiente de recuperar de la tienda. No es efectivo recibido del cliente.</p>':'')+
+ (pendientes.length?'<p class="rd-aviso">⏳ Falta finalizar: '+pendientes.map(p=>escapeHtml(p.nombre_cliente)).join(', ')+'. El cierre definitivo podría cambiar.</p>':'')+
+ '<div class="rd-moto-acciones"><button type="button" data-rdpdfm="'+escapeHtml(r.x.id)+'">📄 Descargar PDF del motorista</button>'+
+ (r.c&&r.c.estado!=='confirmada'&&(account.rol==='propietario'||account.puede_confirmar_rendiciones)?
+ '<button type="button" data-rdrecibirm="'+escapeHtml(r.c.id)+'">💵 Registrar recepción real</button>':'')+'</div>'+
+ '<div class="scroll"><table><thead><tr><th>N.º</th><th>Cliente</th><th>Estado</th><th>Tienda</th><th>Mercadería</th><th>Delivery cliente</th><th>Efectivo</th><th>Transferencia</th><th>Ganancia moto</th></tr></thead><tbody>'+
+ (mv.length?mv.map(m=>({m,p:d.porPedido.get(m.pedido_id)})).filter(o=>o.p).sort((a,b)=>(a.p.numero_general??99999)-(b.p.numero_general??99999)).map(({m,p})=>
+ '<tr><td>'+escapeHtml(p.numero_general??'—')+'</td><td>'+escapeHtml(p.nombre_cliente)+'</td><td>'+
+ escapeHtml(p.estado)+'</td><td>'+escapeHtml(stores.find(t=>t.id===p.tienda_id)?.codigo||'—')+'</td><td>'+
+ money(m.monto_mercaderia)+'</td><td>'+money(p.delivery_cliente??m.monto_delivery)+'</td><td>'+
+ money(m.efectivo_cobrado)+'</td><td>'+money(m.transferencia_cobrada)+'</td><td>'+money(m.comision_motorista)+'</td></tr>').join(''):
+ '<tr><td colspan="9">Sin movimientos financieros para esta fecha.</td></tr>')+'</tbody></table></div>';
 }
 
 function rdAuditar(d){
@@ -1134,19 +1191,50 @@ async function dyRendiciones(){
  const root=$('rendRoot');if(!root)return;
  const hoy=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});rdEstado.fecha=filtroDia||hoy;
  root.innerHTML='<div class="rd-bar"><label>📅 Día <input type="date" id="rdFecha" value="'+rdEstado.fecha+'" max="'+hoy+'"></label><div class="rd-tabs"><button data-rd="delivery">🏍️ Rendiciones de delivery</button><button data-rd="tiendas">🏪 Rendiciones a tiendas</button>'+((account.rol==='propietario'||account.puede_finanzas)?'<button data-rd="admin">🔒 Conciliación administrativa</button>':'')+'</div><button id="rdRecargar">↻ Actualizar</button></div><div id="rdBody" class="muted">Cargando…</div>';
- if(!document.getElementById('rdCss')){const st=document.createElement('style');st.id='rdCss';st.textContent='.rd-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}.rd-bar input{min-height:40px;font-size:15px}.rd-tabs{display:flex;gap:6px}.rd-tabs button{min-height:42px;font-weight:700}.rd-tabs button[aria-pressed=true]{background:#1765ba;color:#fff;border-color:#1765ba}.rd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}.rd-kpi{background:#fff;border:1px solid #e0e8f0;border-radius:12px;padding:12px}.rd-kpi small{color:#5b6b80}.rd-kpi b{display:block;font-size:20px;margin-top:4px}.rd-row{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(6,minmax(95px,1fr)) minmax(150px,1.2fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #e6edf4;font-size:14px}.rd-head{font-weight:700;color:#5b6b80;font-size:12px;text-transform:uppercase;background:#f3f7fb;border-radius:10px 10px 0 0}.rd-ok{color:#15803d;font-weight:700}.rd-warn{color:#b45309;font-weight:700}.rd-pend{color:#64748b;font-weight:700}.rd-card{background:#fff;border:1px solid #e0e8f0;border-radius:14px;padding:14px;margin-bottom:10px}.rd-card h3{margin:0 0 6px;font-size:17px}.rd-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}.rd-nums div{background:#f6f9fc;border-radius:10px;padding:8px}.rd-nums small{color:#5b6b80;display:block}.rd-neto{font-size:18px;font-weight:800;padding:10px;border-radius:10px;background:#ecfdf3;color:#14532d}.rd-neto.neg{background:#fff4e5;color:#7c2d12}.rd-acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.rd-acc button{min-height:44px;font-weight:700}.rd-acc .rd-pri{background:#16803c;color:#fff;border-color:#16803c}@media(max-width:900px){.rd-row{grid-template-columns:1fr 1fr}.rd-head{display:none}}';document.head.append(st)}
+ if(!document.getElementById('rdCss')){const st=document.createElement('style');st.id='rdCss';st.textContent='.rd-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}.rd-bar input{min-height:40px;font-size:15px}.rd-tabs{display:flex;gap:6px}.rd-tabs button{min-height:42px;font-weight:700}.rd-tabs button[aria-pressed=true]{background:#1765ba;color:#fff;border-color:#1765ba}.rd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}.rd-kpi{background:#fff;border:1px solid #e0e8f0;border-radius:12px;padding:12px}.rd-kpi small{color:#5b6b80}.rd-kpi b{display:block;font-size:20px;margin-top:4px}.rd-row{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(6,minmax(95px,1fr)) minmax(150px,1.2fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #e6edf4;font-size:14px}.rd-head{font-weight:700;color:#5b6b80;font-size:12px;text-transform:uppercase;background:#f3f7fb;border-radius:10px 10px 0 0}.rd-ok{color:#15803d;font-weight:700}.rd-warn{color:#b45309;font-weight:700}.rd-pend{color:#64748b;font-weight:700}.rd-card{background:#fff;border:1px solid #e0e8f0;border-radius:14px;padding:14px;margin-bottom:10px}.rd-card h3{margin:0 0 6px;font-size:17px}.rd-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}.rd-nums div{background:#f6f9fc;border-radius:10px;padding:8px}.rd-nums small{color:#5b6b80;display:block}.rd-neto{font-size:18px;font-weight:800;padding:10px;border-radius:10px;background:#ecfdf3;color:#14532d}.rd-neto.neg{background:#fff4e5;color:#7c2d12}.rd-acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.rd-acc button{min-height:44px;font-weight:700}.rd-acc .rd-pri{background:#16803c;color:#fff;border-color:#16803c}.rd-moto-list{display:grid;gap:12px}.rd-moto-card{padding:16px;border:1px solid #dee6ef;border-radius:14px;background:#fff}.rd-moto-top{display:flex;justify-content:space-between;gap:16px}.rd-moto-top>div:first-child{display:grid;gap:5px}.rd-moto-top b{font-size:19px;color:#173d70}.rd-moto-top small{color:#607089;font-size:12px}.rd-moto-monto{text-align:right}.rd-moto-monto small{display:block}.rd-moto-monto strong{display:block;font-size:23px;color:#165c38;white-space:nowrap}.rd-moto-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.rd-moto-mini span{border-radius:9px;padding:9px;background:#f0f5fb;font-size:12px;color:#556780}.rd-moto-mini b{display:block;font-size:14px;color:#1e375b}.rd-moto-abrir{width:100%;padding:12px;border-radius:10px;min-height:46px;background:#1765ba;color:#fff;font-weight:800}.rd-moto-detalle{margin-top:12px;padding-top:12px;border-top:1px solid #dde6ef}.rd-det-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px}.rd-det-kpis div{border:1px solid #e0e7f0;border-radius:10px;padding:10px}.rd-det-kpis small{display:block;color:#62748c;font-size:12px}.rd-det-kpis b{display:block;font-size:16px;margin-top:5px}.rd-aviso{padding:10px 12px;background:#fff7dc;color:#794a14;border:1px solid #efcf83;border-radius:10px;font-size:13px}.rd-moto-acciones{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.rd-moto-acciones button{min-height:44px}.rd-moto-detalle table{font-size:12px;white-space:nowrap}@media(max-width:650px){.rd-moto-top{display:block}.rd-moto-monto{text-align:left;margin-top:12px}.rd-moto-mini{grid-template-columns:repeat(2,minmax(0,1fr))}.rd-tabs{flex-wrap:wrap}}@media(max-width:900px){.rd-row{grid-template-columns:1fr 1fr}.rd-head{display:none}}';document.head.append(st)}
  const pintar=async()=>{
   root.querySelectorAll('[data-rd]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.rd===rdEstado.vista)));
   const body=$('rdBody');body.textContent='Cargando…';
   try{rdEstado.datos=await rdCargar(rdEstado.fecha)}catch(e){body.textContent='No se pudieron cargar los movimientos: '+e.message;return}
   const d=rdEstado.datos;
   if(rdEstado.vista==='delivery'){
-   const rows=rdMotos(d),T=k=>rows.reduce((t,r)=>t+Number(r[k]||0),0);
-   const est=r=>r.c?(r.c.estado==='confirmada'?'<span class="rd-ok">✅ Cerrada</span>':r.c.estado==='diferencia'?'<span class="rd-warn">⚠️ Dif. '+money(r.c.diferencia)+'</span>':'<span class="rd-pend">⏳ Presentada · declaró '+money(r.c.efectivo_declarado)+'</span>'):'<span class="rd-pend">⏳ Sin rendir'+(r.pend?' · '+r.pend+' pend.':'')+'</span>';
-   body.innerHTML='<div class="rd-kpis">'+[['💵 Efectivo cobrado',T('ef')],['🏦 Transferencias',T('tr')],['🏍️ Comisión motos',T('cm')],['🏢 Comisión flota',T('ce')],['🤝 A recibir de motos',T('rendir')],['📥 Declarado por motos',rows.reduce((t,r)=>t+Number(r.c?.efectivo_declarado||0),0)]].map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
-   (rows.length?'<div class="card" style="padding:0"><div class="rd-row rd-head"><span>Motorista</span><span>Entregas</span><span>Efectivo</span><span>Transfer.</span><span>Su comisión</span><span>A entregar</span><span>Entregó</span><span>Estado</span></div>'+rows.map(r=>'<div class="rd-row"><b>'+escapeHtml(r.x.nombre)+'</b><span>✅ '+r.ent+' · ❌ '+r.rej+' · 📅 '+r.pasados+' mañana</span><span>'+money(r.ef)+'</span><span>'+money(r.tr)+'</span><span>'+money(r.cm)+'</span><b>'+money(r.rendir)+'</b><span>'+(r.c?money(r.c.efectivo_declarado):'—')+'</span><span>'+est(r)+(r.c&&r.c.estado!=='confirmada'&&(account.rol==='propietario'||account.puede_confirmar_rendiciones)?' <button data-rdfix="'+escapeHtml(r.c.id)+'">Corregir</button>':'')+'</span></div>').join('')+'</div>':'<p class="muted">No hay movimientos de motos en este día.</p>')+
-   '<p class="muted" style="margin-top:10px">“A entregar” = efectivo recaudado menos la ganancia total reconocida del motorista (incluidos los rechazos). Los rechazos impagos se recuperan de la tienda correspondiente; no se pagan nuevamente al motorista.</p>';
-   body.querySelectorAll('[data-rdfix]').forEach(b=>b.onclick=async()=>{const c=d.cierres.find(x=>x.id===b.dataset.rdfix);const ef=prompt('Efectivo realmente recibido (esperado '+money(c.a_rendir_esperado)+'):',String(c.efectivo_declarado));if(ef===null)return;const tr=prompt('Transferencias verificadas (registradas '+money(c.transferencia_registrada)+'):',String(c.transferencia_declarada));if(tr===null)return;const {error}=await client.rpc('flota_confirmar_cierre_completo',{p_cierre:c.id,p_efectivo_recibido:Number(ef),p_transferencia_confirmada:Number(tr)});if(error){alert(error.message);return}pintar()});
+   const rows=rdMotos(d),T=k=>rows.reduce((n,r)=>n+Number(r[k]||0),0);
+   body.innerHTML='<div class="rd-kpis">'+[
+    ['💵 Efectivo cobrado',T('ef')],['🏦 Transferencias',T('tr')],
+    ['🏍️ Comisión motos (con rechazos)',T('cm')],['🏢 Comisión flota',T('ce')],
+    ['🤝 A recibir según sistema',T('rendir')],
+    ['📥 Declarado por motos',rows.reduce((n,r)=>n+Number(r.c?.efectivo_declarado||0),0)]
+   ].map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
+   '<p class="muted">Elegí un motorista para ver cuánto cobró, cuánto ganó, cuánto debe entregar y cada pedido.</p>'+
+   (rows.length?'<div class="rd-moto-list">'+rows.map(rdCardMoto).join('')+'</div>':'<p>No hay motoristas disponibles.</p>')+
+   '<p class="muted">A recibir es una obligación calculada, no dinero entregado. Declarado y recibido son importes diferentes. Las comisiones de rechazos impagos se detallan por separado.</p>';
+   body.querySelectorAll('[data-rdmoto]').forEach(b=>b.onclick=()=>{
+    const ix=Number(b.dataset.rdmoto),r=rows[ix],el=body.querySelector('#rdDetalleMoto'+ix);
+    if(!r||!el)return;
+    const abrir=el.hidden;el.hidden=!abrir;b.setAttribute('aria-expanded',String(abrir));
+    if(!abrir)return;el.innerHTML=rdDetalleMoto(r,d);
+    el.querySelector('[data-rdpdfm]')?.addEventListener('click',async e=>{
+      const btn=e.currentTarget;btn.disabled=true;
+      try{const file=await rdPdfMotoCentral(r,d),url=URL.createObjectURL(file),a=document.createElement('a');
+       a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+      catch(err){alert('Error PDF: '+err.message)}finally{btn.disabled=false}
+    });
+    el.querySelector('[data-rdrecibirm]')?.addEventListener('click',async e=>{
+      const btn=e.currentTarget,c=d.cierres.find(x=>x.id===btn.dataset.rdrecibirm);
+      if(!c)return;
+      const ef=prompt('Efectivo YA RECIBIDO de '+r.x.nombre+'. Esperado: '+money(c.a_rendir_esperado),String(c.efectivo_recibido??0));
+      if(ef===null)return;
+      const tr=prompt('Transferencias YA VERIFICADAS en tu cuenta:',String(c.transferencia_confirmada??0));
+      if(tr===null)return;
+      const efectivo=Number(ef.replaceAll('.','').replaceAll(',','')),banco=Number(tr.replaceAll('.','').replaceAll(',',''));
+      if(!Number.isSafeInteger(efectivo)||efectivo<0||!Number.isSafeInteger(banco)||banco<0){alert('Importe inválido');return}
+      if(!confirm('¿YA recibiste '+money(efectivo)+' de efectivo y verificaste '+money(banco)+' de transferencia de '+r.x.nombre+'?'))return;
+      btn.disabled=true;
+      try{const {error}=await client.rpc('flota_confirmar_cierre_completo',
+       {p_cierre:c.id,p_efectivo_recibido:efectivo,p_transferencia_confirmada:banco});
+       if(error)throw error;await pintar()}catch(err){alert(err.message)}finally{btn.disabled=false}
+    });
+   });
   }else if(rdEstado.vista==='admin'&&(account.rol==='propietario'||account.puede_finanzas)){
    const audit=rdAuditar(d),externos=d.movs.filter(m=>!stores.some(t=>t.id===m.tienda_id&&t.uso_interno_logistico===true)),sum=k=>externos.reduce((v,m)=>v+Number(m[k]||0),0);
    body.innerHTML='<div class="rd-card"><h3>🔒 Conciliación administrativa · '+d.fecha+'</h3><p>Informe exclusivo de la Central. No compartir con tiendas.</p><div class="rd-nums">'+[['Cobros registrados · tiendas externas',externos.reduce((v,m)=>v+Number(m.efectivo_cobrado||0)+Number(m.transferencia_cobrada||0),0)],['Mercadería de tiendas',audit.ts.reduce((v,t)=>v+t.merc,0)],['Comisión de motoristas',sum('comision_motorista')],['Comisión empresa en entregas',d.movs.filter(m=>d.porPedido.get(m.pedido_id)?.estado==='entregado'&&!stores.some(t=>t.id===m.tienda_id&&t.uso_interno_logistico===true)).reduce((v,m)=>v+Number(m.comision_empresa||0),0)],['Rechazos pendientes',audit.ts.reduce((v,t)=>v+t.cargosPendientes,0)]].map(([k,v])=>'<div><small>'+k+'</small><b>'+money(v)+'</b></div>').join('')+'</div><p class="'+(audit.errores.length?'rd-warn':'rd-ok')+'">'+(audit.errores.length?'⛔ Conciliación con errores: '+audit.errores.map(escapeHtml).join(' · '):'✅ Sin descuadres detectados en los movimientos verificados')+'</p><p>'+audit.avisos.map(escapeHtml).join(' · ')+'</p><button id="rdAdminPdf" '+(audit.errores.length?'disabled':'')+'>📄 Descargar PDF administrativo</button></div>';
