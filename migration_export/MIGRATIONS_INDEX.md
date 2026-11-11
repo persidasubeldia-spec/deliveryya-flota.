@@ -1,83 +1,144 @@
-# Historial de migraciones registradas en Supabase
+# Migraciones reales aplicadas en Supabase produccion
 
-Este archivo enumera versiones y nombres; el esquema actual está en `supabase_schema_reference.sql`. No representa el contenido SQL original de cada migración.
+- Proyecto: `sxhuvjvbqkovivcbisrn`
+- Capturado el 2026-11-11 mediante `list_migrations` (SOLO LECTURA).
+- Entradas: **134**.
+- El historial de produccion es mas amplio que los archivos SQL conservados localmente. Esta lista no contiene el SQL historico original.
+- Los 26 RPC faltantes se exportaron separadamente desde `pg_get_functiondef` a migraciones de respaldo fechadas 20261111 (NO APLICADAS a produccion).
 
-- 20261031151845: indices_consultas_tiendas
-- 20261031151855: vistas_respetan_permisos_usuario
-- 20261031154850: restringir_acceso_general_pedidos
-- 20261031154926: lectura_pedidos_propios_tienda
-- 20261031154931: creacion_pedidos_por_tienda
-- 20261031154937: restringir_tiendas_autenticadas
-- 20261031154942: lectura_tienda_vinculada
-- 20261031155742: alta_autogestionada_tiendas_deliveryya
-- 20261031155749: un_usuario_una_tienda_deliveryya
-- 20261031161852: registro_perfil_tienda_autenticado
-- 20261031173129: tienda_cuentas_v2_aisladas
-- 20261031173153: aprovisionar_tiendas_desde_cuentas_v2
-- 20261031174002: codigos_fijos_y_membresias_de_tiendas
-- 20261031174028: permisos_pedidos_y_tiendas_por_membresia
-- 20261031174138: invitaciones_tiendas_con_vencimiento
-- 20261031174201: funciones_invitacion_y_revocacion_tienda
-- 20261031174339: permisos_revision_roles_tienda_y_admin
-- 20261031174838: fix_extension_crypto_invitaciones
-- 20261031175310: empleada_solo_sus_pedidos_propietaria_todos
-- 20261031175620: listar_empleadas_solo_propietaria
-- 20261031181232: dataset_aislado_5_simulacros_50_rutas_5_motoristas
-- 20261031181255: consulta_solo_autenticados_simulacros
-- 20261031181847: lectura_perfil_propio_y_restringir_simulacros
-- 20261031182245: base_roles_propietario_socios_operadores
-- 20261031182256: funciones_invitacion_socios_acceso_correo
-- 20261031182904: flota_lectura_admin_por_empresa
-- 20261031183005: alta_propietario_validado_por_correo
-- 20261031183401: proteger_asignacion_rutas_y_bloquear_cierre_inseguro
-- 20261031183410: asegurar_estado_motorista_autorizado
-- 20261031184036: motoristas_registro_seguro_y_comision_20261031
-- 20261031184323: flota_revocacion_segura_socios_operadores_v2
-- 20261031184538: crear_ruta_general_segura_flota
-- 20261031184632: invitaciones_motoristas_con_acceso_unico
-- 20261031184754: cierre_entrega_atomico_con_movimiento_unico
-- 20261031184808: separar_efectivo_transferencia_en_movimientos
-- 20261031184847: lectura_segura_movimientos_para_caja
-- 20261031184932: rendicion_motoristas_presentada_con_desglose
-- 20261031184940: confirmacion_admin_rendicion_con_diferencias
-- 20261031185041: evitar_doble_movimiento_trigger_financiero
-- 20261031185128: asignacion_lote_atomica_sin_parciales
-- 20261031185200: confirmar_optimizacion_sin_romper_asignaciones
-- 20261031185217: fijar_comision_motorista_al_asignar_pedido
-- 20261031185225: respetar_permisos_financieros_de_socios_operadores
-- 20261031185323: acceso_demo_exclusivo_flota_autorizada
-- 20261031185507: crear_perfil_motorista_automatico_al_aceptar
-- 20261031185729: gps_voluntario_y_ultima_posicion_motorista
-- 20261031185824: guardar_orden_individual_sin_renumerar_ruta_general
-- 20261031185943: registro_tiendas_por_flota_con_invitacion_propietaria
-- 20261031190134: bloquear_autoregistro_no_autorizado_tiendas
-- 20261031190149: renovar_invitaciones_propietarias_no_activadas
-- 20261031190355: cerrar_ruta_solo_con_todas_entregas_resueltas
-- 20261031190455: conciliar_efectivo_y_transferencias_antes_confirmar
-- 20261031190528: proteger_caja_presentada_de_nuevos_cobros
-- 20261031190603: comision_general_y_especifica_de_flota
-- 20261031190622: registro_motorista_respeta_comision_general_actual
-- 20261031190815: cerrar_ejecucion_directa_funciones_trigger_internas
-- 20261031191048: laboratorio_demo_interactivo_sin_afectar_pedidos_reales
-- 20261031192216: rechazos_detalle_y_cobros_parciales_separados
-- 20261101192121: remove_unrestricted_financial_movements_policy
-- 20261101205726: route_order_support_up_to_2000_stops
-- 20261101221228: remove_isolated_demo_fleet_tables_and_rpcs
-- 20261101221740: pedido_edicion_segura_auditoria_versionada
-- 20261102001937: fix_secure_store_registration_unique_code
-- 20261102003129: self_service_store_requests_admin_approval
-- 20261102005454: simple_email_password_store_application
-- 20261102010130: activate_store_immediately_on_email_signup
-- 20261102010930: fix_store_profile_foreign_key_registration_order
-- 20261102012443: store_owner_update_profile_settings
-- 20261102012817: save_store_real_gps_coordinates
-- 20261102015832: pedidos_turno_manana_tarde
-- 20261102020246: enforce_single_confirmed_route_motorist_batch
-- 20261102020727: admin_safe_morning_afternoon_order_shift
-- 20261102021725: allow_store_queue_pending_order_into_open_dispatch_route
-- 20261102022300: require_shift_when_store_submits_order_to_route
-- 20261102024835: safe_shift_specific_route_identity
-- 20261102024854: store_route_shift_atomic_and_idempotent
-- 20261102024917: protect_confirmed_route_from_cross_shift_renumber
-- 20261102025045: explicit_safe_legacy_shift_requeue
-- 20261102025421: never_drop_prepared_orders_on_route_reoptimization
+| Version | Nombre |
+|---|---|
+| `20261031151845` | `indices_consultas_tiendas` |
+| `20261031151855` | `vistas_respetan_permisos_usuario` |
+| `20261031154850` | `restringir_acceso_general_pedidos` |
+| `20261031154926` | `lectura_pedidos_propios_tienda` |
+| `20261031154931` | `creacion_pedidos_por_tienda` |
+| `20261031154937` | `restringir_tiendas_autenticadas` |
+| `20261031154942` | `lectura_tienda_vinculada` |
+| `20261031155742` | `alta_autogestionada_tiendas_deliveryya` |
+| `20261031155749` | `un_usuario_una_tienda_deliveryya` |
+| `20261031161852` | `registro_perfil_tienda_autenticado` |
+| `20261031173129` | `tienda_cuentas_v2_aisladas` |
+| `20261031173153` | `aprovisionar_tiendas_desde_cuentas_v2` |
+| `20261031174002` | `codigos_fijos_y_membresias_de_tiendas` |
+| `20261031174028` | `permisos_pedidos_y_tiendas_por_membresia` |
+| `20261031174138` | `invitaciones_tiendas_con_vencimiento` |
+| `20261031174201` | `funciones_invitacion_y_revocacion_tienda` |
+| `20261031174339` | `permisos_revision_roles_tienda_y_admin` |
+| `20261031174838` | `fix_extension_crypto_invitaciones` |
+| `20261031175310` | `empleada_solo_sus_pedidos_propietaria_todos` |
+| `20261031175620` | `listar_empleadas_solo_propietaria` |
+| `20261031181232` | `dataset_aislado_5_simulacros_50_rutas_5_motoristas` |
+| `20261031181255` | `consulta_solo_autenticados_simulacros` |
+| `20261031181847` | `lectura_perfil_propio_y_restringir_simulacros` |
+| `20261031182245` | `base_roles_propietario_socios_operadores` |
+| `20261031182256` | `funciones_invitacion_socios_acceso_correo` |
+| `20261031182904` | `flota_lectura_admin_por_empresa` |
+| `20261031183005` | `alta_propietario_validado_por_correo` |
+| `20261031183401` | `proteger_asignacion_rutas_y_bloquear_cierre_inseguro` |
+| `20261031183410` | `asegurar_estado_motorista_autorizado` |
+| `20261031184036` | `motoristas_registro_seguro_y_comision_20261031` |
+| `20261031184323` | `flota_revocacion_segura_socios_operadores_v2` |
+| `20261031184538` | `crear_ruta_general_segura_flota` |
+| `20261031184632` | `invitaciones_motoristas_con_acceso_unico` |
+| `20261031184754` | `cierre_entrega_atomico_con_movimiento_unico` |
+| `20261031184808` | `separar_efectivo_transferencia_en_movimientos` |
+| `20261031184847` | `lectura_segura_movimientos_para_caja` |
+| `20261031184932` | `rendicion_motoristas_presentada_con_desglose` |
+| `20261031184940` | `confirmacion_admin_rendicion_con_diferencias` |
+| `20261031185041` | `evitar_doble_movimiento_trigger_financiero` |
+| `20261031185128` | `asignacion_lote_atomica_sin_parciales` |
+| `20261031185200` | `confirmar_optimizacion_sin_romper_asignaciones` |
+| `20261031185217` | `fijar_comision_motorista_al_asignar_pedido` |
+| `20261031185225` | `respetar_permisos_financieros_de_socios_operadores` |
+| `20261031185323` | `acceso_demo_exclusivo_flota_autorizada` |
+| `20261031185507` | `crear_perfil_motorista_automatico_al_aceptar` |
+| `20261031185729` | `gps_voluntario_y_ultima_posicion_motorista` |
+| `20261031185824` | `guardar_orden_individual_sin_renumerar_ruta_general` |
+| `20261031185943` | `registro_tiendas_por_flota_con_invitacion_propietaria` |
+| `20261031190134` | `bloquear_autoregistro_no_autorizado_tiendas` |
+| `20261031190149` | `renovar_invitaciones_propietarias_no_activadas` |
+| `20261031190355` | `cerrar_ruta_solo_con_todas_entregas_resueltas` |
+| `20261031190455` | `conciliar_efectivo_y_transferencias_antes_confirmar` |
+| `20261031190528` | `proteger_caja_presentada_de_nuevos_cobros` |
+| `20261031190603` | `comision_general_y_especifica_de_flota` |
+| `20261031190622` | `registro_motorista_respeta_comision_general_actual` |
+| `20261031190815` | `cerrar_ejecucion_directa_funciones_trigger_internas` |
+| `20261031191048` | `laboratorio_demo_interactivo_sin_afectar_pedidos_reales` |
+| `20261031192216` | `rechazos_detalle_y_cobros_parciales_separados` |
+| `20261101192121` | `remove_unrestricted_financial_movements_policy` |
+| `20261101205726` | `route_order_support_up_to_2000_stops` |
+| `20261101221228` | `remove_isolated_demo_fleet_tables_and_rpcs` |
+| `20261101221740` | `pedido_edicion_segura_auditoria_versionada` |
+| `20261102001937` | `fix_secure_store_registration_unique_code` |
+| `20261102003129` | `self_service_store_requests_admin_approval` |
+| `20261102005454` | `simple_email_password_store_application` |
+| `20261102010130` | `activate_store_immediately_on_email_signup` |
+| `20261102010930` | `fix_store_profile_foreign_key_registration_order` |
+| `20261102012443` | `store_owner_update_profile_settings` |
+| `20261102012817` | `save_store_real_gps_coordinates` |
+| `20261102015832` | `pedidos_turno_manana_tarde` |
+| `20261102020246` | `enforce_single_confirmed_route_motorist_batch` |
+| `20261102020727` | `admin_safe_morning_afternoon_order_shift` |
+| `20261102021725` | `allow_store_queue_pending_order_into_open_dispatch_route` |
+| `20261102022300` | `require_shift_when_store_submits_order_to_route` |
+| `20261102024835` | `safe_shift_specific_route_identity` |
+| `20261102024854` | `store_route_shift_atomic_and_idempotent` |
+| `20261102024917` | `protect_confirmed_route_from_cross_shift_renumber` |
+| `20261102025045` | `explicit_safe_legacy_shift_requeue` |
+| `20261102025421` | `never_drop_prepared_orders_on_route_reoptimization` |
+| `20261102033238` | `f1_f2_f6_rescate_rutas_y_cobros` |
+| `20261102033924` | `f3_f4_limpieza_y_endurecimiento` |
+| `20261102041730` | `confirmar_ruta_desde_1_parada` |
+| `20261102042520` | `tiempo_real_pedidos_motoristas` |
+| `20261102043649` | `rendicion_directa_y_contacto_jefe` |
+| `20261102050357` | `producto_y_tiendas_para_moto` |
+| `20261102051636` | `motorista_corrige_rendicion` |
+| `20261102115223` | `motorista_invitacion_cuenta_existente` |
+| `20261103005259` | `alta_tienda_no_para_flota` |
+| `20261103010544` | `flota_editar_motorista` |
+| `20261103020945` | `central_edita_pedido_asignado` |
+| `20261103155211` | `motorista_cierre_automatico_guardas_sin_cerrar_ruta_general` |
+| `20261103160147` | `proteger_rendicion_aceptada_de_correcciones_posteriores` |
+| `20261104102848` | `tienda_cancelar_pedido_seguro_auditado` |
+| `20261104141628` | `flota_lectura_segura_orden_individual_motoristas` |
+| `20261104142406` | `flota_asignacion_rapida_a_ruta_existente_sin_optimizar` |
+| `20261104144049` | `motorista_recorridos_optimizados_geometria_atomica_v1` |
+| `20261104150742` | `flota_reprogramar_pendientes_anteriores_con_asignacion_individual` |
+| `20261104151810` | `flota_google_optimizacion_cupo_preventivo_2026` |
+| `20261104193338` | `motorista_deshacer_editar_pedido_con_auditoria_y_caja_segura` |
+| `20261104224857` | `rendiciones_oficiales_compensaciones_pagos_confirmados_v1` |
+| `20261104225452` | `flota_pagos_tienda_validar_saldo_servidor_sin_sobrepago` |
+| `20261105011241` | `flota_pago_tienda_descuento_directo_rechazos_sin_cobro_20261104` |
+| `20261105012243` | `motoristas_retienen_ganancia_por_defecto` |
+| `20261105021059` | `reasignacion_motorista_transaccional_con_auditoria` |
+| `20261105021515` | `reasignacion_lote_atomica_con_versiones` |
+| `20261105021846` | `reasignacion_admite_no_recibio_sin_cobros` |
+| `20261105024126` | `reprogramacion_pedidos_asignados_a_jornada_futura_con_auditoria` |
+| `20261105031544` | `entregas_historicas_separar_fecha_contable_y_registro_real` |
+| `20261105152305` | `motorista_no_me_fui_evento_sin_movimientos_financieros` |
+| `20261105154931` | `motorista_ganancia_privada_por_pedido_y_fecha` |
+| `20261105161955` | `flota_liberar_pedidos_con_auditoria_y_guardas` |
+| `20261105164703` | `motorista_cierre_descuenta_ganancia_total_registrada_del_efectivo` |
+| `20261105165612` | `flota_saldos_rechazos_tiendas_lectura_control_deudas` |
+| `20261105165928` | `flota_aplicar_rechazos_pendientes_a_rendicion_con_saldo_y_sin_duplicar` |
+| `20261105184623` | `flota_tarifario_oficial_20_localidades_preservar_pedidos_y_tarifa_manual` |
+| `20261105220341` | `motorista_pasar_manana_automatico_seguro_con_auditoria` |
+| `20261105220720` | `motorista_incidente_antiguo_pasa_manana_deriva_a_reprogramacion_segura` |
+| `20261105220848` | `motorista_pasamanana_bloqueo_consistente_crear_rutas` |
+| `20261105221642` | `motorista_deshacer_no_me_fui_individual_con_auditoria_y_sin_cobro` |
+| `20261105222713` | `flota_central_pasar_pendientes_manana_lote_atomico_desde_sin_ruta_o_asignado` |
+| `20261105225329` | `fix_reorganizar_pendientes_conservar_ruta_en_reparto` |
+| `20261105225448` | `reporte_auditable_pedidos_pasados_manana_por_tienda_y_motorista` |
+| `20261105225831` | `flota_anexar_solo_nuevos_de_fecha_destino_no_historicos` |
+| `20261105230131` | `central_pasamanana_reprograma_no_me_fui_y_no_responde_sin_cobros` |
+| `20261105231927` | `flota_liberar_asignacion_futura_segura_con_auditoria` |
+| `20261109221920` | `boom_store_t14_minimo_delivery_v1` |
+| `20261109222254` | `boom_store_ajuste_abonos_producto_pagado` |
+| `20261109222437` | `boom_t14_proteccion_columnas_inmutables` |
+| `20261109222707` | `boom_t14_minimo_real_25k_validacion_precisa` |
+| `20261110024823` | `flota_comision_fija_colaboradores_0_por_ciento_v1` |
+| `20261110030023` | `flota_persa_t3_operacion_interna_separar_finanzas_v1` |
+| `20261110120924` | `flota_quitar_pedidos_seleccionados_de_ruta_sin_borrar_v1` |
+| `20261110122542` | `boom_subsidio_5000_solo_pedidos_desde_2026_11_10` |
+| `20261110135026` | `flota_quitar_ruta_incluye_nuevos_sin_asignar_20261110` |

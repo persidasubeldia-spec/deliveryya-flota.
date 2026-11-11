@@ -20,4 +20,5 @@ jobs:
       - name: Pruebas sin credenciales ni operaciones reales
         run: |
           node --version
-          node --test tests/flota-smoke.test.mjs
+          node --test tests/*.test.mjs
+          node scripts/smoke.mjs
