@@ -2420,6 +2420,7 @@ const get=async fecha=>{
 };
 let seq=0;let fecha=hoy();let cache=[];let estadoFiltro='todos';let busqueda='';
 const rolOK=()=>!!account&&(account.rol==='propietario'||account.puede_finanzas);
+const puedeRecibir=()=>!!account&&(account.rol==='propietario'||account.puede_confirmar_rendiciones);
 const cell=(title,value,extra='')=>'<div><small>'+title+'</small><b class="'+extra+'">'+value+'</b></div>';
 const semaforo=s=>s==='rojo'?'🔴 Diferencia':s==='verde'?'🟢 Rendido':'🟡 Pendiente';
 const entrego=r=>r.entrego===null||r.entrego===undefined?'Sin confirmar':fmt(r.entrego);
@@ -2441,13 +2442,38 @@ function rows(){
  cell('Falta recibir',diferencia(r))+
  cell('Pendientes / pasa mañana',e(r.pendientes)+' / '+e(r.pasa_manana))+
  '</div><p class="dy-rm-note">Motivo: '+e(r.motivo||'Sin observaciones')+'</p>'+
- '<div class="dy-rm-actions"><button type="button" data-rm-detail="'+i+'">Ver pedidos y movimientos</button><button type="button" data-rm-pdf>Ir a rendición y PDF</button></div>'+
+ '<div class="dy-rm-actions"><button type="button" data-rm-detail="'+i+'">Ver pedidos y movimientos</button><button type="button" data-rm-pdf>Ir a rendición y PDF</button>'+(r.cierre_id&&r.fecha_confirmacion==null&&puedeRecibir()?'<button type="button" data-rm-recibir="'+i+'" style="background:#1765ba;color:white">Registrar dinero recibido</button>':'')+'</div>'+
+ '<div class="dy-rm-recibir card" hidden><h4>Confirmar recepción real · '+e(r.motorista_nombre)+'</h4><p>Ingresá exactamente cuánto recibiste. No se cargan valores automáticamente ni se modifica el pedido original.</p><div class="dy-rm-toolbar"><label>Efectivo recibido (Gs.) <input type="number" name="efectivo" inputmode="numeric" min="0" step="1" placeholder="Ej.: 250000"></label><label>Transferencia verificada (Gs.) <input type="number" name="transferencia" inputmode="numeric" min="0" step="1" placeholder="Ej.: 0"></label><button type="button" data-rm-save>Guardar recepción</button></div><p role="status" class="dy-rm-note" data-rm-result></p></div>'+ 
  '<div class="dy-rm-detail" id="dyRmDetalle'+i+'" hidden><p><b>Fecha del movimiento</b> determina el cobro de esta caja; las entregas de otra jornada se señalan aparte.</p><div class="scroll"><table><thead><tr><th>N.º</th><th>Cliente</th><th>Tienda</th><th>Turno</th><th>Estado</th><th>Efectivo</th><th>Transferencia</th><th>Ganancia</th><th>Observación</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><p class="dy-rm-note">La ganancia se toma de movimientos registrados, no de porcentajes recalculados. Cobros de otras fechas NO se suman a la caja seleccionada.</p></div></section>';
  }).join(''):'<div class="card">Sin motoristas con esos filtros o sin operaciones para la fecha.</div>';
  host.querySelectorAll('[data-rm-detail]').forEach((b,i)=>b.onclick=()=>{
  const el=b.closest('section').querySelector('.dy-rm-detail');el.hidden=!el.hidden;b.textContent=el.hidden?'Ver pedidos y movimientos':'Ocultar detalle';
  });
  host.querySelectorAll('[data-rm-pdf]').forEach(b=>b.onclick=()=>{rdEstado.fecha=fecha;page('Rendiciones')});
+ host.querySelectorAll('[data-rm-recibir]').forEach(b=>b.onclick=()=>{
+   const section=b.closest('section'),form=section.querySelector('.dy-rm-recibir');
+   form.hidden=!form.hidden;
+   b.textContent=form.hidden?'Registrar dinero recibido':'Ocultar formulario';
+ });
+ host.querySelectorAll('[data-rm-save]').forEach(b=>b.onclick=async()=>{
+   const section=b.closest('section'),form=section.querySelector('.dy-rm-recibir');
+   const all=Array.from(host.querySelectorAll('.dy-rm-row'));
+   const idx=all.indexOf(section);const r=a[idx];const msg=form.querySelector('[data-rm-result]');
+   const efectivo=form.querySelector('[name=efectivo]').value.trim();
+   const transferencia=form.querySelector('[name=transferencia]').value.trim();
+   if(!efectivo||!transferencia||![efectivo,transferencia].every(x=>/^\d+$/.test(x)&&Number.isSafeInteger(Number(x)))){
+     msg.textContent='Completá ambos importes con números enteros en guaraníes.';return;
+   }
+   if(!r?.cierre_id){msg.textContent='Este motorista todavía no tiene cierre presentado.';return}
+   b.disabled=true;msg.textContent='Registrando recepción...';
+   try{
+     const {error}=await client.rpc('flota_confirmar_recepcion_caja',{
+       p_cierre:r.cierre_id,p_efectivo_recibido:Number(efectivo),p_transferencia_confirmada:Number(transferencia)
+     });
+     if(error)throw Error(error.message);
+     await render();
+   }catch(ex){msg.textContent='No se registró: '+ex.message;b.disabled=false}
+ });
 }
 function repaint(){
  const target=document.getElementById('dyRmDatos');if(!target)return;
