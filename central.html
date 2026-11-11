@@ -1024,13 +1024,9 @@ function rdTiendas(d){
   t.pagado=d.pagos.filter(p=>p.tienda_id===t.tienda.id).reduce((v,p)=>v+Number(p.importe||0),0);
   // Rechazos a cargo de tienda se descuentan automáticamente del neto.
   // Una compensación explícita reemplaza el cargo pendiente, evitando dobles descuentos.
-  // Boom Store · 10/11/2026: visitas efectivas sin recepción ni cobro.
-  // Cargo de envío completo por pedido, una sola vez, sin sumar el subsidio de nuevo.
-  t.noRecibioCargos=(d.fecha==='2026-11-10' && (t.tienda.codigo==='T14'||t.tienda.nombre_comercial==='Boom Store'))
-   ?t.pedidos.filter(p=>p.estado==='no_recibio'&&p.motorista_id&&/mal su ubicacion/i.test(String(p.motivo_incidencia||''))
-     &&!d.compensaciones.some(c=>c.pedido_id===p.id)
-     &&!t.filas.some(f=>f.p.id===p.id)).reduce((a,p)=>a+Number(p.precio_delivery||0),0):0;
-  t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado-t.noRecibioCargos;
+  // Solo cobros y descuentos financieros confirmados; incidencias sin cobro no se cargan a la tienda.
+  t.noRecibioCargos=0;
+  t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado;
   t.saldo=t.neto-t.pagado;
  }
  return [...out.values()].sort((a,b)=>String(a.tienda.codigo).localeCompare(String(b.tienda.codigo),'es',{numeric:true}));
@@ -1378,7 +1374,7 @@ async function rdPdf(t,fecha){
   const descontado=cobroRechazo>0&&!compensado&&!(datosAudit.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&Number(z.compensado)>0);
   const cargo=descontado?'Delivery por rechazo: '+rdGs(cobroRechazo)+' descontados de la rendición':'Cargo '+rdGs(cobroRechazo)+(compensado?' COMPENSADO':' PENDIENTE');
   const aporte=est==='entregado'&&Number(p.delivery_subsidio_tienda||0)>0?' · Subsidio tienda: '+rdGs(p.delivery_subsidio_tienda):'';
-  const visita=est==='no_recibio'&&fecha==='2026-11-10'&&(t.tienda.codigo==='T14'||t.tienda.nombre_comercial==='Boom Store')&&p.motorista_id&&/mal su ubicacion/i.test(String(p.motivo_incidencia||''))?' · Visita sin cobro: '+rdGs(p.precio_delivery||0)+' a cargo de Boom Store':'';
+  const visita='';
   const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte+visita;
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
@@ -1417,7 +1413,6 @@ async function rdPdf(t,fecha){
   ['Envíos previamente pagados por tienda (-)',t.enviosPagadosTienda],
   ['Compensaciones de rechazo confirmadas (-)',t.compensado],
   ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
-  ['Visitas sin cobro (Maicol y Fernando) (-)',t.noRecibioCargos],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
