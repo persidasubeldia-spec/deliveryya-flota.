@@ -30,5 +30,12 @@ La nueva vista conserva la fórmula de la RPC y los valores de cierre; NO altera
 4. Con respaldo y aprobación explícita, aplicar SQL solo al proyecto sxhuvjvbqkovivcbisrn.
 5. Fusionar PR a main después de comprobar la RPC, pues el push publica en Cloudflare.
 
+## Confirmación del dinero realmente recibido
+- Un cierre presentado por el motorista puede contener confirmed_at y estado confirmada sin comprobante de recepción de Central. La nueva vista no lo considera dinero recibido salvo confirmado_por con autorización financiera de Central.
+- Nueva función flota_confirmar_recepcion_caja actualiza exclusivamente el cierre existente, con autorización estricta, bloqueo de fila, idempotencia y rechazo de doble confirmación distinta; no altera movimientos ni comisiones.
+- No se precargan los importes: Central escribe efectivo y transferencia realmente recibidos, directamente en el detalle del motorista.
+- Migración: supabase/migrations/20261111111000_flota_confirmar_recepcion_caja.sql
+- Rollback: supabase/rollback/20261111111000_flota_confirmar_recepcion_caja.sql
+
 ## Fuera de alcance
 No se modifican datos históricos, motorista.html, index.html, PDF ni el proceso actual de registrar y confirmar cajas.
