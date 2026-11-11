@@ -72,9 +72,9 @@ BEGIN
         count(*) FILTER (WHERE p.estado NOT IN ('entregado','rechazado','cancelado')) AS abiertos,
         count(*) FILTER (WHERE p.estado='pasa_manana') AS manana,
         count(*) FILTER (WHERE p.estado='entregado' AND NOT EXISTS
-          (SELECT 1 FROM public.movimientos_financieros m WHERE m.pedido_id=p.id AND m.empresa_id=v_empresa)) AS sin_movimiento,
+          (SELECT 1 FROM public.movimientos_financieros m WHERE m.pedido_id=p.id AND m.empresa_id=v_empresa AND m.motorista_id=d.id)) AS sin_movimiento,
         count(*) FILTER (WHERE EXISTS
-          (SELECT 1 FROM public.movimientos_financieros m WHERE m.pedido_id=p.id AND m.empresa_id=v_empresa AND (m.created_at AT TIME ZONE 'America/Asuncion')::date <> p_fecha)) AS fecha_distinta
+          (SELECT 1 FROM public.movimientos_financieros m WHERE m.pedido_id=p.id AND m.empresa_id=v_empresa AND m.motorista_id=d.id AND (m.created_at AT TIME ZONE 'America/Asuncion')::date <> p_fecha)) AS fecha_distinta
       FROM public.pedidos p
       LEFT JOIN public.rutas_generales rt ON rt.id=p.ruta_general_id AND rt.empresa_id=v_empresa
       WHERE p.empresa_id=v_empresa AND p.motorista_id=d.id
@@ -121,7 +121,7 @@ BEGIN
           count(*) FILTER (WHERE (m.created_at AT TIME ZONE 'America/Asuncion')::date=p_fecha) AS cantidad,
           count(*) FILTER (WHERE (m.created_at AT TIME ZONE 'America/Asuncion')::date<>p_fecha) AS otras_fechas,
           count(*) AS todos_movimientos
-        FROM public.movimientos_financieros m WHERE m.pedido_id=p.id AND m.empresa_id=v_empresa
+        FROM public.movimientos_financieros m WHERE m.pedido_id=p.id AND m.empresa_id=v_empresa AND m.motorista_id=d.id
       ) mm ON true
       WHERE p.empresa_id=v_empresa AND p.motorista_id=d.id
         AND coalesce(rt.fecha,(p.created_at AT TIME ZONE 'America/Asuncion')::date)=p_fecha
