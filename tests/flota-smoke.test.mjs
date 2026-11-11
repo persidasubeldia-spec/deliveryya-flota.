@@ -23,7 +23,7 @@ test('Central conserva asignación segura, fecha operativa y filtros sincronizad
   "fechaOperativa(o)",
   "function visiblesTurno()",
   "barra(ps);dibujar(ps);st.firma=firma()",
-  "st.sel.clear();st.fit=false;refrescar()",
+  "st.sel.clear();st.fit=false;pintar()",
   "https://deliveryya-flota.pages.dev/motorista.html"
  ])assert.ok(central.includes(token),'Falta '+token);
 });
@@ -106,7 +106,7 @@ test('Rendición oficial separa motociclista, tienda y administración',()=>{
 });
 
 test('Finanzas no cuenta rechazos impagos como comisiones realizadas',()=>{
- assert.ok(central.includes("const entregasCobradas=m.filter(mv=>x.porPedido.get(mv.pedido_id)?.estado==='entregado'"));
+ assert.ok(central.includes("const entregasCobradas=mComercial.filter(mv=>x.porPedido.get(mv.pedido_id)?.estado==='entregado'"));
  assert.ok(central.includes("const pendientesRechazo=m.filter(mv=>mv.es_rechazo_facturable"));
  assert.ok(central.includes("cobrada('comision_empresa')"));
  assert.ok(central.includes("cobrada('comision_motorista')"));

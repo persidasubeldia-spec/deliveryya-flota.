@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 function fixture(date='2026-11-06',owner='m1'){
- const nodes=new Map();const el=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',classList:{toggle(){}},querySelectorAll(){return []}});return nodes.get(id)};
+ const nodes=new Map();const el=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',classList:{toggle(){}},querySelectorAll(){return []},remove(){}});return nodes.get(id)};
  const d={id:'m1',nombre:'Notario',activo:true,telefono:'0981000000'};
  const orders=[1,2,3].map(i=>({id:'p'+i,nombre_cliente:'Cliente '+i,motorista_id:owner,estado:'pendiente',ruta_general_id:'r1',turno:'manana',numero_general:i,lat:-25.3,lng:-57.5}));
  const opened=[];const context={Date,Set,Map,Number,String,Math,console,orders,drivers:[d],routes:[{id:'r1',fecha:date}],stores:[],location:{origin:'https://deliveryya-flota.pages.dev'},document:{getElementById:id=>id==='content'?null:el(id)},$:el,setInterval(){},confirm(){return true},dyOrdenMotorista:xs=>xs,window:{addEventListener(){},open:url=>opened.push(url)}};
