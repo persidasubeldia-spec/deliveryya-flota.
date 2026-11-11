@@ -12,7 +12,7 @@ const sinSubsidio={precio_mercaderia:100000,precio_delivery:30000,delivery_clien
 test('Boom Store existente muestra 20.000 al cliente, 5.000 a tienda y 25.000 real',()=>{
  assert.deepEqual(helpers.dyEnvioValoresCentral(boom),{real:25000,cliente:20000,subsidio:5000});
  const vista=helpers.dyEnvioVistaCentral(boom);
- for(const v of ['Cliente: Gs. 20.000','Tienda: Gs. 5.000','Tarifa real: Gs. 25.000'])assert.ok(vista.includes(v),v);
+ for(const v of ['Cliente paga: Gs. 20.000','Tienda: Gs. 5.000','Tarifa real: Gs. 25.000'])assert.ok(vista.includes(v),v);
  assert.equal(boom.precio_mercaderia+helpers.dyEnvioValoresCentral(boom).cliente,120000);
 });
 test('La misma visualización sirve para pedidos de hoy y futuros sin fecha especial',()=>{
@@ -32,8 +32,8 @@ test('La edición de tarifa Boom respeta la regla oficial y recalcula el cobro a
  assert.deepEqual(helpers.dyEnvioPreviewCentral(sinSubsidio,35000),{real:35000,cliente:35000,subsidio:0});
 });
 test('Lista, detalle y ruta usan desglose; WhatsApp toma delivery del cliente',()=>{
- assert.match(html,/<th>Envío \(cliente \/ tienda \/ real\)<\/th>/);
- assert.match(html,/money\(o\.precio_mercaderia\)\+'<\/td><td>'\+dyEnvioVistaCentral\(o\)/);
+ assert.match(html,/<th>Envío \(original tienda \/ cliente \/ subsidio \/ real\)<\/th>/);
+ assert.match(html,/dyMercaderiaVistaCentral\(o\)\+'<\/td><td>'\+dyEnvioVistaCentral\(o\)/);
  assert.match(html,/Envío: '\+dyEnvioVistaCentral\(o\)/);
  assert.match(html,/Total a cobrar cliente/);
  assert.match(html,/dyEnvioValoresCentral\(o\)\.cliente,o\.modalidad_pago/);
