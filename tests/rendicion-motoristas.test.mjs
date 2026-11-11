@@ -46,6 +46,20 @@ test('Una sola caja por día con mañana y tarde',()=>{
  assert.match(sql,/duplicados/);
 });
 
+test('Registro de recepción real usa cierre existente y permisos fuertes',()=>{
+ const confirmacion=file('supabase/migrations/20261111111000_flota_confirmar_recepcion_caja.sql');
+ const rev=file('supabase/rollback/20261111111000_flota_confirmar_recepcion_caja.sql');
+ assert.match(confirmacion,/CREATE OR REPLACE FUNCTION public\.flota_confirmar_recepcion_caja/);
+ assert.match(confirmacion,/u\.rol='propietario' OR u\.puede_confirmar_rendiciones/);
+ assert.match(confirmacion,/UPDATE public\.flota_cierres_motoristas SET/);
+ assert.match(confirmacion,/Caja ya recibida por Central/);
+ assert.match(confirmacion,/RETURN true; -- Reintento idéntico/);
+ assert.match(rev,/DROP FUNCTION IF EXISTS public\.flota_confirmar_recepcion_caja/);
+ assert.match(script,/flota_confirmar_recepcion_caja/);
+ assert.match(script,/Registrar dinero recibido/);
+ assert.match(script,/Completá ambos importes/);
+});
+
 test('Interfaz no confunde dinero confirmado con caja sin rendir',()=>{
  assert.match(script,/Transferencias/);
  assert.match(script,/DEBE RENDIR AL JEFE/);
