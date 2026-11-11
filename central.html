@@ -992,7 +992,7 @@ function rdTiendas(d){
  const out=new Map();
  const asegurar=(id)=>{
   if(out.has(id))return out.get(id);
-  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,noRecibioCargos:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech,pasados:[]};
+  const t={tienda:stores.find(s=>s.id===id)||{id,nombre_comercial:'Tienda',codigo:'?'},filas:[],pedidos:[],merc:0,env:0,debe:0,ent:0,rej:0,turnos:{},neto:0,cargosPendientes:0,noRecibioCargos:0,subsidiosTienda:0,enviosPagadosTienda:0,compensado:0,pagado:0,saldo:0,rechazos:d.rech,pasados:[]};
   out.set(id,t);return t;
  };
  // La rendición financiera se mantiene exclusivamente sobre movimientos reales.
@@ -1001,6 +1001,8 @@ function rdTiendas(d){
   if(stores.some(st=>st.id===p.tienda_id&&st.uso_interno_logistico===true))continue;
   const t=asegurar(p.tienda_id),l=rdLineaTienda(m,p,d.rech.get(p.id));
   t.filas.push({p,m,l});t.merc+=l.merc;t.env+=l.envCliente;t.debe+=l.debeTienda;
+  if(l.ent&&p.modalidad_pago!=='todo_pagado')t.subsidiosTienda+=Number(p.delivery_subsidio_tienda||0);
+  if(l.ent&&p.modalidad_pago==='todo_pagado')t.enviosPagadosTienda+=Number(m.monto_delivery||0);
   if(l.ent)t.ent++;if(l.rej)t.rej++;
   const tu=p.turno||'sin_definir';t.turnos[tu]=(t.turnos[tu]||0)+1;
  }
@@ -1411,7 +1413,8 @@ async function rdPdf(t,fecha){
  txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
  const financiero=[
   ['Mercaderia cobrada para la tienda (+)',t.merc],
-  ['Envíos y aporte tienda a cargo de Boom Store (-)',t.debe],
+  ['Subsidios de delivery a cargo de Boom Store (-)',t.subsidiosTienda],
+  ['Envíos previamente pagados por tienda (-)',t.enviosPagadosTienda],
   ['Compensaciones de rechazo confirmadas (-)',t.compensado],
   ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
   ['Visitas sin cobro (Maicol y Fernando) (-)',t.noRecibioCargos],
