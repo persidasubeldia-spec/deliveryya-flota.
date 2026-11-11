@@ -1,0 +1,2 @@
+-- No borrar esta tabla en rollback: contiene evidencia financiera histórica.
+-- Revertir únicamente cualquier interfaz o integración que se agregue posteriormente.
