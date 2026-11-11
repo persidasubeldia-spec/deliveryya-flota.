@@ -454,8 +454,8 @@ document.getElementById('verRendDia').onclick=()=>{rdEstado.fecha=filtroDia;page
 }catch(e){const b=document.getElementById('valFin');if(v===filtroVersion&&b)b.textContent='No se pudieron consultar los movimientos: '+e.message}
 }
 
-const pages=['Inicio','Pedidos','Rutas','Seguimiento','Motoristas','Tiendas','Rendiciones','Finanzas','Usuarios y socios'];function table(head,rows){return '<div class="card scroll"><table><thead><tr>'+head.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}function summary(name,val){return '<div class="card"><div class="muted">'+name+'</div><div class="number">'+val+'</div></div>'}
-function page(n){let html='<h2>'+n+'</h2>';if(n==='Rendiciones')html+='<div id="rendRoot"></div>';if(n==='Inicio'){
+const pages=['Inicio','Pedidos','Rutas','Seguimiento','Motoristas','Tiendas','Rendiciones','Rendición por motorista','Finanzas','Usuarios y socios'];function table(head,rows){return '<div class="card scroll"><table><thead><tr>'+head.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}function summary(name,val){return '<div class="card"><div class="muted">'+name+'</div><div class="number">'+val+'</div></div>'}
+function page(n){let html='<h2>'+n+'</h2>';if(n==='Rendiciones')html+='<div id="rendRoot"></div>';if(n==='Rendición por motorista')html+='<div id="dyRendicionMotoristas"></div>';if(n==='Inicio'){
  const today=filtroDia;
  const todays=orders.filter(o=>o.estado!=='cancelado'&&dyFechaOperativaCentral(o)===today);
  const open=todays.filter(o=>o.estado==='pendiente'&&!o.motorista_id);
@@ -468,6 +468,7 @@ function page(n){let html='<h2>'+n+'</h2>';if(n==='Rendiciones')html+='<div id="
  html+='<details id="pendingStoreAlert" class="card dy-fold" style="border-left:5px solid #d58b18"'+(pendingShopRequests.length?' open':'')+'><summary>📝 Solicitudes de tiendas <span class="dy-badge'+(pendingShopRequests.length?' dy-warn':'')+'">'+pendingShopRequests.length+'</span></summary>'+(pendingShopRequests.length?pendingShopRequests.map(r=>'<div style="padding:12px;border-bottom:1px solid #dde5ef"><b>'+escapeHtml(r.nombre)+'</b> · '+escapeHtml(r.responsable)+'<p>'+escapeHtml(r.correo)+' · '+escapeHtml(r.telefono)+' · '+escapeHtml(r.direccion||'Sin dirección')+'</p><button data-accept-shop="'+escapeHtml(r.id)+'">Aprobar</button> <button data-reject-shop="'+escapeHtml(r.id)+'">Rechazar</button></div>').join(''):'<p>No hay solicitudes pendientes.</p>')+'</details>';
  html+='<div class="card" style="border-left:5px solid #1765ba" id="newOrdersPanel"><div class="toolbar"><strong>🔔 Pedidos nuevos <span id="newOrdersCount">('+newOrderAlerts.length+')</span></strong><button id="enableOrderSound" type="button">'+(notificationSoundEnabled?'🔊 Sonido activado':'🔕 Activar sonido')+'</button><button id="checkNewOrders" type="button">↻ Revisar ahora</button><button id="reviewNewOrders" type="button">Ver pedidos</button></div><p id="newOrdersDetail">'+(newOrderAlerts.length?newOrderAlerts.slice(0,5).map(o=>escapeHtml(o.nombre_cliente||'Pedido')+' · '+escapeHtml(stores.find(t=>t.id===o.tienda_id)?.codigo||'Tienda')).join(' | '):'Monitoreo activo: recibirás avisos de nuevos pedidos mientras esta Central esté abierta.')+'</p><p class="muted" id="newOrdersWatchStatus">'+escapeHtml(lastOrderWatchError||'Actualización automática y comprobación al volver a la pestaña.')+'</p></div>';
  html+='<div class="grid">'+kpis.map(([label,val,key])=>'<button class="card metric" data-kpi="'+key+'" style="text-align:left"><small>'+label+'</small><strong>'+val+'</strong><small>Consultar →</small></button>').join('')+'</div>';
+ if(account&&(account.rol==='propietario'||account.puede_finanzas))html+='<div class="card dy-rm-home" id="dyRmInicio"><div class="dy-rm-homebar"><div><h3 style="margin:0">💰 Pendientes de rendición</h3><p class="muted" style="margin:5px 0">¿Cuánto debe entregarte cada motorista?</p></div><button type="button" id="dyRmAbrirInicio" class="btn-primary">Ver cuánto me deben →</button></div><div id="dyRmPendientesResumen" role="status" aria-live="polite">Consultando las cajas del día…</div></div>'; 
  html+='<div class="card"><h3>Acciones rápidas</h3><div class="toolbar"><button class="btn-primary" data-home="Rutas">Preparar ruta</button><button data-home="Rutas">Ver repartos</button><button data-home="Pedidos">Revisar pedidos</button><button data-home="Finanzas" '+(!(account.rol==='propietario'||account.puede_finanzas)?'disabled':'')+'>Cerrar operaciones</button></div></div>';
  html+='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"><div class="card"><h3>Atención necesaria</h3><p><button type="button" data-dyattention="sinGps">'+todays.filter(o=>o.estado==='pendiente'&&(o.lat==null||o.lng==null)).length+' pedidos sin GPS →</button></p><p><button type="button" data-dyattention="sinMoto">'+open.length+' sin motorista →</button></p><p><button type="button" data-dyattention="rendiciones">'+closures.filter(c=>c.fecha===today&&c.estado!=='confirmada').length+' rendiciones por revisar →</button></p></div><div class="card"><h3>Actividad reciente</h3>'+[...todays].sort((a,b)=>String(b.updated_at||b.created_at).localeCompare(String(a.updated_at||a.created_at))).slice(0,5).map(o=>'<p><button type="button" data-dyrecent="'+escapeHtml(o.id)+'"><strong>'+escapeHtml(o.nombre_cliente)+'</strong> · <span class="badge-state" data-state="'+escapeHtml(o.estado)+'">'+escapeHtml(o.estado)+'</span></button></p>').join('')+'</div></div>';
 }
@@ -497,6 +498,8 @@ $('content').innerHTML=html;
  if(n==='Finanzas'){const host=$('content'),toolbar=host.querySelector('.toolbar:has([data-fin-view])');if(toolbar){const details=document.createElement('details');details.className='card';details.innerHTML='<summary>Reportes anteriores (acumulados históricos sin filtro)</summary>';toolbar.before(details);details.append(toolbar);['finOverview','finDrivers','finStores'].forEach(id=>{const el=document.getElementById(id);if(el)details.append(el)})}}
  if(n==='Inicio'||n==='Finanzas')mostrarDia();
 if(n==='Rendiciones')dyRendiciones();
+if(n==='Rendición por motorista')window.dyRendicionPanel?.();
+if(n==='Inicio')window.dyRendPendientes?.();
 if(n==='Inicio'){
  $('homeReload').onclick=()=>start();
  document.querySelectorAll('[data-dyattention]').forEach(b=>b.onclick=()=>{const kind=b.dataset.dyattention;if(kind==='rendiciones'){rdEstado.fecha=filtroDia;page('Rendiciones')}else{window.dyFiltroAtencion=kind;page('Pedidos')}});
@@ -884,7 +887,7 @@ drivers=r.data||[];page('Motoristas');
 }}
 }
 client.auth.onAuthStateChange((evento,sesion)=>{if(account&&(evento==='SIGNED_OUT'||(sesion?.user?.id&&sesion.user.id!==account.usuario_id)))location.reload();});
-async function start(){const {data:{session}}=await client.auth.getSession();if(!session)return;const token=new URLSearchParams(location.search).get('invite');if(token){const result=await client.rpc('flota_aceptar_invitacion',{p_token:token});if(result.error){$('error').textContent='Invitación: '+result.error.message;}else{history.replaceState(null,'',location.pathname);}}const {data,error}=await client.from('flota_usuarios').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(error||!data?.length){if(await dyIrAlRol(client,'dyf-auth-central','central'))return;const claimed=await client.rpc('flota_reclamar_propiedad');if(claimed.error){if(await dyIrAlRol(client,'dyf-auth-central','central',{nuevaVaTienda:true}))return;$('error').textContent='Esta cuenta no tiene acceso a la Central. Si sos tienda o motorista, entrá desde https://deliveryya-flota.pages.dev/app.html';return}const updated=await client.from('flota_usuarios').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(updated.error||!updated.data?.length){$('error').textContent='No se pudo completar la autorización';return}account=updated.data[0]}else{account=data[0]}const id=account.empresa_id;const r=await Promise.all([cargarTodosLosPedidos(id).then(data=>({data,error:null})).catch(error=>({data:null,error})),client.from('tiendas').select('*').eq('empresa_id',id),client.from('motoristas').select('*').eq('empresa_id',id),client.from('movimientos_financieros').select('*').eq('empresa_id',id).limit(2000),client.from('flota_cierres_motoristas').select('*').eq('empresa_id',id).order('created_at',{ascending:false}).limit(200),client.from('rutas_generales').select('*').eq('empresa_id',id).order('fecha',{ascending:false}).limit(100),client.from('flota_rechazos_detalle').select('*').eq('empresa_id',id).limit(1000)]);if(r.some(x=>x.error)){$('error').textContent='La cuenta necesita permisos de lectura en Supabase.';return}[orders,stores,drivers,movements,closures,routes,rejections]=r.map(x=>x.data||[]);await dyActualizarOrdenesMoto(filtroDia);const solicitudes=await client.rpc('flota_solicitudes_tienda_pendientes');pendingShopRequests=solicitudes.error?[]:(solicitudes.data||[]);if(solicitudes.error)console.warn('No se pudieron cargar solicitudes:',solicitudes.error.message);const pctResult=await client.rpc('flota_leer_comision_general',{p_empresa:id});if(!pctResult.error&&pctResult.data!=null)companyPct=Number(pctResult.data);$('login').classList.add('hidden');$('app').classList.remove('hidden');const visiblePages=pages.filter(p=>p!=='Usuarios y socios'&&(!['Finanzas','Rendiciones'].includes(p)||account.rol==='propietario'||account.puede_finanzas));$('nav').innerHTML=visiblePages.map((p,i)=>'<button data-i="'+i+'">'+p+'</button>').join('');document.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');page(visiblePages[+b.dataset.i])});page('Inicio');beginOrderWatcher()}
+async function start(){const {data:{session}}=await client.auth.getSession();if(!session)return;const token=new URLSearchParams(location.search).get('invite');if(token){const result=await client.rpc('flota_aceptar_invitacion',{p_token:token});if(result.error){$('error').textContent='Invitación: '+result.error.message;}else{history.replaceState(null,'',location.pathname);}}const {data,error}=await client.from('flota_usuarios').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(error||!data?.length){if(await dyIrAlRol(client,'dyf-auth-central','central'))return;const claimed=await client.rpc('flota_reclamar_propiedad');if(claimed.error){if(await dyIrAlRol(client,'dyf-auth-central','central',{nuevaVaTienda:true}))return;$('error').textContent='Esta cuenta no tiene acceso a la Central. Si sos tienda o motorista, entrá desde https://deliveryya-flota.pages.dev/app.html';return}const updated=await client.from('flota_usuarios').select('*').eq('usuario_id',session.user.id).eq('activo',true).limit(1);if(updated.error||!updated.data?.length){$('error').textContent='No se pudo completar la autorización';return}account=updated.data[0]}else{account=data[0]}const id=account.empresa_id;const r=await Promise.all([cargarTodosLosPedidos(id).then(data=>({data,error:null})).catch(error=>({data:null,error})),client.from('tiendas').select('*').eq('empresa_id',id),client.from('motoristas').select('*').eq('empresa_id',id),client.from('movimientos_financieros').select('*').eq('empresa_id',id).limit(2000),client.from('flota_cierres_motoristas').select('*').eq('empresa_id',id).order('created_at',{ascending:false}).limit(200),client.from('rutas_generales').select('*').eq('empresa_id',id).order('fecha',{ascending:false}).limit(100),client.from('flota_rechazos_detalle').select('*').eq('empresa_id',id).limit(1000)]);if(r.some(x=>x.error)){$('error').textContent='La cuenta necesita permisos de lectura en Supabase.';return}[orders,stores,drivers,movements,closures,routes,rejections]=r.map(x=>x.data||[]);await dyActualizarOrdenesMoto(filtroDia);const solicitudes=await client.rpc('flota_solicitudes_tienda_pendientes');pendingShopRequests=solicitudes.error?[]:(solicitudes.data||[]);if(solicitudes.error)console.warn('No se pudieron cargar solicitudes:',solicitudes.error.message);const pctResult=await client.rpc('flota_leer_comision_general',{p_empresa:id});if(!pctResult.error&&pctResult.data!=null)companyPct=Number(pctResult.data);$('login').classList.add('hidden');$('app').classList.remove('hidden');const visiblePages=pages.filter(p=>p!=='Usuarios y socios'&&(!['Finanzas','Rendiciones','Rendición por motorista'].includes(p)||account.rol==='propietario'||account.puede_finanzas));$('nav').innerHTML=visiblePages.map((p,i)=>'<button data-i="'+i+'">'+p+'</button>').join('');document.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');page(visiblePages[+b.dataset.i])});page('Inicio');beginOrderWatcher()}
 let orderWatchBusy=false,orderRealtime=null;
 function notifyNewOrders(items){
  if(!items.length)return;
@@ -2377,6 +2380,117 @@ body.dark #dyPorTienda{background:#172235;border-color:#32425a;color:#e6edf9}
    if(n!=='Seguimiento'){if(state.loop||state.map)clearTimer();return orig.apply(this,arguments)}
    const result=orig.apply(this,arguments);mount();return result;
  };
+})();
+</script>
+
+<style id="dyRendicionEstilos">
+.dy-rm-home{border-left:5px solid #1765ba}.dy-rm-homebar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.dy-rm-homebar button{font-weight:800}
+.dy-rm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.dy-rm-kpi{padding:14px;border:1px solid #d9e3f0;border-radius:12px;background:#fff}
+.dy-rm-kpi small{display:block;font-size:12px;color:#48617e}.dy-rm-kpi strong{display:block;font-size:22px;overflow-wrap:anywhere}
+.dy-rm-highlight{background:#fff1be!important;border:1px solid #f0c55b;border-radius:7px;padding:7px 9px;font-weight:900;color:#5f4602}
+.dy-rm-row{border:1px solid #dce5f0;background:#fff;border-radius:12px;margin:10px 0;padding:12px}
+.dy-rm-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between}
+.dy-rm-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}
+.dy-rm-summary>div{min-width:0}.dy-rm-summary small{color:#5f6c80;display:block;font-size:11px}.dy-rm-summary b{display:block;font-size:15px;overflow-wrap:anywhere}
+.dy-rm-state{border-radius:100px;font-size:12px;font-weight:800;padding:5px 9px;display:inline-block}
+.dy-rm-verde{background:#ddfce7;color:#146c2d}.dy-rm-amarillo{background:#fff0c2;color:#92540d}.dy-rm-rojo{background:#fee2e2;color:#a51e29}
+.dy-rm-detail{border-top:1px solid #dce5ef;margin-top:12px;padding-top:12px}.dy-rm-detail .scroll{overflow-x:auto}
+.dy-rm-detail table{min-width:680px}.dy-rm-detail th{white-space:nowrap}
+.dy-rm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.dy-rm-actions button{min-height:42px}.dy-rm-note{color:#526980;font-size:12px;margin:8px 0}
+.dy-rm-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.dy-rm-toolbar input,.dy-rm-toolbar select{min-height:42px}
+@media(max-width:650px){.dy-rm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dy-rm-kpi strong{font-size:18px}.dy-rm-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.dy-rm-homebar button{width:100%}.dy-rm-toolbar input{max-width:100%}.dy-rm-head>strong{width:100%}}
+</style>
+
+<script id="dyRendicionMotoristasJs">
+/* Panel de lectura: los montos definitivos provienen del cierre del motorista.
+   No llama INSERT/UPDATE/DELETE ni altera las formulas actuales. */
+(function(){
+const nombrePagina='Rendición por motorista';
+const fmt=n=>'Gs. '+Math.round(Number(n)||0).toLocaleString('es-PY');
+const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hoy=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
+const get=async fecha=>{
+ const {data,error}=await client.rpc('flota_resumen_rendicion_motoristas',{p_fecha:fecha});
+ if(error)throw Error(error.message||'No disponible');
+ return Array.isArray(data)?data:[];
+};
+let seq=0;let fecha=hoy();let cache=[];let estadoFiltro='todos';let busqueda='';
+const rolOK=()=>!!account&&(account.rol==='propietario'||account.puede_finanzas);
+const cell=(title,value,extra='')=>'<div><small>'+title+'</small><b class="'+extra+'">'+value+'</b></div>';
+const semaforo=s=>s==='rojo'?'🔴 Diferencia':s==='verde'?'🟢 Rendido':'🟡 Pendiente';
+const entrego=r=>r.entrego===null||r.entrego===undefined?'Sin confirmar':fmt(r.entrego);
+const diferencia=r=>r.diferencia===null||r.diferencia===undefined?'Sin conciliar':fmt(r.debe_rendir-r.entrego);
+function rows(){
+ const host=document.getElementById('dyRmListado');if(!host)return;
+ const a=cache.filter(x=>(estadoFiltro==='todos'||x.estado===estadoFiltro)&&String(x.motorista_nombre).toLocaleLowerCase('es').includes(busqueda.toLocaleLowerCase('es')));
+ const total=a.length;
+ host.innerHTML=total?a.map((r,i)=>{
+ const detail=Array.isArray(r.detalle)?r.detalle:[];
+ const itemRows=detail.map(p=>'<tr><td>'+e(p.numero??'—')+'</td><td>'+e(p.cliente)+'</td><td>'+e(p.tienda)+'</td><td>'+e(p.turno||'—')+'</td><td>'+e(p.estado)+'</td><td>'+fmt(p.efectivo)+'</td><td>'+fmt(p.transferencia)+'</td><td>'+fmt(p.ganancia)+'</td><td>'+(p.sin_movimiento?'⚠️ Sin movimiento':Number(p.cobros_otra_fecha)>0?'⚠️ Cobro otra fecha':'—')+'</td></tr>').join('');
+ return '<section class="dy-rm-row"><div class="dy-rm-head"><strong>'+e(r.motorista_nombre)+'</strong><span class="dy-rm-state dy-rm-'+e(r.estado)+'">'+semaforo(r.estado)+'</span></div><div class="dy-rm-summary">'+
+ cell('Pedidos (M + T)',e(r.pedidos)+' · '+e(r.entregados)+' entregados')+
+ cell('Efectivo cobrado',fmt(r.efectivo))+
+ cell('Ganancia registrada',fmt(r.ganancia_motorista))+
+ cell('DEBE RENDIR AL JEFE',fmt(r.debe_rendir),'dy-rm-highlight')+
+ cell('Transferencias',fmt(r.transferencia))+
+ cell('Entregó (confirmado)',entrego(r))+
+ cell('Falta recibir',diferencia(r))+
+ cell('Pendientes / pasa mañana',e(r.pendientes)+' / '+e(r.pasa_manana))+
+ '</div><p class="dy-rm-note">Motivo: '+e(r.motivo||'Sin observaciones')+'</p>'+
+ '<div class="dy-rm-actions"><button type="button" data-rm-detail="'+i+'">Ver pedidos y movimientos</button><button type="button" data-rm-pdf>Ir a rendición y PDF</button></div>'+
+ '<div class="dy-rm-detail" id="dyRmDetalle'+i+'" hidden><p><b>Fecha del movimiento</b> determina el cobro de esta caja; las entregas de otra jornada se señalan aparte.</p><div class="scroll"><table><thead><tr><th>N.º</th><th>Cliente</th><th>Tienda</th><th>Turno</th><th>Estado</th><th>Efectivo</th><th>Transferencia</th><th>Ganancia</th><th>Observación</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><p class="dy-rm-note">La ganancia se toma de movimientos registrados, no de porcentajes recalculados. Cobros de otras fechas NO se suman a la caja seleccionada.</p></div></section>';
+ }).join(''):'<div class="card">Sin motoristas con esos filtros o sin operaciones para la fecha.</div>';
+ host.querySelectorAll('[data-rm-detail]').forEach((b,i)=>b.onclick=()=>{
+ const el=b.closest('section').querySelector('.dy-rm-detail');el.hidden=!el.hidden;b.textContent=el.hidden?'Ver pedidos y movimientos':'Ocultar detalle';
+ });
+ host.querySelectorAll('[data-rm-pdf]').forEach(b=>b.onclick=()=>{rdEstado.fecha=fecha;page('Rendiciones')});
+}
+function repaint(){
+ const target=document.getElementById('dyRmDatos');if(!target)return;
+ const sum=k=>cache.reduce((n,x)=>n+Number(x[k]||0),0);
+ const faltan=cache.filter(x=>x.estado!=='verde');
+ // "falta recibir" solo sobre cierres confirmados; pendiente no equivale a faltante demostrado.
+ const diferencias=cache.filter(x=>x.entrego!==null&&x.entrego!==undefined).reduce((n,x)=>n+Math.max(0,Number(x.debe_rendir||0)-Number(x.entrego||0)),0);
+ target.innerHTML='<div class="dy-rm-kpis">'+
+ '<div class="dy-rm-kpi"><small>Efectivo registrado</small><strong>'+fmt(sum('efectivo'))+'</strong></div>'+
+ '<div class="dy-rm-kpi"><small>Ganancia motoristas</small><strong>'+fmt(sum('ganancia_motorista'))+'</strong></div>'+
+ '<div class="dy-rm-kpi"><small>DEBE RENDIR</small><strong class="dy-rm-highlight">'+fmt(sum('debe_rendir'))+'</strong></div>'+
+ '<div class="dy-rm-kpi"><small>Falta confirmado</small><strong>'+fmt(diferencias)+'</strong></div></div>'+
+ '<p class="dy-rm-note">'+faltan.length+' motorista(s) por revisar · Cajas sin confirmar NO se consideran entregadas. '+fmt(sum('transferencia'))+' en transferencias registradas, separadas del efectivo.</p>'+
+ '<div class="dy-rm-toolbar"><label>Buscar motorista <input id="dyRmBuscar" type="search" placeholder="Nombre" value="'+e(busqueda)+'"></label><label>Estado <select id="dyRmFiltro"><option value="todos">Todos</option><option value="rojo">Con diferencia</option><option value="amarillo">Pendientes</option><option value="verde">Rendidos</option></select></label></div><div id="dyRmListado"></div>';
+ document.getElementById('dyRmFiltro').value=estadoFiltro;
+ document.getElementById('dyRmBuscar').addEventListener('input',ev=>{busqueda=ev.target.value;rows()});
+ document.getElementById('dyRmFiltro').addEventListener('change',ev=>{estadoFiltro=ev.target.value;rows()});
+ rows();
+}
+async function render(){
+ if(!rolOK())return;
+ const root=document.getElementById('dyRendicionMotoristas');if(!root)return;
+ root.innerHTML='<div class="card"><div class="dy-rm-toolbar"><label>📅 Fecha <input id="dyRmFecha" type="date" value="'+e(fecha)+'"></label><button id="dyRmActualizar" type="button">↻ Actualizar</button></div><p id="dyRmEstado" role="status" aria-live="polite">Consultando rendiciones…</p></div><div id="dyRmDatos"></div>';
+ const selected=++seq;
+ const load=async()=>{const msg=document.getElementById('dyRmEstado');if(msg)msg.textContent='Consultando…';
+ try{const a=await get(fecha);if(seq!==selected||!document.getElementById('dyRendicionMotoristas'))return;cache=a;repaint();const el=document.getElementById('dyRmEstado');if(el)el.textContent='Fecha '+fecha+' · '+a.length+' motorista(s). Una caja por día, mañana y tarde juntos.';
+ }catch(err){if(seq!==selected)return;const el=document.getElementById('dyRmEstado');if(el)el.textContent='No se pudo cargar el panel: '+err.message+' · Puede faltar la migración de lectura; no se modificó ningún cobro.';document.getElementById('dyRmDatos').textContent='';}
+ };
+ document.getElementById('dyRmFecha').onchange=ev=>{fecha=ev.target.value||hoy();render()};
+ document.getElementById('dyRmActualizar').onclick=()=>render();
+ await load();
+}
+async function home(){
+ if(!rolOK())return;const btn=document.getElementById('dyRmAbrirInicio');if(btn)btn.onclick=()=>page(nombrePagina);
+ const target=document.getElementById('dyRmPendientesResumen');if(!target)return;
+ try{
+ const data=await get(filtroDia);if(!target.isConnected)return;
+ const pendientes=data.filter(x=>x.estado!=='verde'),rojos=pendientes.filter(x=>x.estado==='rojo');
+ const estimado=pendientes.reduce((n,x)=>n+Number(x.debe_rendir||0),0);
+ target.innerHTML='<strong>'+pendientes.length+' motorista(s) por revisar</strong> · '+rojos.length+' con diferencia · Total esperado de esas cajas: <strong>'+fmt(estimado)+'</strong><p class="muted" style="margin:6px 0 0">Importe esperado, no deuda confirmada; verificá cobros y cierres en el detalle.</p>';
+ }catch(err){if(target.isConnected)target.textContent='Panel no disponible: '+err.message}
+}
+window.dyRendicionPanel=render;window.dyRendPendientes=home;
 })();
 </script>
 </body></html>
