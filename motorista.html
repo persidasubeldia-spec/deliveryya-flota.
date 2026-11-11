@@ -498,11 +498,19 @@ function dyDeshacerPedidoMotorista(p){
 }
 function dyEnvioCliente(p){return Number(p.delivery_cliente??p.precio_delivery??0)}
 function panelEntregado(p){const cobro=p.modalidad_pago==='todo_pagado'?0:p.modalidad_pago==='producto_pagado'?dyEnvioCliente(p):p.precio_mercaderia+dyEnvioCliente(p);const h=dyHoja('✅ Entregado · N.º '+(p.numero_general??'—'),p.nombre_cliente+' · ' +(p.modalidad_pago==='todo_pagado'?'Todo pagado: no se cobra nada':p.modalidad_pago==='producto_pagado'?'Producto pagado: cobrar solo el envío':'Cobrar mercadería + envío'));const g=dyEl('div',{class:'dy-grid'});const fechaPedido=p._fecha_operativa||dyHoyAsu();const historica=fechaPedido<dyHoyAsu();
+ const verificacion=dyEl('div',{style:'border:2px solid #1765ba;background:#eff6ff;border-radius:12px;padding:13px;margin:12px 0'});
+ const titulo=dyEl('strong',{text:'🔎 REVISÁ EL TOTAL ANTES DE ENTREGAR'});
+ const detalle=dyEl('p',{text:'Mercadería: '+money(p.precio_mercaderia)+' · Delivery al cliente: '+money(dyEnvioCliente(p))+' · TOTAL A COBRAR: '+money(cobro),style:'font-size:16px;line-height:1.5;margin:8px 0'});
+ const label=dyEl('label',{style:'display:flex;gap:10px;align-items:start;cursor:pointer;font-weight:700;line-height:1.45'});
+ const verificado=dyEl('input',{type:'checkbox',style:'width:24px;height:24px;flex:none;accent-color:#1765ba'});
+ label.append(verificado,dyEl('span',{text:'Verifiqué con la tienda o cliente que el importe del producto es correcto. El subsidio de tienda no se cobra al cliente.'}));
+ verificacion.append(titulo,detalle,label);h.sh.append(verificacion);
  if(historica){
    const aviso=dyEl('p',{class:'dy-sub',text:'⚠️ Entrega de fecha anterior ('+fechaPedido.split('-').reverse().join('/')+'). Confirmá solo si se entregó y cobró realmente ese día. El registro conservará la fecha histórica y la hora real de confirmación.'});
    h.sh.append(aviso);
  }
  const enviar=(medio,b)=>{
+   if(!verificado.checked){h.err.textContent='Primero confirmá que el precio de la mercadería y el total a cobrar son correctos.';verificado.focus();return;}
    if(historica&&!confirm('¿Confirmás que '+p.nombre_cliente+' recibió el pedido y que el cobro ocurrió el '+fechaPedido.split('-').reverse().join('/')+'? Afectará la rendición de ese día.'))return;
    return dyEnviar(h,b,()=>historica
     ?sb.rpc('motorista_registrar_entrega_anterior',{p_pedido:p.id,p_fecha:fechaPedido,p_medio:medio,p_version:Number(p.version_edicion)||0})
