@@ -55,7 +55,12 @@ BEGIN
       coalesce(mv.ganancia,0)::bigint AS ganancia,
       coalesce(mv.duplicados,0)::bigint AS duplicados,
       ci.id AS cierre_id, ci.estado AS cierre_estado,
-      ci.confirmed_at, ci.a_rendir_esperado,
+      ci.confirmed_at,
+      EXISTS(SELECT 1 FROM public.flota_usuarios confirmador
+        WHERE confirmador.usuario_id=ci.confirmado_por
+          AND confirmador.empresa_id=v_empresa
+          AND (confirmador.rol='propietario' OR confirmador.puede_confirmar_rendiciones)) AS validado_central,
+      ci.a_rendir_esperado,
       ci.efectivo_recibido, ci.diferencia AS cierre_diferencia,
       ci.diferencia_transferencia AS cierre_diferencia_transferencia,
       coalesce(pd.detalle,'[]'::jsonb) AS detalle
@@ -135,14 +140,14 @@ BEGIN
     c.id, c.nombre::text, c.modalidad::text,
     c.pedidos,c.entregados,c.rechazados,c.pendientes,c.pasa_manana,
     c.ef,c.tr,c.ganancia,c.esperado,
-    CASE WHEN c.confirmed_at IS NOT NULL THEN c.efectivo_recibido::bigint END,
-    CASE WHEN c.confirmed_at IS NOT NULL THEN (c.efectivo_recibido-c.esperado)::bigint END,
-    CASE WHEN c.confirmed_at IS NOT NULL THEN c.cierre_diferencia_transferencia::bigint END,
+    CASE WHEN (c.confirmed_at IS NOT NULL AND c.validado_central) THEN c.efectivo_recibido::bigint END,
+    CASE WHEN (c.confirmed_at IS NOT NULL AND c.validado_central) THEN (c.efectivo_recibido-c.esperado)::bigint END,
+    CASE WHEN (c.confirmed_at IS NOT NULL AND c.validado_central) THEN c.cierre_diferencia_transferencia::bigint END,
     CASE WHEN c.duplicados>0 OR c.sin_movimiento>0
-         OR (c.confirmed_at IS NOT NULL AND (c.efectivo_recibido IS DISTINCT FROM c.esperado
+         OR ((c.confirmed_at IS NOT NULL AND c.validado_central) AND (c.efectivo_recibido IS DISTINCT FROM c.esperado
             OR coalesce(c.cierre_diferencia_transferencia,0)<>0))
          THEN 'rojo'
-         WHEN c.pendientes>0 OR c.confirmed_at IS NULL OR c.cierre_estado<>'confirmada'
+         WHEN c.pendientes>0 OR c.confirmed_at IS NULL OR NOT c.validado_central OR c.cierre_estado<>'confirmada'
            OR c.fecha_distinta>0 THEN 'amarillo'
          ELSE 'verde' END::text,
     concat_ws(' · ',
@@ -151,19 +156,19 @@ BEGIN
       CASE WHEN c.pendientes>0 THEN c.pendientes||' pedido(s) sin resolver' END,
       CASE WHEN c.fecha_distinta>0 THEN c.fecha_distinta||' pedido(s) con cobro de otra fecha' END,
       CASE WHEN c.cierre_id IS NULL THEN 'Caja sin presentar' END,
-      CASE WHEN c.cierre_id IS NOT NULL AND c.confirmed_at IS NULL THEN 'Caja sin confirmar' END,
-      CASE WHEN c.confirmed_at IS NOT NULL AND c.efectivo_recibido IS DISTINCT FROM c.esperado THEN 'Efectivo diferente al esperado' END,
-      CASE WHEN c.confirmed_at IS NOT NULL AND coalesce(c.cierre_diferencia_transferencia,0)<>0 THEN 'Transferencia sin conciliar' END,
-      CASE WHEN c.confirmed_at IS NOT NULL AND c.cierre_estado='confirmada'
+      CASE WHEN c.cierre_id IS NOT NULL AND (c.confirmed_at IS NULL OR NOT c.validado_central) THEN 'Caja declarada, recepción de Central sin confirmar' END,
+      CASE WHEN (c.confirmed_at IS NOT NULL AND c.validado_central) AND c.efectivo_recibido IS DISTINCT FROM c.esperado THEN 'Efectivo diferente al esperado' END,
+      CASE WHEN (c.confirmed_at IS NOT NULL AND c.validado_central) AND coalesce(c.cierre_diferencia_transferencia,0)<>0 THEN 'Transferencia sin conciliar' END,
+      CASE WHEN (c.confirmed_at IS NOT NULL AND c.validado_central) AND c.cierre_estado='confirmada'
         AND c.pendientes=0 AND c.sin_movimiento=0 AND c.duplicados=0 AND c.fecha_distinta=0
         AND c.efectivo_recibido=c.esperado AND coalesce(c.cierre_diferencia_transferencia,0)=0
         THEN 'Caja conciliada' END
     )::text,
-    c.cierre_id,c.cierre_estado,c.confirmed_at,c.detalle
+    c.cierre_id,c.cierre_estado,CASE WHEN c.validado_central THEN c.confirmed_at END,c.detalle
   FROM calculado c ORDER BY
     CASE WHEN c.duplicados>0 OR c.sin_movimiento>0 OR
-      (c.confirmed_at IS NOT NULL AND (c.efectivo_recibido IS DISTINCT FROM c.esperado OR coalesce(c.cierre_diferencia_transferencia,0)<>0))
-      THEN 0 WHEN c.pendientes>0 OR c.confirmed_at IS NULL OR c.cierre_estado<>'confirmada' OR c.fecha_distinta>0 THEN 1 ELSE 2 END,
+      ((c.confirmed_at IS NOT NULL AND c.validado_central) AND (c.efectivo_recibido IS DISTINCT FROM c.esperado OR coalesce(c.cierre_diferencia_transferencia,0)<>0))
+      THEN 0 WHEN c.pendientes>0 OR c.confirmed_at IS NULL OR NOT c.validado_central OR c.cierre_estado<>'confirmada' OR c.fecha_distinta>0 THEN 1 ELSE 2 END,
     c.esperado DESC,c.nombre;
 END;
 $function$;
