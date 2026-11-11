@@ -22,3 +22,39 @@ jobs:
           node --version
           node --test tests/*.test.mjs
           node scripts/smoke.mjs
+
+  postgres-aislado:
+    name: SQL real en PostgreSQL 17 aislado (sin credenciales de producción)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: testonly
+          POSTGRES_DB: testonly
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testonly"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: testonly
+      PGDATABASE: testonly
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Instalar psql cliente en Ubuntu
+        run: |
+          command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Cargar simulación de tablas, regla vigente Boom y la migración a validar
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/precios_aislado_fixture.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111120000_flota_auditar_bloquear_precios.sql
+      - name: Ejecutar 8 pruebas SQL con datos ficticios
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/precios_proteccion_integracion.sql
