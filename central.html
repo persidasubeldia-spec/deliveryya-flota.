@@ -1062,6 +1062,102 @@ function rdTiendas(d){
  }
  return [...out.values()].sort((a,b)=>String(a.tienda.codigo).localeCompare(String(b.tienda.codigo),'es',{numeric:true}));
 }
+
+// Auditoría por tienda: no confiar sólo en un total; cotejar cada cobro y descuento
+// con los movimientos, la modalidad de pago y la regla comercial.
+function rdValidarTienda(t,d){
+ const errores=[],avisos=[],visto=new Set(),num=(x)=>Number(x||0);
+ const sumar=(list,fn)=>list.reduce((a,x)=>a+fn(x),0);
+ const isInt=(v)=>Number.isSafeInteger(num(v))&&num(v)>=0;
+ const acumulado={merc:0,subsidios:0,cobrosEnvio:0,enviosTienda:0,descuentos:0};
+ for(const {p,m} of t.filas){
+  const titulo=(p.nombre_cliente||'Pedido')+' · '+String(p.id||'');
+  if(visto.has(p.id))errores.push('Movimiento financiero duplicado: '+titulo);
+  visto.add(p.id);
+  if(m.tienda_id&&m.tienda_id!==p.tienda_id)errores.push('Movimiento corresponde a otra tienda: '+titulo);
+  for(const k of ['monto_delivery','monto_mercaderia','efectivo_cobrado','transferencia_cobrada','comision_motorista','comision_empresa']){
+   if(!isInt(m[k]))errores.push('Importe inválido en '+k+': '+titulo);
+  }
+  const delivery=num(m.monto_delivery),ef=num(m.efectivo_cobrado),tr=num(m.transferencia_cobrada);
+  if(num(m.comision_empresa)+num(m.comision_motorista)!==delivery)
+    errores.push('La comisión de delivery no suma la tarifa real: '+titulo);
+  const l=rdLineaTienda(m,p,d.rech.get(p.id));
+  acumulado.merc+=l.merc;acumulado.cobrosEnvio+=l.envCliente;
+  if(l.ent){
+   const subsidio=num(p.delivery_subsidio_tienda);
+   const cliente=num(p.delivery_cliente??m.monto_delivery);
+   if(subsidio<0||cliente<0||cliente+subsidio!==delivery)
+    errores.push('Delivery cliente + subsidio no coincide con tarifa real: '+titulo);
+   if(subsidio>0&&t.tienda.codigo!=='T14')
+    errores.push('Subsidio de Boom Store aplicado a otra tienda: '+titulo);
+   if(p.modalidad_pago==='pendiente'){
+    acumulado.subsidios+=subsidio;
+    const esperado=num(m.monto_mercaderia)+cliente;
+    if(ef+tr!==esperado)errores.push('Cobro diferente de mercadería + delivery cliente: '+titulo);
+   }else if(p.modalidad_pago==='producto_pagado'){
+    acumulado.subsidios+=subsidio;
+    if(ef+tr!==cliente)errores.push('Cobro diferente del delivery cliente: '+titulo);
+   }else if(p.modalidad_pago==='todo_pagado'){
+    acumulado.enviosTienda+=delivery;
+    if(ef+tr!==0)errores.push('Pedido pagado a tienda, pero registra cobro en moto: '+titulo);
+   }else errores.push('Modalidad de pago no reconocida: '+titulo);
+   if(p.modalidad_pago!=='pendiente'&&num(m.monto_mercaderia)!==0)
+    avisos.push('Mercadería no incluida en la rendición por modalidad '+p.modalidad_pago+': '+titulo);
+  }else if(l.rej){
+   const r=d.rech.get(p.id);
+   if(!r)errores.push('Rechazo sin detalle de quién paga: '+titulo);
+   else{
+    if(r.responsable_pago==='tienda'){
+     if(!isInt(r.importe_pendiente)||!isInt(r.importe_cobrado)||
+       num(r.importe_pendiente)+num(r.importe_cobrado)!==delivery)
+      errores.push('Rechazo a cargo de tienda sin importe conciliable: '+titulo);
+    }else if(!['cliente','motorista','empresa'].includes(r.responsable_pago))
+     errores.push('Responsable del rechazo sin definir: '+titulo);
+    if(ef+tr!==num(r.importe_cobrado))
+     errores.push('Cobro de rechazo no coincide con el detalle: '+titulo);
+   }
+  }else if(ef+tr>0){
+   errores.push('Cobro sin estado entregado/rechazado: '+titulo);
+  }
+ }
+ // Una incidencia sin movimiento puede corresponder a un pedido no liquidado;
+ // no incluirla automáticamente ni fingir cobro.
+ const conMovimiento=new Set(t.filas.map(({p})=>p.id));
+ const sinMovimiento=t.pedidos.filter(p=>!conMovimiento.has(p.id));
+ if(sinMovimiento.length)avisos.push(sinMovimiento.length+' pedidos sin movimiento: no suman a la rendición');
+ for(const p of sinMovimiento){
+  if(p.estado==='entregado'||p.estado==='rechazado')
+    errores.push('Pedido finalizado sin asiento financiero: '+(p.nombre_cliente||p.id));
+ }
+ if(acumulado.merc!==t.merc)errores.push('Descuadre del total de mercadería');
+ if(acumulado.cobrosEnvio!==t.env)errores.push('Descuadre de envíos cobrados a clientes');
+ if(acumulado.subsidios!==t.subsidiosTienda)errores.push('Descuadre del total de subsidios de tienda');
+ if(acumulado.enviosTienda!==t.enviosPagadosTienda)errores.push('Descuadre de envíos pagados directamente a tienda');
+ const rs=[...new Map([...t.pedidos,...t.filas.map(z=>z.p)]
+  .filter(p=>p.estado==='rechazado').map(p=>[p.id,p])).values()];
+ for(const p of rs){
+  const r=d.rech.get(p.id);
+  if(!r||r.responsable_pago!=='tienda'||num(r.importe_pendiente)===0)continue;
+  const compensacion=d.compensaciones.filter(c=>c.pedido_id===p.id);
+  if(compensacion.length>1)errores.push('Rechazo compensado varias veces: '+p.nombre_cliente);
+  if(compensacion.length&&num(compensacion[0].importe)!==num(r.importe_pendiente))
+   errores.push('Compensación de rechazo diferente de lo adeudado: '+p.nombre_cliente);
+  if(!compensacion.length&&!(d.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&num(z.compensado)>0))
+   acumulado.descuentos+=num(r.importe_pendiente);
+ }
+ if(acumulado.descuentos!==t.cargosPendientes)errores.push('Descuadre de descuentos por rechazos');
+ const compensado=sumar(d.compensaciones.filter(c=>c.tienda_id===t.tienda.id),c=>num(c.importe));
+ const pagado=sumar(d.pagos.filter(p=>p.tienda_id===t.tienda.id),p=>num(p.importe));
+ const esperado=acumulado.merc-acumulado.subsidios-acumulado.enviosTienda-acumulado.descuentos-compensado;
+ if(esperado!==t.neto)errores.push('Saldo a tienda no coincide con la suma de pedidos y descuentos');
+ if(esperado-pagado!==t.saldo)errores.push('Saldo después de pagos no coincide');
+ if(!Number.isSafeInteger(esperado))errores.push('Resultado no representable como guaraníes enteros');
+ return {errores:[...new Set(errores)],avisos:[...new Set(avisos)],esperado,
+  componentes:{mercaderia:acumulado.merc,subsidio:acumulado.subsidios,
+   enviosYaPagados:acumulado.enviosTienda,rechazos:acumulado.descuentos,
+   compensaciones:compensado,pagos:pagado}};
+}
+
 function rdMotos(d){
  return drivers.filter(x=>x.activo||d.movs.some(m=>m.motorista_id===x.id)||(d.reprogramados||[]).some(e=>e.motorista_anterior===x.nombre)).map(x=>{
   const mv=d.movs.filter(m=>m.motorista_id===x.id),s=k=>mv.reduce((t,m)=>t+Number(m[k]||0),0);
@@ -1404,11 +1500,15 @@ async function rdPdf(t,fecha){
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
  if(!window.jspdf?.jsPDF)throw Error('La libreria PDF no esta disponible');
- const datosAudit=rdEstado.datos?.fecha===fecha?rdEstado.datos:await rdCargar(fecha);
+ // Volver a consultar al generar: no descargar un PDF con una pantalla desactualizada.
+ const datosAudit=await rdCargar(fecha);
  const audit=rdAuditar(datosAudit);if(audit.errores.length)throw Error('Conciliación inconsistente: '+audit.errores.join('; '));
  const tiendaOficial=rdTiendas(datosAudit).find(g=>g.tienda.id===t.tienda?.id);
  if(!tiendaOficial)throw Error('La tienda solicitada no tiene movimientos verificables en esta fecha');
  t=tiendaOficial;
+ const verificacion=rdValidarTienda(t,datosAudit);
+ if(verificacion.errores.length)throw Error('Rendición bloqueada por inconsistencias: '+verificacion.errores.join(' | '));
+ if(verificacion.esperado!==t.neto)throw Error('El saldo final no coincide con los pedidos auditados');
  const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
  if(typeof doc.autoTable!=='function')throw Error('La tabla PDF no esta disponible');
  const W=297,H=210,M=10,inner=W-M*2;
@@ -1497,17 +1597,18 @@ async function rdPdf(t,fecha){
   const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte+visita;
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
-    rdGs(p.precio_mercaderia||0),rdGs(p.delivery_cliente??p.precio_delivery??0),rdGs(rec),observacion
+    rdGs(p.precio_mercaderia||0),rdGs(p.delivery_cliente??p.precio_delivery??0),
+    rdGs(est==='entregado'?p.delivery_subsidio_tienda||0:0),rdGs(rec),observacion
   ];
  });
  doc.autoTable({
   startY:74,margin:{top:37,left:M,right:M,bottom:17},
-  head:[['N.º','Cliente','Producto','Estado','Mercaderia','Envío de Iván','Cobrado','Observacion / motivo']],
-  body:rows.length?rows:[['—','Sin pedidos en este dia','—','—','—','—','—','—']],
+  head:[['N.º','Cliente','Producto','Estado','Mercadería','Envío cliente','Subsidio tienda','Cobrado','Observación / motivo']],
+  body:rows.length?rows:[['—','Sin pedidos en este día','—','—','—','—','—','—','—']],
   theme:'grid',showHead:'everyPage',rowPageBreak:'avoid',
   styles:{font:'helvetica',fontSize:7.4,cellPadding:2,overflow:'linebreak',valign:'middle',lineColor:[222,230,239],lineWidth:0.15,textColor:[31,49,70]},
   headStyles:{fillColor:[24,52,84],textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
-  columnStyles:{0:{cellWidth:11},1:{cellWidth:35},2:{cellWidth:38},3:{cellWidth:28},4:{cellWidth:30,halign:'right'},5:{cellWidth:27,halign:'right'},6:{cellWidth:30,halign:'right'},7:{cellWidth:78}},
+  columnStyles:{0:{cellWidth:10},1:{cellWidth:30},2:{cellWidth:36},3:{cellWidth:25},4:{cellWidth:29,halign:'right'},5:{cellWidth:26,halign:'right'},6:{cellWidth:24,halign:'right'},7:{cellWidth:30,halign:'right'},8:{cellWidth:67}},
   didParseCell(data){
    if(data.section!=='body'||!rows.length)return;
    const p=unicos[data.row.index],ton=tonos[p?.estado];
@@ -1515,7 +1616,7 @@ async function rdPdf(t,fecha){
     data.cell.styles.fillColor=ton.rgb;
     if(data.column.index===3){data.cell.styles.textColor=ton.color;data.cell.styles.fontStyle='bold'}
    }
-   if(data.column.index===6)data.cell.styles.fontStyle='bold';
+   if(data.column.index===7)data.cell.styles.fontStyle='bold';
   },
   didDrawPage(data){
    if(data.pageNumber>1)encabezado(false);
@@ -1527,11 +1628,11 @@ async function rdPdf(t,fecha){
  if(y+minimo>H-16){doc.addPage();encabezado(false);y=42}
  txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
  const financiero=[
-  ['Mercaderia cobrada para la tienda (+)',t.merc],
-  ['Subsidios de delivery a cargo de Boom Store (-)',t.subsidiosTienda],
-  ['Envíos previamente pagados por tienda (-)',t.enviosPagadosTienda],
-  ['Compensaciones de rechazo confirmadas (-)',t.compensado],
-  ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
+  ['Mercaderia cobrada para la tienda (+)',verificacion.componentes.mercaderia],
+  ['Subsidios de delivery a cargo de la tienda (-)',verificacion.componentes.subsidio],
+  ['Envíos previamente pagados por tienda (-)',verificacion.componentes.enviosYaPagados],
+  ['Compensaciones de rechazo confirmadas (-)',verificacion.componentes.compensaciones],
+  ['Rechazos a cargo de tienda descontados (-)',verificacion.componentes.rechazos],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
@@ -1540,8 +1641,9 @@ async function rdPdf(t,fecha){
  doc.roundedRect(M,y-3,inner,13,2,2,'F');
  txt(positivo?'LA FLOTA DEBE RENDIR A LA TIENDA':negativo?'LA TIENDA DEBE PAGAR A LA FLOTA':'SIN SALDO NETO A RENDIR',M+4,y+5,10,true);
  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(24,52,84);
- doc.text(rdGs(Math.abs(t.neto)),W-M-4,y+5,{align:'right'});y+=19;
+ doc.text(rdGs(Math.abs(verificacion.esperado)),W-M-4,y+5,{align:'right'});y+=19;
  txt('Pagos a tienda registrados: '+rdGs(t.pagado)+' | Saldo calculado: '+rdGs(t.saldo),M+3,y,9,true);y+=8;
+ txt('AUDITORÍA DE RENDICIÓN: sin diferencias en cobros y descuentos de los pedidos incluidos.',M+3,y,8);y+=7;
  txt('Importes calculados NO acreditan recepción de efectivo ni transferencia sin comprobante.',M+3,y,8);y+=8;
  txt('Pedidos sin movimiento que requieren seguimiento: '+sinMovimiento.length,M,y,10,true);y+=6;
  const sinAgrupar={};for(const p of sinMovimiento){const st=p.estado||'sin_estado';sinAgrupar[st]=(sinAgrupar[st]||0)+1}
