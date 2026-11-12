@@ -1062,6 +1062,102 @@ function rdTiendas(d){
  }
  return [...out.values()].sort((a,b)=>String(a.tienda.codigo).localeCompare(String(b.tienda.codigo),'es',{numeric:true}));
 }
+
+// Auditoría por tienda: no confiar sólo en un total; cotejar cada cobro y descuento
+// con los movimientos, la modalidad de pago y la regla comercial.
+function rdValidarTienda(t,d){
+ const errores=[],avisos=[],visto=new Set(),num=(x)=>Number(x||0);
+ const sumar=(list,fn)=>list.reduce((a,x)=>a+fn(x),0);
+ const isInt=(v)=>Number.isSafeInteger(num(v))&&num(v)>=0;
+ const acumulado={merc:0,subsidios:0,cobrosEnvio:0,enviosTienda:0,descuentos:0};
+ for(const {p,m} of t.filas){
+  const titulo=(p.nombre_cliente||'Pedido')+' · '+String(p.id||'');
+  if(visto.has(p.id))errores.push('Movimiento financiero duplicado: '+titulo);
+  visto.add(p.id);
+  if(m.tienda_id&&m.tienda_id!==p.tienda_id)errores.push('Movimiento corresponde a otra tienda: '+titulo);
+  for(const k of ['monto_delivery','monto_mercaderia','efectivo_cobrado','transferencia_cobrada','comision_motorista','comision_empresa']){
+   if(!isInt(m[k]))errores.push('Importe inválido en '+k+': '+titulo);
+  }
+  const delivery=num(m.monto_delivery),ef=num(m.efectivo_cobrado),tr=num(m.transferencia_cobrada);
+  if(num(m.comision_empresa)+num(m.comision_motorista)!==delivery)
+    errores.push('La comisión de delivery no suma la tarifa real: '+titulo);
+  const l=rdLineaTienda(m,p,d.rech.get(p.id));
+  acumulado.merc+=l.merc;acumulado.cobrosEnvio+=l.envCliente;
+  if(l.ent){
+   const subsidio=num(p.delivery_subsidio_tienda);
+   const cliente=num(p.delivery_cliente??m.monto_delivery);
+   if(subsidio<0||cliente<0||cliente+subsidio!==delivery)
+    errores.push('Delivery cliente + subsidio no coincide con tarifa real: '+titulo);
+   if(subsidio>0&&t.tienda.codigo!=='T14')
+    errores.push('Subsidio de Boom Store aplicado a otra tienda: '+titulo);
+   if(p.modalidad_pago==='pendiente'){
+    acumulado.subsidios+=subsidio;
+    const esperado=num(m.monto_mercaderia)+cliente;
+    if(ef+tr!==esperado)errores.push('Cobro diferente de mercadería + delivery cliente: '+titulo);
+   }else if(p.modalidad_pago==='producto_pagado'){
+    acumulado.subsidios+=subsidio;
+    if(ef+tr!==cliente)errores.push('Cobro diferente del delivery cliente: '+titulo);
+   }else if(p.modalidad_pago==='todo_pagado'){
+    acumulado.enviosTienda+=delivery;
+    if(ef+tr!==0)errores.push('Pedido pagado a tienda, pero registra cobro en moto: '+titulo);
+   }else errores.push('Modalidad de pago no reconocida: '+titulo);
+   if(p.modalidad_pago!=='pendiente'&&num(m.monto_mercaderia)!==0)
+    avisos.push('Mercadería no incluida en la rendición por modalidad '+p.modalidad_pago+': '+titulo);
+  }else if(l.rej){
+   const r=d.rech.get(p.id);
+   if(!r)errores.push('Rechazo sin detalle de quién paga: '+titulo);
+   else{
+    if(r.responsable_pago==='tienda'){
+     if(!isInt(r.importe_pendiente)||!isInt(r.importe_cobrado)||
+       num(r.importe_pendiente)+num(r.importe_cobrado)!==delivery)
+      errores.push('Rechazo a cargo de tienda sin importe conciliable: '+titulo);
+    }else if(!['cliente','motorista','empresa'].includes(r.responsable_pago))
+     errores.push('Responsable del rechazo sin definir: '+titulo);
+    if(ef+tr!==num(r.importe_cobrado))
+     errores.push('Cobro de rechazo no coincide con el detalle: '+titulo);
+   }
+  }else if(ef+tr>0){
+   errores.push('Cobro sin estado entregado/rechazado: '+titulo);
+  }
+ }
+ // Una incidencia sin movimiento puede corresponder a un pedido no liquidado;
+ // no incluirla automáticamente ni fingir cobro.
+ const conMovimiento=new Set(t.filas.map(({p})=>p.id));
+ const sinMovimiento=t.pedidos.filter(p=>!conMovimiento.has(p.id));
+ if(sinMovimiento.length)avisos.push(sinMovimiento.length+' pedidos sin movimiento: no suman a la rendición');
+ for(const p of sinMovimiento){
+  if(p.estado==='entregado'||p.estado==='rechazado')
+    errores.push('Pedido finalizado sin asiento financiero: '+(p.nombre_cliente||p.id));
+ }
+ if(acumulado.merc!==t.merc)errores.push('Descuadre del total de mercadería');
+ if(acumulado.cobrosEnvio!==t.env)errores.push('Descuadre de envíos cobrados a clientes');
+ if(acumulado.subsidios!==t.subsidiosTienda)errores.push('Descuadre del total de subsidios de tienda');
+ if(acumulado.enviosTienda!==t.enviosPagadosTienda)errores.push('Descuadre de envíos pagados directamente a tienda');
+ const rs=[...new Map([...t.pedidos,...t.filas.map(z=>z.p)]
+  .filter(p=>p.estado==='rechazado').map(p=>[p.id,p])).values()];
+ for(const p of rs){
+  const r=d.rech.get(p.id);
+  if(!r||r.responsable_pago!=='tienda'||num(r.importe_pendiente)===0)continue;
+  const compensacion=d.compensaciones.filter(c=>c.pedido_id===p.id);
+  if(compensacion.length>1)errores.push('Rechazo compensado varias veces: '+p.nombre_cliente);
+  if(compensacion.length&&num(compensacion[0].importe)!==num(r.importe_pendiente))
+   errores.push('Compensación de rechazo diferente de lo adeudado: '+p.nombre_cliente);
+  if(!compensacion.length&&!(d.rechazosDeuda||[]).some(z=>z.pedido_id===p.id&&num(z.compensado)>0))
+   acumulado.descuentos+=num(r.importe_pendiente);
+ }
+ if(acumulado.descuentos!==t.cargosPendientes)errores.push('Descuadre de descuentos por rechazos');
+ const compensado=sumar(d.compensaciones.filter(c=>c.tienda_id===t.tienda.id),c=>num(c.importe));
+ const pagado=sumar(d.pagos.filter(p=>p.tienda_id===t.tienda.id),p=>num(p.importe));
+ const esperado=acumulado.merc-acumulado.subsidios-acumulado.enviosTienda-acumulado.descuentos-compensado;
+ if(esperado!==t.neto)errores.push('Saldo a tienda no coincide con la suma de pedidos y descuentos');
+ if(esperado-pagado!==t.saldo)errores.push('Saldo después de pagos no coincide');
+ if(!Number.isSafeInteger(esperado))errores.push('Resultado no representable como guaraníes enteros');
+ return {errores:[...new Set(errores)],avisos:[...new Set(avisos)],esperado,
+  componentes:{mercaderia:acumulado.merc,subsidio:acumulado.subsidios,
+   enviosYaPagados:acumulado.enviosTienda,rechazos:acumulado.descuentos,
+   compensaciones:compensado,pagos:pagado}};
+}
+
 function rdMotos(d){
  return drivers.filter(x=>x.activo||d.movs.some(m=>m.motorista_id===x.id)||(d.reprogramados||[]).some(e=>e.motorista_anterior===x.nombre)).map(x=>{
   const mv=d.movs.filter(m=>m.motorista_id===x.id),s=k=>mv.reduce((t,m)=>t+Number(m[k]||0),0);
@@ -1191,7 +1287,7 @@ async function dyRendiciones(){
  const root=$('rendRoot');if(!root)return;
  const hoy=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});rdEstado.fecha=filtroDia||hoy;
  root.innerHTML='<div class="rd-bar"><label>📅 Día <input type="date" id="rdFecha" value="'+rdEstado.fecha+'" max="'+hoy+'"></label><div class="rd-tabs"><button data-rd="delivery">🏍️ Rendiciones de delivery</button><button data-rd="tiendas">🏪 Rendiciones a tiendas</button>'+((account.rol==='propietario'||account.puede_finanzas)?'<button data-rd="admin">🔒 Conciliación administrativa</button>':'')+'</div><button id="rdRecargar">↻ Actualizar</button></div><div id="rdBody" class="muted">Cargando…</div>';
- if(!document.getElementById('rdCss')){const st=document.createElement('style');st.id='rdCss';st.textContent='.rd-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}.rd-bar input{min-height:40px;font-size:15px}.rd-tabs{display:flex;gap:6px}.rd-tabs button{min-height:42px;font-weight:700}.rd-tabs button[aria-pressed=true]{background:#1765ba;color:#fff;border-color:#1765ba}.rd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}.rd-kpi{background:#fff;border:1px solid #e0e8f0;border-radius:12px;padding:12px}.rd-kpi small{color:#5b6b80}.rd-kpi b{display:block;font-size:20px;margin-top:4px}.rd-row{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(6,minmax(95px,1fr)) minmax(150px,1.2fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #e6edf4;font-size:14px}.rd-head{font-weight:700;color:#5b6b80;font-size:12px;text-transform:uppercase;background:#f3f7fb;border-radius:10px 10px 0 0}.rd-ok{color:#15803d;font-weight:700}.rd-warn{color:#b45309;font-weight:700}.rd-pend{color:#64748b;font-weight:700}.rd-card{background:#fff;border:1px solid #e0e8f0;border-radius:14px;padding:14px;margin-bottom:10px}.rd-card h3{margin:0 0 6px;font-size:17px}.rd-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}.rd-nums div{background:#f6f9fc;border-radius:10px;padding:8px}.rd-nums small{color:#5b6b80;display:block}.rd-neto{font-size:18px;font-weight:800;padding:10px;border-radius:10px;background:#ecfdf3;color:#14532d}.rd-neto.neg{background:#fff4e5;color:#7c2d12}.rd-acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.rd-acc button{min-height:44px;font-weight:700}.rd-acc .rd-pri{background:#16803c;color:#fff;border-color:#16803c}.rd-moto-list{display:grid;gap:12px}.rd-moto-card{padding:16px;border:1px solid #dee6ef;border-radius:14px;background:#fff}.rd-moto-top{display:flex;justify-content:space-between;gap:16px}.rd-moto-top>div:first-child{display:grid;gap:5px}.rd-moto-top b{font-size:19px;color:#173d70}.rd-moto-top small{color:#607089;font-size:12px}.rd-moto-monto{text-align:right}.rd-moto-monto small{display:block}.rd-moto-monto strong{display:block;font-size:23px;color:#165c38;white-space:nowrap}.rd-moto-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.rd-moto-mini span{border-radius:9px;padding:9px;background:#f0f5fb;font-size:12px;color:#556780}.rd-moto-mini b{display:block;font-size:14px;color:#1e375b}.rd-moto-abrir{width:100%;padding:12px;border-radius:10px;min-height:46px;background:#1765ba;color:#fff;font-weight:800}.rd-moto-detalle{margin-top:12px;padding-top:12px;border-top:1px solid #dde6ef}.rd-det-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px}.rd-det-kpis div{border:1px solid #e0e7f0;border-radius:10px;padding:10px}.rd-det-kpis small{display:block;color:#62748c;font-size:12px}.rd-det-kpis b{display:block;font-size:16px;margin-top:5px}.rd-aviso{padding:10px 12px;background:#fff7dc;color:#794a14;border:1px solid #efcf83;border-radius:10px;font-size:13px}.rd-moto-acciones{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.rd-moto-acciones button{min-height:44px}.rd-moto-detalle table{font-size:12px;white-space:nowrap}@media(max-width:650px){.rd-moto-top{display:block}.rd-moto-monto{text-align:left;margin-top:12px}.rd-moto-mini{grid-template-columns:repeat(2,minmax(0,1fr))}.rd-tabs{flex-wrap:wrap}}@media(max-width:900px){.rd-row{grid-template-columns:1fr 1fr}.rd-head{display:none}}';document.head.append(st)}
+ if(!document.getElementById('rdCss')){const st=document.createElement('style');st.id='rdCss';st.textContent='.rd-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}.rd-bar input{min-height:40px;font-size:15px}.rd-tabs{display:flex;gap:6px}.rd-tabs button{min-height:42px;font-weight:700}.rd-tabs button[aria-pressed=true]{background:#1765ba;color:#fff;border-color:#1765ba}.rd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}.rd-kpi{background:#fff;border:1px solid #e0e8f0;border-radius:12px;padding:12px}.rd-kpi small{color:#5b6b80}.rd-kpi b{display:block;font-size:20px;margin-top:4px}.rd-row{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(6,minmax(95px,1fr)) minmax(150px,1.2fr);gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #e6edf4;font-size:14px}.rd-head{font-weight:700;color:#5b6b80;font-size:12px;text-transform:uppercase;background:#f3f7fb;border-radius:10px 10px 0 0}.rd-ok{color:#15803d;font-weight:700}.rd-warn{color:#b45309;font-weight:700}.rd-pend{color:#64748b;font-weight:700}.rd-card{background:#fff;border:1px solid #e0e8f0;border-radius:14px;padding:14px;margin-bottom:10px}.rd-card h3{margin:0 0 6px;font-size:17px}.rd-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}.rd-nums div{background:#f6f9fc;border-radius:10px;padding:8px}.rd-nums small{color:#5b6b80;display:block}.rd-neto{font-size:18px;font-weight:800;padding:10px;border-radius:10px;background:#ecfdf3;color:#14532d}.rd-neto.neg{background:#fff4e5;color:#7c2d12}.rd-acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.rd-acc button{min-height:44px;font-weight:700}.rd-acc .rd-pri{background:#16803c;color:#fff;border-color:#16803c}.rd-moto-list{display:grid;gap:12px}.rd-moto-card{padding:16px;border:1px solid #dee6ef;border-radius:14px;background:#fff}.rd-moto-top{display:flex;justify-content:space-between;gap:16px}.rd-moto-top>div:first-child{display:grid;gap:5px}.rd-moto-top b{font-size:19px;color:#173d70}.rd-moto-top small{color:#607089;font-size:12px}.rd-moto-monto{text-align:right}.rd-moto-monto small{display:block}.rd-moto-monto strong{display:block;font-size:23px;color:#165c38;white-space:nowrap}.rd-moto-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.rd-moto-mini span{border-radius:9px;padding:9px;background:#f0f5fb;font-size:12px;color:#556780}.rd-moto-mini b{display:block;font-size:14px;color:#1e375b}.rd-moto-abrir{width:100%;padding:12px;border-radius:10px;min-height:46px;background:#1765ba;color:#fff;font-weight:800}.rd-moto-detalle{margin-top:12px;padding-top:12px;border-top:1px solid #dde6ef}.rd-det-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px}.rd-det-kpis div{border:1px solid #e0e7f0;border-radius:10px;padding:10px}.rd-det-kpis small{display:block;color:#62748c;font-size:12px}.rd-det-kpis b{display:block;font-size:16px;margin-top:5px}.rd-aviso{padding:10px 12px;background:#fff7dc;color:#794a14;border:1px solid #efcf83;border-radius:10px;font-size:13px}.rd-moto-acciones{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.rd-moto-acciones button{min-height:44px}.rd-moto-detalle table{font-size:12px;white-space:nowrap}@media(max-width:650px){.rd-moto-top{display:block}.rd-moto-monto{text-align:left;margin-top:12px}.rd-moto-mini{grid-template-columns:repeat(2,minmax(0,1fr))}.rd-tabs{flex-wrap:wrap}}.rd-auditoria-ok{background:#e7f8ed;color:#14532d;padding:10px;border-radius:9px;font-weight:700}.rd-auditoria-fallo{background:#fee2e2;color:#991b1b;padding:10px;border-radius:9px;border:1px solid #fca5a5}.rd-acc button:disabled{cursor:not-allowed;opacity:.5}@media(max-width:900px){.rd-row{grid-template-columns:1fr 1fr}.rd-head{display:none}}';document.head.append(st)}
  const pintar=async()=>{
   root.querySelectorAll('[data-rd]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.rd===rdEstado.vista)));
   const body=$('rdBody');body.textContent='Cargando…';
@@ -1248,17 +1344,20 @@ async function dyRendiciones(){
    body.innerHTML='<div class="rd-kpis">'+totales.map(([n,v])=>'<div class="rd-kpi"><small>'+n+'</small><b>'+money(v)+'</b></div>').join('')+'</div>'+
    (persa?'<details class="rd-card"><summary style="cursor:pointer;font-weight:700">📦 Persa Boutique · operación interna ('+persaPedidos.length+' pedidos) · sin rendición comercial</summary><p class="muted">Sus pedidos se mantienen en rutas y seguimiento. No forman parte de la caja comercial ni de las cuentas de tiendas externas. Los cobros físicos siguen en la caja del motorista.</p><p>Entregados: '+persaPedidos.filter(p=>p.estado==='entregado').length+' · Rechazados: '+persaPedidos.filter(p=>p.estado==='rechazado').length+' · Pendientes o incidencias: '+persaPedidos.filter(p=>!['entregado','rechazado','cancelado'].includes(p.estado)).length+'</p></details>':'')+
    '<details class="rd-card" style="border-left:4px solid #d97706"><summary style="cursor:pointer;font-weight:800">⚠️ Rechazos por recuperar de tiendas · '+money(totalDeuda)+' ('+deudas.length+' pedidos)</summary><p class="muted">Control interno de rechazos de todas las fechas. No se descuentan de dos jornadas: cada cargo solo se confirma una vez, al conciliar la rendición. Los pendientes de otros días se muestran como deuda, sin alterar automáticamente la caja de hoy.</p>'+(deudas.length?'<div class="scroll"><table><thead><tr><th>Tienda</th><th>Cliente</th><th>Fecha original</th><th>Importe pendiente</th></tr></thead><tbody>'+deudas.map(x=>'<tr><td>'+escapeHtml(stores.find(t=>t.id===x.tienda_id)?.nombre_comercial||'Tienda')+'</td><td>'+escapeHtml(x.nombre_cliente)+'</td><td>'+escapeHtml(x.fecha_ruta||'—')+'</td><td>'+money(x.saldo_pendiente)+'</td></tr>').join('')+'</tbody></table></div>':'<p>Todos los rechazos a cargo de tiendas están conciliados.</p>')+'</details>'+
-   (ts.length?ts.map((t,i)=>'<div class="rd-card"><h3>'+escapeHtml(t.tienda.codigo||'')+' · '+escapeHtml(t.tienda.nombre_comercial||'')+'</h3>'+
+   (ts.length?ts.map((t,i)=>{const ver=rdValidarTienda(t,d);return '<div class="rd-card"><h3>'+escapeHtml(t.tienda.codigo||'')+' · '+escapeHtml(t.tienda.nombre_comercial||'')+'</h3>'+
    '<div class="muted">'+t.pedidos.length+' pedidos activos de la fecha · ✅ '+t.pedidos.filter(p=>p.estado==='entregado').length+' entregados · ❌ '+t.pedidos.filter(p=>p.estado==='rechazado').length+' rechazados · 📅 '+t.pasados.length+' pasados a mañana (fuera de la ruta)</div>'+
+   (ver.errores.length?'<p role="alert" class="rd-auditoria-fallo"><b>⛔ PDF bloqueado: '+ver.errores.length+' inconsistencia(s).</b> '+ver.errores.map(escapeHtml).join(' · ')+'</p>':
+     '<p class="rd-auditoria-ok">✅ Rendición conciliada pedido por pedido: '+money(ver.esperado)+' · '+t.filas.length+' movimiento(s) verificado(s).</p>')+
+   (ver.avisos.length?'<p class="muted">Avisos: '+ver.avisos.map(escapeHtml).join(' · ')+'</p>':'')+
    '<div class="rd-nums"><div><small>Mercadería correspondiente</small><b>'+money(t.merc)+'</b></div><div><small>Envíos pagados a la tienda por el cliente</small><b>'+money(t.debe)+'</b></div>'+
    '<div><small>Rechazos descontados directamente</small><b>'+money(t.cargosPendientes)+'</b></div><div><small>Compensaciones confirmadas</small><b>'+money(t.compensado)+'</b></div>'+
    '<div><small>Pagos a tienda confirmados</small><b>'+money(t.pagado)+'</b></div></div>'+
    '<details style="margin:10px 0;padding:10px;border:1px solid #bfdbfe;border-radius:9px"><summary style="cursor:pointer;font-weight:800">📅 '+t.pasados.length+' pedido(s) pasados a mañana · ver clientes</summary><p class="muted">Trasladados desde '+escapeHtml(d.fecha)+'. No figuran como pendientes activos en el mapa anterior, ni generan cobro por el traslado.</p>'+(t.pasados.length?'<div class="scroll"><table><thead><tr><th>Cliente</th><th>De quién</th><th>Fecha destino</th></tr></thead><tbody>'+t.pasados.map(z=>'<tr><td>'+escapeHtml(z.cliente)+'</td><td>'+escapeHtml(z.motorista_anterior||'Sin asignar')+'</td><td>'+escapeHtml(z.fecha_destino)+'</td></tr>').join('')+'</tbody></table></div>':'<p>No hubo traslados.</p>')+'</details>'+ 
    '<div class="rd-neto'+(t.neto<0?' neg':'')+'">'+(t.neto>=0?'Neto calculado a favor de la tienda: '+money(t.neto):'Importe calculado a favor de la flota: '+money(-t.neto))+'</div>'+
    '<div class="muted" style="margin:8px 0">Saldo después de pagos: <b>'+money(t.saldo)+'</b> · '+(t.saldo===0&&t.pagado>0?'Con pago registrado':'PROVISIONAL / NO LIQUIDADO')+'</div>'+
-   '<div class="rd-acc"><button class="rd-pri" data-rdshare="'+i+'">📤 Enviar PDF a tienda</button><button data-rdpdf="'+i+'">📄 Descargar PDF</button><button data-rdver="'+i+'">👁 Ver detalle</button>'+
+   '<div class="rd-acc"><button class="rd-pri" data-rdshare="'+i+'" '+(ver.errores.length?'disabled title="Corrija las inconsistencias antes de compartir"':'')+'>📤 Enviar PDF a tienda</button><button data-rdpdf="'+i+'" '+(ver.errores.length?'disabled title="Corrija las inconsistencias antes de generar"':'')+'>📄 Descargar PDF</button><button data-rdver="'+i+'">👁 Ver detalle</button>'+
    (puedeConfirmar?'<button data-rdpago="'+i+'">💵 Registrar pago recibido por tienda</button><button data-rdcomp="'+i+'">⚖️ Registrar compensación</button><button type="button" data-rdrecuperar="'+i+'" style="background:#fff7ed;border:1px solid #f59e0b;color:#92400e">↩ Recuperar rechazo pendiente</button>':'')+
-   '</div><div id="rdDet'+i+'" hidden></div></div>').join(''):'<p class="muted">No hay movimientos de tiendas en este día.</p>');
+   '</div><div id="rdDet'+i+'" hidden></div></div>'}).join(''):'<p class="muted">No hay movimientos de tiendas en este día.</p>');
    body.querySelectorAll('[data-rdver]').forEach(b=>b.onclick=()=>{
     const t=ts[b.dataset.rdver],el=$('rdDet'+b.dataset.rdver);
     el.hidden=!el.hidden;if(el.hidden)return;
@@ -1404,11 +1503,15 @@ async function rdPdf(t,fecha){
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
  await rdScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
  if(!window.jspdf?.jsPDF)throw Error('La libreria PDF no esta disponible');
- const datosAudit=rdEstado.datos?.fecha===fecha?rdEstado.datos:await rdCargar(fecha);
+ // Volver a consultar al generar: no descargar un PDF con una pantalla desactualizada.
+ const datosAudit=await rdCargar(fecha);
  const audit=rdAuditar(datosAudit);if(audit.errores.length)throw Error('Conciliación inconsistente: '+audit.errores.join('; '));
  const tiendaOficial=rdTiendas(datosAudit).find(g=>g.tienda.id===t.tienda?.id);
  if(!tiendaOficial)throw Error('La tienda solicitada no tiene movimientos verificables en esta fecha');
  t=tiendaOficial;
+ const verificacion=rdValidarTienda(t,datosAudit);
+ if(verificacion.errores.length)throw Error('Rendición bloqueada por inconsistencias: '+verificacion.errores.join(' | '));
+ if(verificacion.esperado!==t.neto)throw Error('El saldo final no coincide con los pedidos auditados');
  const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
  if(typeof doc.autoTable!=='function')throw Error('La tabla PDF no esta disponible');
  const W=297,H=210,M=10,inner=W-M*2;
@@ -1497,17 +1600,18 @@ async function rdPdf(t,fecha){
   const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte+visita;
   return [
     String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
-    rdGs(p.precio_mercaderia||0),rdGs(p.delivery_cliente??p.precio_delivery??0),rdGs(rec),observacion
+    rdGs(p.precio_mercaderia||0),rdGs(p.delivery_cliente??p.precio_delivery??0),
+    rdGs(est==='entregado'?p.delivery_subsidio_tienda||0:0),rdGs(rec),observacion
   ];
  });
  doc.autoTable({
   startY:74,margin:{top:37,left:M,right:M,bottom:17},
-  head:[['N.º','Cliente','Producto','Estado','Mercaderia','Envío de Iván','Cobrado','Observacion / motivo']],
-  body:rows.length?rows:[['—','Sin pedidos en este dia','—','—','—','—','—','—']],
+  head:[['N.º','Cliente','Producto','Estado','Mercadería','Envío cliente','Subsidio tienda','Cobrado','Observación / motivo']],
+  body:rows.length?rows:[['—','Sin pedidos en este día','—','—','—','—','—','—','—']],
   theme:'grid',showHead:'everyPage',rowPageBreak:'avoid',
   styles:{font:'helvetica',fontSize:7.4,cellPadding:2,overflow:'linebreak',valign:'middle',lineColor:[222,230,239],lineWidth:0.15,textColor:[31,49,70]},
   headStyles:{fillColor:[24,52,84],textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
-  columnStyles:{0:{cellWidth:11},1:{cellWidth:35},2:{cellWidth:38},3:{cellWidth:28},4:{cellWidth:30,halign:'right'},5:{cellWidth:27,halign:'right'},6:{cellWidth:30,halign:'right'},7:{cellWidth:78}},
+  columnStyles:{0:{cellWidth:10},1:{cellWidth:30},2:{cellWidth:36},3:{cellWidth:25},4:{cellWidth:29,halign:'right'},5:{cellWidth:26,halign:'right'},6:{cellWidth:24,halign:'right'},7:{cellWidth:30,halign:'right'},8:{cellWidth:67}},
   didParseCell(data){
    if(data.section!=='body'||!rows.length)return;
    const p=unicos[data.row.index],ton=tonos[p?.estado];
@@ -1515,7 +1619,7 @@ async function rdPdf(t,fecha){
     data.cell.styles.fillColor=ton.rgb;
     if(data.column.index===3){data.cell.styles.textColor=ton.color;data.cell.styles.fontStyle='bold'}
    }
-   if(data.column.index===6)data.cell.styles.fontStyle='bold';
+   if(data.column.index===7)data.cell.styles.fontStyle='bold';
   },
   didDrawPage(data){
    if(data.pageNumber>1)encabezado(false);
@@ -1527,11 +1631,11 @@ async function rdPdf(t,fecha){
  if(y+minimo>H-16){doc.addPage();encabezado(false);y=42}
  txt('RESUMEN DE SALDO CON LA TIENDA · movimientos registrados',M,y,11,true);y+=7;
  const financiero=[
-  ['Mercaderia cobrada para la tienda (+)',t.merc],
-  ['Subsidios de delivery a cargo de Boom Store (-)',t.subsidiosTienda],
-  ['Envíos previamente pagados por tienda (-)',t.enviosPagadosTienda],
-  ['Compensaciones de rechazo confirmadas (-)',t.compensado],
-  ['Rechazos a cargo de tienda descontados (-)',t.cargosPendientes],
+  ['Mercaderia cobrada para la tienda (+)',verificacion.componentes.mercaderia],
+  ['Subsidios de delivery a cargo de la tienda (-)',verificacion.componentes.subsidio],
+  ['Envíos previamente pagados por tienda (-)',verificacion.componentes.enviosYaPagados],
+  ['Compensaciones de rechazo confirmadas (-)',verificacion.componentes.compensaciones],
+  ['Rechazos a cargo de tienda descontados (-)',verificacion.componentes.rechazos],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
@@ -1540,8 +1644,9 @@ async function rdPdf(t,fecha){
  doc.roundedRect(M,y-3,inner,13,2,2,'F');
  txt(positivo?'LA FLOTA DEBE RENDIR A LA TIENDA':negativo?'LA TIENDA DEBE PAGAR A LA FLOTA':'SIN SALDO NETO A RENDIR',M+4,y+5,10,true);
  doc.setFontSize(12);doc.setFont('helvetica','bold');doc.setTextColor(24,52,84);
- doc.text(rdGs(Math.abs(t.neto)),W-M-4,y+5,{align:'right'});y+=19;
+ doc.text(rdGs(Math.abs(verificacion.esperado)),W-M-4,y+5,{align:'right'});y+=19;
  txt('Pagos a tienda registrados: '+rdGs(t.pagado)+' | Saldo calculado: '+rdGs(t.saldo),M+3,y,9,true);y+=8;
+ txt('AUDITORÍA DE RENDICIÓN: sin diferencias en cobros y descuentos de los pedidos incluidos.',M+3,y,8);y+=7;
  txt('Importes calculados NO acreditan recepción de efectivo ni transferencia sin comprobante.',M+3,y,8);y+=8;
  txt('Pedidos sin movimiento que requieren seguimiento: '+sinMovimiento.length,M,y,10,true);y+=6;
  const sinAgrupar={};for(const p of sinMovimiento){const st=p.estado||'sin_estado';sinAgrupar[st]=(sinAgrupar[st]||0)+1}
