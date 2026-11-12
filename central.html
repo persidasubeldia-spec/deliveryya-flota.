@@ -324,6 +324,16 @@ const diaPY=t=>new Date(t).toLocaleDateString('sv-SE',{timeZone:'America/Asuncio
 const dyFechaOperativaCentral=o=>routes.find(r=>r.id===o?.ruta_general_id)?.fecha||(o?.created_at?diaPY(o.created_at):'');
 function cambioDia(n){const d=new Date(filtroDia+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);filtroDia=d.toISOString().slice(0,10);actualizarDia()}
 function actualizarDia(){window.dispatchEvent(new Event('dy-fecha-cambio'));rdEstado.fecha=filtroDia;if(document.getElementById('filtroFin')){if(document.getElementById('newOrdersPanel'))page('Inicio');else mostrarDia()}else if(document.getElementById('rendRoot'))dyRendiciones()}
+
+// Resumen de conciliación para pantalla Finanzas.
+// No marca cobradas las comisiones de rechazo ni registra recepción de dinero.
+function dyPuenteFinanciero(efectivo,transferencia,gananciaMotos,netoTiendas,gananciaEntregas,gananciaRechazos){
+ const recaudo=Number(efectivo)+Number(transferencia);
+ const rendir=Number(efectivo)-Number(gananciaMotos)+Number(transferencia);
+ const diferencia=rendir-Number(netoTiendas);
+ const previsto=Number(gananciaEntregas)+Number(gananciaRechazos);
+ return {recaudo,rendir,diferencia,previsto,cuadra:diferencia===previsto};
+}
 async function mostrarDia(){
 const h=document.getElementById('filtroFin');if(!h||!account)return;
 const v=++filtroVersion,d=filtroDia,hoy=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
@@ -367,11 +377,12 @@ const transferenciasMotoDia=mComercial.reduce((n,mv)=>n+Number(mv.transferencia_
 const comisionMotosDia=mComercial.reduce((n,mv)=>n+Number(mv.comision_motorista||0),0);
 const rendicionMotoTeorica=Math.max(0,efectivoMotoDia-comisionMotosDia);
 const netoTiendasCalculado=t.reduce((n,g)=>n+Number(g.neto||0),0);
-const diferenciaConciliacion=rendicionMotoTeorica+transferenciasMotoDia-netoTiendasCalculado;
+const puente=dyPuenteFinanciero(efectivoMotoDia,transferenciasMotoDia,comisionMotosDia,netoTiendasCalculado,gananciaDiaBruta,gananciaRechazosPorConciliar);
+const diferenciaConciliacion=puente.diferencia;
 // Sólo comparar caja comercial con liquidación cuando se trata de movimientos
 // cuyo flujo de pagos es representable por la modalidad del motorista.
 const todosMotosRetienen=mComercial.every(mv=>drivers.find(z=>z.id===mv.motorista_id)?.modalidad_liquidacion==='retener_comision');
-const puenteCuadra=todosMotosRetienen&&diferenciaConciliacion===gananciaPrevistaConRechazos;
+const puenteCuadra=todosMotosRetienen&&puente.cuadra;
 const k=[['Comisión empresa · entregas con cobro registrado',cobrada('comision_empresa'),'empresa'],['Motoristas · entregas cobradas',cobrada('comision_motorista'),'motos'],['Motoristas · entregas y rechazos de tiendas externas',mComercial.reduce((n,mv)=>n+Number(mv.comision_motorista||0),0),'motos'],['A rendir a tiendas · calculado',pagar,'pagar'],['A cobrar de tiendas · calculado',cobrar,'cobrar']];
 const listaFin=table(['Concepto del día','Monto','Detalle'],k.map(([nombre,importe,clave])=>[escapeHtml(nombre),money(importe),'<button type="button" data-fin-det="'+clave+'" class="dy-fin-link">Ver detalle</button>']));
 document.getElementById('valFin').innerHTML=
