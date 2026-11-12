@@ -324,6 +324,16 @@ const diaPY=t=>new Date(t).toLocaleDateString('sv-SE',{timeZone:'America/Asuncio
 const dyFechaOperativaCentral=o=>routes.find(r=>r.id===o?.ruta_general_id)?.fecha||(o?.created_at?diaPY(o.created_at):'');
 function cambioDia(n){const d=new Date(filtroDia+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);filtroDia=d.toISOString().slice(0,10);actualizarDia()}
 function actualizarDia(){window.dispatchEvent(new Event('dy-fecha-cambio'));rdEstado.fecha=filtroDia;if(document.getElementById('filtroFin')){if(document.getElementById('newOrdersPanel'))page('Inicio');else mostrarDia()}else if(document.getElementById('rendRoot'))dyRendiciones()}
+
+// Resumen de conciliación para pantalla Finanzas.
+// No marca cobradas las comisiones de rechazo ni registra recepción de dinero.
+function dyPuenteFinanciero(efectivo,transferencia,gananciaMotos,netoTiendas,gananciaEntregas,gananciaRechazos){
+ const recaudo=Number(efectivo)+Number(transferencia);
+ const rendir=Number(efectivo)-Number(gananciaMotos)+Number(transferencia);
+ const diferencia=rendir-Number(netoTiendas);
+ const previsto=Number(gananciaEntregas)+Number(gananciaRechazos);
+ return {recaudo,rendir,diferencia,previsto,cuadra:diferencia===previsto};
+}
 async function mostrarDia(){
 const h=document.getElementById('filtroFin');if(!h||!account)return;
 const v=++filtroVersion,d=filtroDia,hoy=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});
@@ -353,16 +363,41 @@ const pendientesRechazoTotal=pendientesRechazo.reduce((n,mv)=>n+Number(mv.monto_
 const entregasRegistradasDia=mComercial.filter(mv=>x.porPedido.get(mv.pedido_id)?.estado==='entregado');
 const gananciaDiaBruta=entregasRegistradasDia.reduce((n,mv)=>n+Number(mv.comision_empresa||0),0);
 const gananciaDiaCobroRegistrado=entregasCobradas.reduce((n,mv)=>n+Number(mv.comision_empresa||0),0);
+// El rechazo sólo se contabiliza como ingreso PREVISTO cuando el cargo a la tienda
+// está identificado: nunca lo mezclar con entregas cobradas o efectivo recibido.
+const rechazosDeTiendaPendientes=pendientesRechazo.filter(mv=>{
+ const p=x.porPedido.get(mv.pedido_id),r=x.rech.get(mv.pedido_id);
+ return p?.estado==='rechazado'&&r?.responsable_pago==='tienda'&&
+ Number(r.importe_pendiente||0)>0;
+});
+const gananciaRechazosPorConciliar=rechazosDeTiendaPendientes.reduce((n,mv)=>n+Number(mv.comision_empresa||0),0);
+const gananciaPrevistaConRechazos=gananciaDiaBruta+gananciaRechazosPorConciliar;
+const efectivoMotoDia=mComercial.reduce((n,mv)=>n+Number(mv.efectivo_cobrado||0),0);
+const transferenciasMotoDia=mComercial.reduce((n,mv)=>n+Number(mv.transferencia_cobrada||0),0);
+const comisionMotosDia=mComercial.reduce((n,mv)=>n+Number(mv.comision_motorista||0),0);
+const rendicionMotoTeorica=Math.max(0,efectivoMotoDia-comisionMotosDia);
+const netoTiendasCalculado=t.reduce((n,g)=>n+Number(g.neto||0),0);
+const puente=dyPuenteFinanciero(efectivoMotoDia,transferenciasMotoDia,comisionMotosDia,netoTiendasCalculado,gananciaDiaBruta,gananciaRechazosPorConciliar);
+const diferenciaConciliacion=puente.diferencia;
+// Sólo comparar caja comercial con liquidación cuando se trata de movimientos
+// cuyo flujo de pagos es representable por la modalidad del motorista.
+const todosMotosRetienen=mComercial.every(mv=>drivers.find(z=>z.id===mv.motorista_id)?.modalidad_liquidacion==='retener_comision');
+const puenteCuadra=todosMotosRetienen&&puente.cuadra;
 const k=[['Comisión empresa · entregas con cobro registrado',cobrada('comision_empresa'),'empresa'],['Motoristas · entregas cobradas',cobrada('comision_motorista'),'motos'],['Motoristas · entregas y rechazos de tiendas externas',mComercial.reduce((n,mv)=>n+Number(mv.comision_motorista||0),0),'motos'],['A rendir a tiendas · calculado',pagar,'pagar'],['A cobrar de tiendas · calculado',cobrar,'cobrar']];
 const listaFin=table(['Concepto del día','Monto','Detalle'],k.map(([nombre,importe,clave])=>[escapeHtml(nombre),money(importe),'<button type="button" data-fin-det="'+clave+'" class="dy-fin-link">Ver detalle</button>']));
 document.getElementById('valFin').innerHTML=
-'<style>.dy-fin-resumen{border:1px solid #dbe5f0;border-left:4px solid #2563eb;border-radius:13px;padding:16px;margin:12px 0;background:#fff}.dy-fin-resumen h3{margin:0 0 10px;color:#153b68}.dy-fin-grande{font-size:clamp(30px,4vw,43px);font-weight:800;line-height:1.2;color:#153b68}.dy-fin-datos{display:flex;gap:30px;flex-wrap:wrap;margin:14px 0 8px}.dy-fin-datos>div{min-width:140px}.dy-fin-datos b{display:block;font-size:23px;color:#153b68}.dy-fin-ayuda{display:block;font-size:12px;color:#64748b;line-height:1.5}.dy-fin-desglose{border:1px solid #dbe5f0;border-radius:12px;padding:11px 14px;margin-top:12px}.dy-fin-desglose>summary{cursor:pointer;font-weight:700;color:#1765ba;padding:5px 0}.dy-fin-desglose[open]>summary{margin-bottom:14px}.dy-fin-link{border:0;background:transparent;color:#1765ba;font-weight:700;cursor:pointer;text-decoration:underline}.dy-shop-open{border:0;background:transparent;color:#1765ba;cursor:pointer;font-weight:700}.dy-modal-cover{position:fixed;inset:0;background:#0b1730b5;z-index:6000;display:flex;align-items:center;justify-content:center;padding:15px}.dy-modal-fin{width:min(940px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1b2c42;border-radius:16px;padding:20px;box-shadow:0 15px 50px #0004}.dy-modal-fin h3{margin:0}.dy-modal-fin .toolbar{justify-content:space-between}.dy-modal-fin .scroll{overflow-x:auto}.dy-modal-fin button{min-height:38px}@media(max-width:650px){.dy-modal-fin{padding:12px}.dy-modal-fin td,.dy-modal-fin th{font-size:12px;padding:7px}.dy-fin-datos{gap:15px}}</style>'+
+'<style>.dy-fin-resumen{border:1px solid #dbe5f0;border-left:4px solid #2563eb;border-radius:13px;padding:16px;margin:12px 0;background:#fff}.dy-fin-resumen h3{margin:0 0 10px;color:#153b68}.dy-fin-grande{font-size:clamp(30px,4vw,43px);font-weight:800;line-height:1.2;color:#153b68}.dy-fin-total{margin:14px 0;padding:13px;border:1px solid #b7d4c1;border-radius:12px;background:#eaf8ed;color:#14532d}.dy-fin-total small{display:block;font-size:12px;font-weight:700}.dy-fin-total strong{display:block;font-size:clamp(24px,4vw,32px)}.dy-fin-alerta{border:1px solid #f0c268;border-radius:11px;padding:12px;background:#fff8e4;color:#83530d;margin:12px 0}.dy-fin-datos{display:flex;gap:30px;flex-wrap:wrap;margin:14px 0 8px}.dy-fin-datos>div{min-width:140px}.dy-fin-datos b{display:block;font-size:23px;color:#153b68}.dy-fin-ayuda{display:block;font-size:12px;color:#64748b;line-height:1.5}.dy-fin-desglose{border:1px solid #dbe5f0;border-radius:12px;padding:11px 14px;margin-top:12px}.dy-fin-desglose>summary{cursor:pointer;font-weight:700;color:#1765ba;padding:5px 0}.dy-fin-desglose[open]>summary{margin-bottom:14px}.dy-fin-link{border:0;background:transparent;color:#1765ba;font-weight:700;cursor:pointer;text-decoration:underline}.dy-shop-open{border:0;background:transparent;color:#1765ba;cursor:pointer;font-weight:700}.dy-modal-cover{position:fixed;inset:0;background:#0b1730b5;z-index:6000;display:flex;align-items:center;justify-content:center;padding:15px}.dy-modal-fin{width:min(940px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1b2c42;border-radius:16px;padding:20px;box-shadow:0 15px 50px #0004}.dy-modal-fin h3{margin:0}.dy-modal-fin .toolbar{justify-content:space-between}.dy-modal-fin .scroll{overflow-x:auto}.dy-modal-fin button{min-height:38px}@media(max-width:650px){.dy-modal-fin{padding:12px}.dy-modal-fin td,.dy-modal-fin th{font-size:12px;padding:7px}.dy-fin-datos{gap:15px}}</style>'+
 '<section class="dy-fin-resumen"><h3>💰 Ganancia de DeliveryYa Flota</h3>'+
-'<span class="muted">Acumulado bruto de entregas · todas las fechas</span><div class="dy-fin-grande">'+money(cajaEmpresaBruta)+'</div>'+
-'<div class="dy-fin-datos"><div><span class="muted">Ganancia del '+d.split('-').reverse().join('/')+'*</span><b>'+money(gananciaDiaBruta)+'</b></div><div><span class="muted">Entregas registradas ese día*</span><b>'+entregasRegistradasDia.length+'</b></div></div>'+
-'<span class="dy-fin-ayuda">*Según fecha del movimiento financiero. El acumulado incluye entregas pagadas previamente, pero NO rechazos ni mercadería. Solo tiendas externas; Persa Boutique se controla en logística. Es ganancia bruta generada, no efectivo confirmado en Central. Notario, Edgar y Esteban: 0% empresa; otros según acuerdo.</span></section>'+
+'<span class="muted">Acumulado bruto de entregas · todas las fechas (sin rechazos)</span><div class="dy-fin-grande">'+money(cajaEmpresaBruta)+'</div>'+
+'<div class="dy-fin-datos"><div><span class="muted">Ganancia por '+entregasRegistradasDia.length+' entregas del '+d.split('-').reverse().join('/')+'</span><b>'+money(gananciaDiaBruta)+'</b></div><div><span class="muted">Comisión por rechazos pendientes de conciliar</span><b>'+money(gananciaRechazosPorConciliar)+'</b></div></div>'+
+'<div class="dy-fin-total"><small>Ganancia total PREVISTA del día · incluye rechazos pendientes</small><strong>'+money(gananciaPrevistaConRechazos)+'</strong></div>'+
+'<span class="dy-fin-ayuda">La ganancia por entregas y el acumulado histórico excluyen rechazos. La comisión del rechazo se muestra sólo como previsión hasta descontarla/conciliarla con la tienda: NO es efectivo recibido en Central. Solo tiendas externas (Persa Boutique se controla en logística). Notario, Edgar y Esteban: 0% empresa; otros según acuerdo.</span></section>'+
 '<details class="dy-fin-desglose"><summary>Ver desglose financiero, cobros y rendiciones del '+d.split('-').reverse().join('/')+'</summary>'+
-'<p class="muted">Ganancia del día con cobro registrado por motorista: '+money(gananciaDiaCobroRegistrado)+'. Acumulado con cobro registrado por motorista: '+money(cajaEmpresaCobradoMoto)+'. Estos registros no confirman que Central haya recibido el efectivo.</p>'+
+'<p class="muted">Ganancia del día por entregas con cobro registrado al motorista: '+money(gananciaDiaCobroRegistrado)+'. Acumulado histórico con cobro registrado al motorista: '+money(cajaEmpresaCobradoMoto)+'. Esto NO confirma que Central haya recibido dinero.</p>'+
+'<div class="rd-nums"><div><small>Recaudación registrada por motoristas</small><b>'+money(efectivoMotoDia+transferenciasMotoDia)+'</b></div><div><small>Ganancia registrada de motoristas (incluye rechazos)</small><b>'+money(comisionMotosDia)+'</b></div><div><small>A recibir de motoristas · cálculo provisional</small><b>'+money(rendicionMotoTeorica+transferenciasMotoDia)+'</b></div><div><small>Saldo calculado a tiendas</small><b>'+money(netoTiendasCalculado)+'</b></div><div><small>Diferencia teórica a favor de Flota</small><b>'+money(diferenciaConciliacion)+'</b></div></div>'+
+(todosMotosRetienen?(puenteCuadra?'<p class="rd-auditoria-ok">✅ Conciliación aritmética: '+money(diferenciaConciliacion)+' coincide con entregas + comisiones de rechazos reconocidos. No demuestra recepción física de caja.</p>':
+'<p class="dy-fin-alerta">⚠️ Diferencia en conciliación: los saldos de motos y tiendas no coinciden con las comisiones previstas. Revisá movimientos y pagos antes de dar por cerrado el día.</p>'):
+'<p class="dy-fin-alerta">⚠️ Existen motoristas con otra modalidad de liquidación; la resta de caja menos comisiones no equivale necesariamente al efectivo que rendirán.</p>')+
 listaFin+
 '<p class="muted">Rechazos sin cobrar: '+money(pendientesRechazoTotal)+' (no incluidos en la ganancia bruta). Los saldos de tiendas son calculados, no pagos confirmados.</p>'+
 table(['Tienda','Entregados','Rechazados','A rendir','A cobrar'],t.map((a,i)=>['<button class="dy-shop-open" data-fin-tienda="'+i+'">'+escapeHtml(a.tienda.codigo)+' · '+escapeHtml(a.tienda.nombre_comercial)+'</button>',a.ent,a.rej,money(Math.max(0,a.neto)),money(Math.max(0,-a.neto))]))+
