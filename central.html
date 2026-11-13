@@ -1381,6 +1381,8 @@ async function dyRendiciones(){
    '<details class="rd-card" style="border-left:4px solid #d97706"><summary style="cursor:pointer;font-weight:800">⚠️ Rechazos por recuperar de tiendas · '+money(totalDeuda)+' ('+deudas.length+' pedidos)</summary><p class="muted">Control interno de rechazos de todas las fechas. No se descuentan de dos jornadas: cada cargo solo se confirma una vez, al conciliar la rendición. Los pendientes de otros días se muestran como deuda, sin alterar automáticamente la caja de hoy.</p>'+(deudas.length?'<div class="scroll"><table><thead><tr><th>Tienda</th><th>Cliente</th><th>Fecha original</th><th>Importe pendiente</th></tr></thead><tbody>'+deudas.map(x=>'<tr><td>'+escapeHtml(stores.find(t=>t.id===x.tienda_id)?.nombre_comercial||'Tienda')+'</td><td>'+escapeHtml(x.nombre_cliente)+'</td><td>'+escapeHtml(x.fecha_ruta||'—')+'</td><td>'+money(x.saldo_pendiente)+'</td></tr>').join('')+'</tbody></table></div>':'<p>Todos los rechazos a cargo de tiendas están conciliados.</p>')+'</details>'+
    (ts.length?ts.map((t,i)=>{const ver=rdValidarTienda(t,d);return '<div class="rd-card"><h3>'+escapeHtml(t.tienda.codigo||'')+' · '+escapeHtml(t.tienda.nombre_comercial||'')+'</h3>'+
    '<div class="muted">'+t.pedidos.length+' pedidos activos de la fecha · ✅ '+t.pedidos.filter(p=>p.estado==='entregado').length+' entregados · ❌ '+t.pedidos.filter(p=>p.estado==='rechazado').length+' rechazados · 📅 '+t.pasados.length+' pasados a mañana (fuera de la ruta)</div>'+
+   (t.filas.some(({p})=>p.estado==='rechazado'&&String(p.motivo_incidencia||'').startsWith('Incidencia facturable:'))?
+   '<p class="rd-aviso">🚚 Visitas fallidas facturables a la tienda: <b>'+money(t.filas.filter(({p})=>p.estado==='rechazado'&&String(p.motivo_incidencia||'').startsWith('Incidencia facturable:')).reduce((n,{p})=>n+Number(d.rech.get(p.id)?.importe_pendiente||0),0))+'</b> · '+t.filas.filter(({p})=>p.estado==='rechazado'&&String(p.motivo_incidencia||'').startsWith('Incidencia facturable:')).map(({p})=>escapeHtml(p.nombre_cliente)).join(', ')+'. No hubo cobro al cliente; cargo deducido una sola vez de la rendición.</p>':'')+
    (ver.errores.length?'<p role="alert" class="rd-auditoria-fallo"><b>⛔ PDF bloqueado: '+ver.errores.length+' inconsistencia(s).</b> '+ver.errores.map(escapeHtml).join(' · ')+'</p>':
      '<p class="rd-auditoria-ok">✅ Rendición conciliada pedido por pedido: '+money(ver.esperado)+' · '+t.filas.length+' movimiento(s) verificado(s).</p>')+
    (ver.avisos.length?'<p class="muted">Avisos: '+ver.avisos.map(escapeHtml).join(' · ')+'</p>':'')+
@@ -1634,7 +1636,7 @@ async function rdPdf(t,fecha){
   const visita='';
   const observacion=(rider+' · '+(RD_TURNO[p.turno]||p.turno||'')+' · ')+(est==='rechazado'?(motivo+' · '+cargo):motivo)+aporte+visita;
   return [
-    String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),label(p),
+    String(i+1),String(p.nombre_cliente||'—'),String(p.producto||'—'),est==='rechazado'&&String(p.motivo_incidencia||'').startsWith('Incidencia facturable:')?'Incidencia':label(p),
     rdGs(p.precio_mercaderia||0),rdGs(p.delivery_cliente??p.precio_delivery??0),
     rdGs(est==='entregado'?p.delivery_subsidio_tienda||0:0),rdGs(rec),observacion
   ];
@@ -1670,7 +1672,7 @@ async function rdPdf(t,fecha){
   ['Subsidios de delivery a cargo de la tienda (-)',verificacion.componentes.subsidio],
   ['Envíos previamente pagados por tienda (-)',verificacion.componentes.enviosYaPagados],
   ['Compensaciones de rechazo confirmadas (-)',verificacion.componentes.compensaciones],
-  ['Rechazos a cargo de tienda descontados (-)',verificacion.componentes.rechazos],
+  ['Rechazos e incidencias facturables a tienda (-)',verificacion.componentes.rechazos],
   ['Envíos cobrados al cliente (INFORMATIVO)',t.env]
  ];
  financiero.forEach(([lab,val])=>{txt(lab,M+3,y,9);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(29,47,72);doc.text(rdGs(val),W-M-3,y,{align:'right'});y+=7});
