@@ -117,7 +117,7 @@ test('Finanzas no cuenta rechazos impagos como comisiones realizadas',()=>{
 test('Rechazos de tienda se descuentan automáticamente sin duplicar compensaciones',()=>{
  assert.ok(central.includes("t.neto=t.merc-t.debe-t.cargosPendientes-t.compensado;"));
  assert.ok(central.includes("!d.compensaciones.some(c=>c.pedido_id===p.id)"));
- assert.ok(central.includes("Rechazos a cargo de tienda descontados (-)"));
+ assert.match(central,/Rechazos( e incidencias facturables)? a cargo de tienda descontados \(-\)|Rechazos e incidencias facturables a tienda \(-\)/);
  assert.ok(central.includes("Rechazos descontados directamente"));
 });
 
